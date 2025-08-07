@@ -1567,7 +1567,7 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
     # Create mobile-friendly header
     header = "🏆 PARDAVĖJŲ REITINGAI 🏆\n"
     header += f"📅 {now.strftime('%Y-%m-%d %H:%M')}\n"
-    header += "=" * 30 + "\n\n"
+    header += "=" * 26 + "\n\n"
     
     # Add custom admin message if exists
     if last_addftbaryga2_message:
@@ -1602,7 +1602,7 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
             
             weekly_board += f"{icon} {i}. {vendor_name} - {score} balsų\n"
     
-    weekly_board += "\n" + "=" * 30 + "\n\n"
+    weekly_board += "\n" + "=" * 26 + "\n\n"
     
     # Build mobile-friendly Monthly Leaderboard
     monthly_board = "🗓️ MĖNESIO LYDERIAI 🗓️\n"
@@ -1636,7 +1636,7 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
             vendor_name = vendor[1:] if vendor.startswith('@') else vendor
             monthly_board += f"{icon} {i}. {vendor_name} - {score} balsų\n"
     
-    monthly_board += "\n" + "=" * 30 + "\n\n"
+    monthly_board += "\n" + "=" * 26 + "\n\n"
     
     # Build mobile-friendly All-Time Hall of Fame
     alltime_board = "🌟 VISŲ LAIKŲ LEGENDOS 🌟\n"
@@ -1667,7 +1667,7 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
             vendor_name = vendor[1:] if vendor.startswith('@') else vendor
             alltime_board += f"{icon} {i}. {vendor_name} - {score} balsų\n"
     
-    alltime_board += "\n" + "=" * 30 + "\n\n"
+    alltime_board += "\n" + "=" * 26 + "\n\n"
     
     # Add mobile-friendly footer
     footer = "📊 STATISTIKOS\n"
