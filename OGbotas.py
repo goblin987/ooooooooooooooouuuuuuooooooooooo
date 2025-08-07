@@ -577,6 +577,17 @@ for username, scammer_info in confirmed_scammers.items():
     if scammer_info.get('user_id'):
         user_id_to_scammer[scammer_info['user_id']] = username
 
+# Buyer report tracking system
+pending_buyer_reports = load_data('pending_buyer_reports.pkl', {})  # report_id: {username, user_id, reporter_id, reporter_username, reason, timestamp, chat_id}
+confirmed_bad_buyers = load_data('confirmed_bad_buyers.pkl', {})  # username: {reports: [{confirmed_by, reporter_id, reason, timestamp}], total_reports: int}
+buyer_report_id = load_data('buyer_report_id.pkl', 0)
+
+# Create user_id to bad buyer mapping for reverse lookup
+user_id_to_bad_buyer = {}  # user_id: username
+for username, buyer_info in confirmed_bad_buyers.items():
+    if buyer_info.get('user_id'):
+        user_id_to_bad_buyer[buyer_info['user_id']] = username
+
 def is_allowed_group(chat_id: str) -> bool:
     return str(chat_id) in allowed_groups
 
@@ -787,12 +798,8 @@ async def start_private(update: telegram.Update, context: telegram.ext.ContextTy
 async def handle_admin_button(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     user_id = query.from_user.id
-    if user_id != ADMIN_CHAT_ID:
-        await query.answer("Tik adminas gali tai daryti!")
-        return
-    chat_id = query.message.chat_id
-    if chat_id != user_id:
-        await query.answer("Šią komandą naudok privačiai!")
+    if not is_admin_or_helper(user_id):
+        await query.answer("Tik adminai ir pagalbininkai gali tai daryti!")
         return
 
     data = query.data
@@ -802,7 +809,105 @@ async def handle_admin_button(update: telegram.Update, context: telegram.ext.Con
         await query.edit_message_text("Įvesk: /removeseller @VendorTag")
     elif data == "admin_editpardavejai":
         await query.edit_message_text("Įvesk: /editpardavejai 'Naujas tekstas'")
+    elif data == "mod_pending_scammers":
+        await show_pending_scammers_panel(query, context)
+    elif data == "mod_pending_buyers":
+        await show_pending_buyers_panel(query, context)
+    elif data == "mod_warnings":
+        await query.edit_message_text("Perspėjimų sistema dar nepridėta.")
+    elif data == "mod_trusted":
+        await query.edit_message_text("Patikimų vartotojų sistema dar nepridėta.")
+    elif data == "mod_banned_words":
+        await query.edit_message_text("Uždrausti žodžiai dar nepridėti.")
+    elif data == "mod_logs":
+        await query.edit_message_text("Moderacijos logai dar nepridėti.")
+    elif data == "mod_back":
+        # Return to main moderation panel
+        keyboard = [
+            [InlineKeyboardButton("Laukiantys scamer pranešimai", callback_data="mod_pending_scammers")],
+            [InlineKeyboardButton("Laukiantys pirkėjų pranešimai", callback_data="mod_pending_buyers")],
+            [InlineKeyboardButton("Perspėjimų sąrašas", callback_data="mod_warnings")],
+            [InlineKeyboardButton("Patikimi vartotojai", callback_data="mod_trusted")],
+            [InlineKeyboardButton("Uždrausti žodžiai", callback_data="mod_banned_words")],
+            [InlineKeyboardButton("Moderacijos logai", callback_data="mod_logs")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text("🛡️ Moderacijos Pultas 🛡️\n\nPasirink veiksmą:", reply_markup=reply_markup)
+    else:
+        await query.edit_message_text("❌ Nežinomas veiksmas!")
     await query.answer()
+
+async def show_pending_scammers_panel(query, context):
+    """Show pending scammer reports in moderation panel"""
+    if not pending_scammer_reports:
+        await query.edit_message_text("✅ Nėra laukiančių scamer pranešimų!")
+        return
+    
+    reports_text = "⏳ LAUKIANTYS SCAMER PRANEŠIMAI ⏳\n\n"
+    keyboard = []
+    
+    for report_id, report in list(pending_scammer_reports.items())[:10]:  # Show max 10 reports
+        date = report['timestamp'].strftime('%m-%d %H:%M')
+        proof_short = report['proof'][:30] + "..." if len(report['proof']) > 30 else report['proof']
+        
+        reports_text += f"#{report_id} {report['username']}\n"
+        reports_text += f"👤 {report['reporter_username']}\n"
+        reports_text += f"📅 {date}\n"
+        reports_text += f"📝 {proof_short}\n\n"
+        
+        # Add buttons for each report
+        keyboard.append([
+            InlineKeyboardButton(f"✅ #{report_id}", callback_data=f"approve_scammer_{report_id}"),
+            InlineKeyboardButton(f"❌ #{report_id}", callback_data=f"reject_scammer_{report_id}"),
+            InlineKeyboardButton(f"ℹ️ #{report_id}", callback_data=f"scammer_details_{report_id}")
+        ])
+    
+    if len(pending_scammer_reports) > 10:
+        reports_text += f"\n... ir dar {len(pending_scammer_reports) - 10} pranešimų"
+    
+    reports_text += f"\n\nViso pranešimų: {len(pending_scammer_reports)}"
+    
+    # Add back button
+    keyboard.append([InlineKeyboardButton("◀️ Atgal į moderacijos pultą", callback_data="mod_back")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(reports_text, reply_markup=reply_markup)
+
+async def show_pending_buyers_panel(query, context):
+    """Show pending buyer reports in moderation panel"""
+    if not pending_buyer_reports:
+        await query.edit_message_text("✅ Nėra laukiančių pirkėjų pranešimų!")
+        return
+    
+    reports_text = "⏳ LAUKIANTYS PIRKĖJŲ PRANEŠIMAI ⏳\n\n"
+    keyboard = []
+    
+    for report_id, report in list(pending_buyer_reports.items())[:10]:  # Show max 10 reports
+        date = report['timestamp'].strftime('%m-%d %H:%M')
+        reason_short = report['reason'][:30] + "..." if len(report['reason']) > 30 else report['reason']
+        
+        reports_text += f"#{report_id} {report['username']}\n"
+        reports_text += f"👤 {report['reporter_username']}\n"
+        reports_text += f"📅 {date}\n"
+        reports_text += f"📝 {reason_short}\n\n"
+        
+        # Add buttons for each report
+        keyboard.append([
+            InlineKeyboardButton(f"✅ #{report_id}", callback_data=f"approve_buyer_{report_id}"),
+            InlineKeyboardButton(f"❌ #{report_id}", callback_data=f"reject_buyer_{report_id}"),
+            InlineKeyboardButton(f"ℹ️ #{report_id}", callback_data=f"buyer_details_{report_id}")
+        ])
+    
+    if len(pending_buyer_reports) > 10:
+        reports_text += f"\n... ir dar {len(pending_buyer_reports) - 10} pranešimų"
+    
+    reports_text += f"\n\nViso pranešimų: {len(pending_buyer_reports)}"
+    
+    # Add back button
+    keyboard.append([InlineKeyboardButton("◀️ Atgal į moderacijos pultą", callback_data="mod_back")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(reports_text, reply_markup=reply_markup)
 
 async def balsuoti(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.message.chat_id
@@ -3065,6 +3170,412 @@ async def pending_reports(update: telegram.Update, context: telegram.ext.Context
     context.job_queue.run_once(delete_message_job, 120, data=(chat_id, msg.message_id))
 
 
+# Buyer report tracking system commands
+async def vagis(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Report a buyer for lying about product or other issues"""
+    chat_id = update.message.chat_id
+    user_id = update.message.from_user.id
+    
+    if not is_allowed_group(chat_id):
+        msg = await update.message.reply_text("Botas neveikia šioje grupėje!")
+        context.job_queue.run_once(delete_message_job, 45, data=(chat_id, msg.message_id))
+        return
+    
+    now = datetime.now(TIMEZONE)
+    
+    # Input validation
+    if len(context.args) < 2:
+        msg = await update.message.reply_text(
+            "📋 Naudojimas: `/vagis @username priežastis`\n\n"
+            "Pavyzdys: `/vagis @buyer123 Meluoja apie prekę, reikalauja pinigų grąžinimo`\n"
+            "Reikia: Detalus aprašymas kodėl šis pirkėjas problematiškas\n\n"
+            "💡 Pridėkite priežastį po vartotojo vardo!\n"
+            "🤖 Botas automatiškai bandys rasti user ID\n"
+            "🔍 Jei vartotojas privatus, pridėkite user ID: `/vagis @username 123456789 priežastis`"
+        )
+        context.job_queue.run_once(delete_message_job, 60, data=(chat_id, msg.message_id))
+        return
+    
+    # Sanitize and validate inputs
+    reported_username = sanitize_username(context.args[0])
+    if not reported_username or len(reported_username) < 2:
+        msg = await update.message.reply_text("❌ Netinkamas vartotojo vardas! Naudok @username formatą.")
+        context.job_queue.run_once(delete_message_job, 45, data=(chat_id, msg.message_id))
+        return
+    
+    # Check if second argument is a user ID (numeric)
+    reported_user_id = None
+    reason_args = context.args[1:]
+    
+    if len(reason_args) >= 1 and reason_args[0].isdigit():
+        reported_user_id = int(reason_args[0])
+        reason_args = reason_args[1:]  # Remove user ID from reason arguments
+    
+    # If no user ID provided, try to get it automatically from username
+    if not reported_user_id:
+        try:
+            # Remove @ symbol for API call
+            clean_username = reported_username.replace('@', '')
+            user_info = await context.bot.get_chat(f"@{clean_username}")
+            reported_user_id = user_info.id
+            logger.info(f"Auto-detected user ID {reported_user_id} for username {reported_username}")
+        except telegram.error.BadRequest as e:
+            if "User not found" in str(e) or "Chat not found" in str(e):
+                logger.warning(f"User {reported_username} not found or private account")
+            else:
+                logger.warning(f"API error getting user ID for {reported_username}: {e}")
+        except Exception as e:
+            logger.warning(f"Could not auto-detect user ID for {reported_username}: {e}")
+            # Continue without user ID - not critical
+    
+    reason = sanitize_text_input(" ".join(reason_args), max_length=500)
+    if not reason or len(reason.strip()) < 10:
+        msg = await update.message.reply_text("❌ Prašau nurodyti detalią priežastį (bent 10 simbolių)!")
+        context.job_queue.run_once(delete_message_job, 45, data=(chat_id, msg.message_id))
+        return
+    
+    # Check if user is trying to report themselves
+    reporter_username = f"@{update.message.from_user.username}" if update.message.from_user.username else None
+    if reporter_username and reported_username.lower() == reporter_username.lower():
+        msg = await update.message.reply_text("❌ Negalite pranešti apie save!")
+        context.job_queue.run_once(delete_message_job, 45, data=(chat_id, msg.message_id))
+        return
+    
+    try:
+        global buyer_report_id
+        buyer_report_id += 1
+        
+        # Store the report
+        pending_buyer_reports[buyer_report_id] = {
+            'username': reported_username,
+            'user_id': reported_user_id,  # Store user ID if provided
+            'reporter_id': user_id,
+            'reporter_username': reporter_username or f"User {user_id}",
+            'reason': reason,
+            'timestamp': now,
+            'chat_id': chat_id
+        }
+        
+        # Save data
+        save_data(pending_buyer_reports, 'pending_buyer_reports.pkl')
+        save_data(buyer_report_id, 'buyer_report_id.pkl')
+        
+        # Create message with inline buttons for admins
+        user_id_info = f"User ID: {reported_user_id}" if reported_user_id else "User ID: Nerastas (privatus paskyra)"
+        if reported_user_id:
+            logger.info(f"Buyer report #{buyer_report_id} includes user ID: {reported_user_id}")
+        else:
+            logger.warning(f"Buyer report #{buyer_report_id} has no user ID for {reported_username}")
+        
+        admin_message = (
+            f"🛒 NAUJAS PIRKĖJO PRANEŠIMAS 🛒\n\n"
+            f"Report ID: #{buyer_report_id}\n"
+            f"Pranešė: {reporter_username or f'User {user_id}'}\n"
+            f"Apie: {reported_username}\n"
+            f"{user_id_info}\n"
+            f"Priežastis: {reason}\n"
+            f"Laikas: {now.strftime('%Y-%m-%d %H:%M')}\n\n"
+            f"Spustelėkite mygtukus žemiau:"
+        )
+        
+        # Create inline keyboard with approve/reject buttons
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Patvirtinti", callback_data=f"approve_buyer_{buyer_report_id}"),
+                InlineKeyboardButton("❌ Atmesti", callback_data=f"reject_buyer_{buyer_report_id}")
+            ],
+            [InlineKeyboardButton("ℹ️ Detaliau", callback_data=f"buyer_details_{buyer_report_id}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Send to admin chat
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_CHAT_ID,
+                text=admin_message,
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            logger.error(f"Failed to send buyer report to admin: {e}")
+        
+        # Send confirmation to user
+        confirmation_message = (
+            f"✅ Pirkėjo pranešimas pateiktas!\n\n"
+            f"Report ID: #{buyer_report_id}\n"
+            f"Pranešta apie: {reported_username}\n"
+            f"Jūsų pranešimas perduotas moderatoriams peržiūrai.\n\n"
+            f"📊 Dėkojame už pagalbą kuriant saugesnę bendruomenę!"
+        )
+        
+        msg = await update.message.reply_text(confirmation_message)
+        context.job_queue.run_once(delete_message_job, 60, data=(chat_id, msg.message_id))
+        
+        logger.info(f"Buyer report #{buyer_report_id} created by user {user_id} about {reported_username}")
+        
+    except Exception as e:
+        logger.error(f"Error creating buyer report: {str(e)}")
+        msg = await update.message.reply_text("❌ Klaida pateikiant pranešimą. Bandykite vėliau.")
+        context.job_queue.run_once(delete_message_job, 45, data=(chat_id, msg.message_id))
+
+async def neradejas(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Check if a user has buyer reports"""
+    chat_id = update.message.chat_id
+    
+    if not is_allowed_group(chat_id):
+        msg = await update.message.reply_text("Botas neveikia šioje grupėje!")
+        context.job_queue.run_once(delete_message_job, 45, data=(chat_id, msg.message_id))
+        return
+    
+    if len(context.args) < 1:
+        msg = await update.message.reply_text(
+            "📋 Naudojimas: `/neradejas @username` arba `/neradejas 123456789`\n\n"
+            "Pavyzdys: `/neradejas @user123` arba `/neradejas 123456789`\n"
+            "Patikrinkite ar pirkėjas turi pranešimų"
+        )
+        context.job_queue.run_once(delete_message_job, 45, data=(chat_id, msg.message_id))
+        return
+    
+    # Sanitize username
+    check_username = sanitize_username(context.args[0])
+    if not check_username or len(check_username) < 2:
+        msg = await update.message.reply_text("❌ Netinkamas vartotojo vardas! Naudok @username formatą.")
+        context.job_queue.run_once(delete_message_job, 45, data=(chat_id, msg.message_id))
+        return
+    
+    # Check if input is a user ID (numeric)
+    check_user_id = None
+    if check_username.isdigit():
+        check_user_id = int(check_username)
+        # Find username by user ID
+        if check_user_id in user_id_to_bad_buyer:
+            check_username = user_id_to_bad_buyer[check_user_id]
+    
+    # Check if in confirmed bad buyers list
+    if check_username.lower() in confirmed_bad_buyers:
+        buyer_info = confirmed_bad_buyers[check_username.lower()]
+        total_reports = buyer_info.get('total_reports', len(buyer_info.get('reports', [])))
+        
+        # Get recent reports (last 3)
+        reports = buyer_info.get('reports', [])
+        recent_reports = sorted(reports, key=lambda x: x.get('timestamp', datetime.min), reverse=True)[:3]
+        
+        result_text = f"⚠️ PIRKĖJAS SU PRANEŠIMAIS ⚠️\n\n"
+        result_text += f"👤 Vartotojas: {check_username}\n"
+        result_text += f"📊 Iš viso pranešimų: {total_reports}\n\n"
+        
+        if recent_reports:
+            result_text += "📋 Paskutiniai pranešimai:\n"
+            for i, report in enumerate(recent_reports, 1):
+                timestamp = report.get('timestamp', 'Nežinoma')
+                if isinstance(timestamp, datetime):
+                    timestamp = timestamp.strftime('%Y-%m-%d')
+                reason_short = report.get('reason', 'Nėra priežasties')[:50]
+                if len(report.get('reason', '')) > 50:
+                    reason_short += "..."
+                result_text += f"{i}. {timestamp}: {reason_short}\n"
+        
+        result_text += f"\n⚠️ Būkite atsargūs darydami sandorius!"
+        
+    else:
+        result_text = f"✅ PIRKĖJAS ŠVARUS ✅\n\n"
+        result_text += f"👤 Vartotojas: {check_username}\n"
+        result_text += f"📊 Pranešimų nerasta\n\n"
+        result_text += f"✅ Šis pirkėjas neturi patvirtintų pranešimų"
+    
+    msg = await update.message.reply_text(result_text)
+    context.job_queue.run_once(delete_message_job, 60, data=(chat_id, msg.message_id))
+
+
+# Admin commands for buyer report management moved to moderation panel buttons
+
+# Callback handlers for buyer report inline buttons
+async def handle_buyer_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle inline button callbacks for buyer reports"""
+    query = update.callback_query
+    await query.answer()  # Acknowledge the callback
+    
+    user_id = query.from_user.id
+    callback_data = query.data
+    
+    # Check if user is authorized
+    if not is_admin_or_helper(user_id):
+        await query.edit_message_text("❌ Tik adminai ir pagalbininkai gali valdyti pirkėjų pranešimus!")
+        return
+    
+    try:
+        # Parse callback data
+        if callback_data.startswith("approve_buyer_"):
+            report_id = int(callback_data.replace("approve_buyer_", ""))
+            await approve_buyer_callback(query, context, report_id, user_id)
+        elif callback_data.startswith("reject_buyer_"):
+            report_id = int(callback_data.replace("reject_buyer_", ""))
+            await reject_buyer_callback(query, context, report_id, user_id)
+        elif callback_data.startswith("buyer_details_"):
+            report_id = int(callback_data.replace("buyer_details_", ""))
+            await buyer_details_callback(query, context, report_id)
+        else:
+            await query.edit_message_text("❌ Nežinomas veiksmas!")
+    except ValueError:
+        await query.edit_message_text("❌ Neteisingas report ID!")
+    except Exception as e:
+        logger.error(f"Error handling buyer callback: {str(e)}")
+        await query.edit_message_text("❌ Klaida vykdant veiksmą!")
+
+async def approve_buyer_callback(query, context, report_id, user_id):
+    """Handle approve buyer button callback"""
+    if report_id not in pending_buyer_reports:
+        await query.edit_message_text(f"❌ Pranešimas #{report_id} nerastas arba jau apdorotas!")
+        return
+    
+    try:
+        report = pending_buyer_reports[report_id]
+        username = report['username'].lower()
+        
+        # Add to confirmed bad buyers or update existing entry
+        if username not in confirmed_bad_buyers:
+            confirmed_bad_buyers[username] = {
+                'reports': [],
+                'total_reports': 0,
+                'user_id': report.get('user_id')
+            }
+        
+        # Add this report to the list
+        confirmed_bad_buyers[username]['reports'].append({
+            'confirmed_by': user_id,
+            'reporter_id': report['reporter_id'],
+            'reporter_username': report['reporter_username'],
+            'reason': report['reason'],
+            'timestamp': datetime.now(TIMEZONE),
+            'original_report_id': report_id
+        })
+        
+        confirmed_bad_buyers[username]['total_reports'] = len(confirmed_bad_buyers[username]['reports'])
+        
+        # Update user_id to bad buyer mapping
+        if report.get('user_id'):
+            user_id_to_bad_buyer[report['user_id']] = username
+        
+        # Remove from pending
+        del pending_buyer_reports[report_id]
+        
+        # Save data
+        save_data(confirmed_bad_buyers, 'confirmed_bad_buyers.pkl')
+        save_data(pending_buyer_reports, 'pending_buyer_reports.pkl')
+        save_data(user_id_to_bad_buyer, 'user_id_to_bad_buyer.pkl')
+        
+        # Add points to original reporter
+        user_points[report['reporter_id']] = user_points.get(report['reporter_id'], 0) + 2
+        save_data(user_points, 'user_points.pkl')
+        
+        # Update message
+        confirmed_text = (
+            f"✅ PIRKĖJO PRANEŠIMAS PATVIRTINTAS\n\n"
+            f"Report ID: #{report_id}\n"
+            f"Pirkėjas: {report['username']}\n"
+            f"Patvirtino: {query.from_user.first_name or 'Moderatorius'}\n"
+            f"Laikas: {datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')}\n\n"
+            f"Pirkėjas pridėtas į problematišių pirkėjų sąrašą!"
+        )
+        await query.edit_message_text(confirmed_text)
+        
+        # Notify original reporter
+        try:
+            await context.bot.send_message(
+                chat_id=report['chat_id'],
+                text=f"🛒 PIRKĖJO PRANEŠIMAS PATVIRTINTAS! 🛒\n\n"
+                     f"{report['username']} pridėtas į problematišių pirkėjų sąrašą!\n"
+                     f"+2 taškai už patvirtintą pranešimą! 🛡️"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to notify reporter about approved buyer report: {e}")
+        
+        logger.info(f"Admin {user_id} approved buyer report #{report_id} for {report['username']} via callback")
+        
+    except Exception as e:
+        logger.error(f"Error in approve buyer callback: {str(e)}")
+        await query.edit_message_text("❌ Klaida patvirtinant pranešimą!")
+
+async def reject_buyer_callback(query, context, report_id, user_id):
+    """Handle reject buyer button callback"""
+    if report_id not in pending_buyer_reports:
+        await query.edit_message_text(f"❌ Pranešimas #{report_id} nerastas arba jau apdorotas!")
+        return
+    
+    try:
+        report = pending_buyer_reports[report_id]
+        
+        # Remove from pending
+        del pending_buyer_reports[report_id]
+        
+        # Save data
+        save_data(pending_buyer_reports, 'pending_buyer_reports.pkl')
+        
+        # Update message
+        rejected_text = (
+            f"❌ PIRKĖJO PRANEŠIMAS ATMESTAS\n\n"
+            f"Report ID: #{report_id}\n"
+            f"Pirkėjas: {report['username']}\n"
+            f"Atmėtė: {query.from_user.first_name or 'Moderatorius'}\n"
+            f"Laikas: {datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')}\n\n"
+            f"Pranešimas atmestas - nepakankama informacija arba netinkama priežastis."
+        )
+        await query.edit_message_text(rejected_text)
+        
+        # Notify original reporter
+        try:
+            await context.bot.send_message(
+                chat_id=report['chat_id'],
+                text=f"📋 Jūsų pirkėjo pranešimas #{report_id} buvo atmestas moderatoriaus.\n"
+                     f"Apie: {report['username']}\n"
+                     f"Priežastis gali būti nepakankama arba netinkama."
+            )
+        except Exception as e:
+            logger.warning(f"Failed to notify reporter about rejected buyer report: {e}")
+        
+        logger.info(f"Admin {user_id} rejected buyer report #{report_id} for {report['username']} via callback")
+        
+    except Exception as e:
+        logger.error(f"Error in reject buyer callback: {str(e)}")
+        await query.edit_message_text("❌ Klaida atmestant pranešimą!")
+
+async def buyer_details_callback(query, context, report_id):
+    """Handle buyer details button callback"""
+    if report_id not in pending_buyer_reports:
+        await query.edit_message_text(f"❌ Pranešimas #{report_id} nerastas!")
+        return
+    
+    try:
+        report = pending_buyer_reports[report_id]
+        
+        details_text = (
+            f"📋 PIRKĖJO PRANEŠIMO DETALĖS\n\n"
+            f"Report ID: #{report_id}\n"
+            f"Pranešė: {report['reporter_username']}\n"
+            f"Apie: {report['username']}\n"
+            f"User ID: {report.get('user_id', 'Nežinomas')}\n"
+            f"Laikas: {report['timestamp'].strftime('%Y-%m-%d %H:%M')}\n\n"
+            f"Priežastis:\n{report['reason']}\n\n"
+            f"Pasirinkite veiksmą:"
+        )
+        
+        # Create inline keyboard with approve/reject buttons
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Patvirtinti", callback_data=f"approve_buyer_{report_id}"),
+                InlineKeyboardButton("❌ Atmesti", callback_data=f"reject_buyer_{report_id}")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(details_text, reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Error showing buyer details: {str(e)}")
+        await query.edit_message_text("❌ Klaida rodant detales!")
+
+# pending_buyer_reports_command removed - now accessible through moderation panel
+
+
 async def help_command(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     """Show comprehensive help information"""
     chat_id = update.message.chat_id
@@ -3087,9 +3598,11 @@ async def help_command(update: telegram.Update, context: telegram.ext.ContextTyp
 📈 /barygos - Pardavėjų reitingai ir statistika
 
 🛡️ Saugumo Sistema:
-🚨 /scameris @username įrodymai - Pranešti apie scamerį (+3 tšk, 5/dieną)
+🚨 /scameris @username įrodymai - Pranešti apie scamerį (+3 tšk)
 🔍 /patikra @username - Patikrinti ar vartotojas scameris
 📋 /scameriai - Peržiūrėti visų patvirtintų scamerių sąrašą
+🛒 /vagis @username priežastis - Pranešti apie problematišką pirkėją (+2 tšk)
+🔎 /neradejas @username - Patikrinti ar pirkėjas turi pranešimų
 
 🎮 Žaidimai ir Veikla:
 🎯 /coinflip suma @vartotojas - Iššūkis monetos metimui
@@ -3103,6 +3616,7 @@ async def help_command(update: telegram.Update, context: telegram.ext.ContextTyp
 • Balsavimas už pardavėją: +15 taškų (1x per savaitę)
 • Skundas pardavėjui: +5 taškų (1x per savaitę)  
 • Scamerio pranešimas: +3 taškų (neribota)
+• Pirkėjo pranešimas: +2 taškų (neribota)
 • Kasdieniai pokalbiai: 1-3 taškų + serijos bonusas
 • Serijos bonusas: +1 tšk už kiekvieną 3 dienų seriją
 
@@ -3137,6 +3651,8 @@ async def komandos(update: telegram.Update, context: telegram.ext.ContextTypes.D
 🚨 `/scameris @username įrodymai` - Pranešti scamerį (+3 tšk, neribota)
 🔍 `/patikra @username` - Patikrinti ar vartotojas scameris
 📋 `/scameriai` - Peržiūrėti visų patvirtintų scamerių sąrašą
+🛒 `/vagis @username priežastis` - Pranešti problematišką pirkėją (+2 tšk, neribota)
+🔎 `/neradejas @username` - Patikrinti ar pirkėjas turi pranešimų
 
 💰 TAŠKŲ SISTEMA
 💰 `/points` - Patikrinti savo taškus ir pokalbių seriją
@@ -3158,6 +3674,7 @@ async def komandos(update: telegram.Update, context: telegram.ext.ContextTypes.D
 • 📊 Balsavimas už pardavėją: +15 taškų (1x per savaitę)
 • 👎 Skundas pardavėjui: +5 taškų (1x per savaitę)
 • 🚨 Scamerio pranešimas: +3 taškų (neribota)
+• 🛒 Pirkėjo pranešimas: +2 taškų (neribota)
 • 💬 Kasdieniai pokalbiai: 1-3 taškų + serijos bonusas
 • 🔥 Serijos bonusas: +1 tšk už kiekvieną 3 dienų seriją
 • 🎯 Monetos metimas: Laimėtojo suma taškų
@@ -3176,8 +3693,9 @@ async def komandos(update: telegram.Update, context: telegram.ext.ContextTypes.D
 • 💬 Pokalbių taškų suvestinė: kasdien 6:00
 
 🔒 SAUGUMO PATARIMAI
-• Visada naudok `/patikra @username` prieš sandorį
+• Visada naudok `/patikra @username` ir `/neradejas @username` prieš sandorį
 • Pranešk apie scamerius su detaliais įrodymais
+• Pranešk apie problemiškus pirkėjus su konkrečiomis priežastimis
 • Saugok savo asmeninę informaciją
 • Nenurodyti pin kodų ar slaptažodžių
 
@@ -3196,7 +3714,9 @@ async def komandos(update: telegram.Update, context: telegram.ext.ContextTypes.D
 🎯 GREITI PAVYZDŽIAI
 • Balsuoti: `/balsuoti` → Spausk nuorodą → Rinktis pardavėją
 • Patikrinti: `/patikra @username` → Gauni saugumo ataskaitą  
-• Pranešti: `/scameris @blogas Nesiunčia prekių, ignoruoja`
+• Pranešti scamerį: `/scameris @blogas Nesiunčia prekių, ignoruoja`
+• Patikrinti pirkėją: `/neradejas @username` → Gauni pirkėjo ataskaitą
+• Pranešti pirkėją: `/vagis @blogas Meluoja apie prekę, reikalauja grąžinimo`
 • Žaisti: `/coinflip 10 @friends` → Mėtkyos monetą už 10 tšk
 • Skundas: `/nepatiko @pardavejas Bloga kokybė, vėluoja`
 
@@ -3204,6 +3724,7 @@ async def komandos(update: telegram.Update, context: telegram.ext.ContextTypes.D
 • Aktyvūs vartotojai šiandien: ~{len(daily_messages)}
 • Visų laikų žinučių: {sum(alltime_messages.values()):,}
 • Patvirtinti scameriai: {len(confirmed_scammers)}
+• Problemiški pirkėjai: {len(confirmed_bad_buyers)}
 • Patikimi pardavėjai: {len(trusted_sellers)}
 
 💡 PRO PATARIMAI
@@ -3611,6 +4132,8 @@ async def moderation_command(update: telegram.Update, context: telegram.ext.Cont
     try:
         # Show moderation options
         keyboard = [
+            [InlineKeyboardButton("Laukiantys scamer pranešimai", callback_data="mod_pending_scammers")],
+            [InlineKeyboardButton("Laukiantys pirkėjų pranešimai", callback_data="mod_pending_buyers")],
             [InlineKeyboardButton("Perspėjimų sąrašas", callback_data="mod_warnings")],
             [InlineKeyboardButton("Patikimi vartotojai", callback_data="mod_trusted")],
             [InlineKeyboardButton("Uždrausti žodžiai", callback_data="mod_banned_words")],
@@ -3676,12 +4199,19 @@ application.add_handler(CommandHandler(['reject_scammer'], reject_scammer))
 application.add_handler(CommandHandler(['scammer_list'], scammer_list))  # Admin detailed list
 application.add_handler(CommandHandler(['pending_reports'], pending_reports))
 
+# Buyer report tracking system handlers
+application.add_handler(CommandHandler(['vagis'], vagis))
+application.add_handler(CommandHandler(['neradejas'], neradejas))
+# Admin commands removed - now accessible through moderation panel buttons only
+
 # Add callback query handler for inline buttons
 application.add_handler(CallbackQueryHandler(handle_scammer_callback, pattern=r"^(approve_scammer_|reject_scammer_|scammer_details_)"))
+application.add_handler(CallbackQueryHandler(handle_buyer_callback, pattern=r"^(approve_buyer_|reject_buyer_|buyer_details_)"))
 application.add_handler(MessageHandler(filters.Regex('^/start$') & filters.ChatType.PRIVATE, start_private))
 application.add_handler(CallbackQueryHandler(handle_vote_button, pattern="vote_"))
 application.add_handler(CallbackQueryHandler(handle_poll_button, pattern="poll_"))
 application.add_handler(CallbackQueryHandler(handle_admin_button, pattern="admin_"))
+application.add_handler(CallbackQueryHandler(handle_admin_button, pattern="mod_"))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 # Schedule jobs
