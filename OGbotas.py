@@ -588,6 +588,80 @@ for username, buyer_info in confirmed_bad_buyers.items():
     if buyer_info.get('user_id'):
         user_id_to_bad_buyer[buyer_info['user_id']] = username
 
+# Enhanced user ID tracking system
+async def resolve_user_id(username, context, chat_id):
+    """
+    Enhanced function to resolve username to user ID with multiple strategies
+    Returns (user_id, method_used) or (None, 'failed')
+    """
+    if not username:
+        return None, 'no_username'
+    
+    # Clean username
+    clean_username = username.replace('@', '').strip()
+    if not clean_username:
+        return None, 'invalid_username'
+    
+    try:
+        # Method 1: Try direct API lookup
+        try:
+            user_info = await context.bot.get_chat(f"@{clean_username}")
+            if user_info and user_info.id:
+                logger.info(f"Resolved @{clean_username} to user ID {user_info.id} via API")
+                return user_info.id, 'api_lookup'
+        except telegram.error.BadRequest as e:
+            if "User not found" in str(e) or "Chat not found" in str(e):
+                logger.debug(f"User @{clean_username} not found via API (private account or doesn't exist)")
+            else:
+                logger.warning(f"API error resolving @{clean_username}: {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error resolving @{clean_username} via API: {e}")
+        
+        # Method 2: Check our internal username_to_id mapping
+        username_key = f"@{clean_username.lower()}"
+        if username_key in username_to_id:
+            user_id = username_to_id[username_key]
+            logger.info(f"Resolved @{clean_username} to user ID {user_id} via internal mapping")
+            return user_id, 'internal_mapping'
+        
+        # Method 3: Try to get recent chat members (if in group)
+        try:
+            if chat_id and is_allowed_group(chat_id):
+                # This is a fallback method - try to get user from chat
+                # Note: This has limited success due to Telegram API restrictions
+                pass
+        except Exception as e:
+            logger.debug(f"Chat member lookup failed for @{clean_username}: {e}")
+        
+        logger.warning(f"Could not resolve user ID for @{clean_username} - all methods failed")
+        return None, 'all_methods_failed'
+        
+    except Exception as e:
+        logger.error(f"Critical error in resolve_user_id for @{clean_username}: {e}")
+        return None, 'critical_error'
+
+def update_user_id_mappings(user_id, username):
+    """
+    Update all user ID mappings when we discover a user ID
+    """
+    if not user_id or not username:
+        return
+    
+    clean_username = username.replace('@', '').strip().lower()
+    if not clean_username:
+        return
+    
+    # Update internal mapping
+    username_key = f"@{clean_username}"
+    username_to_id[username_key] = user_id
+    
+    # Save the mapping
+    try:
+        save_data(username_to_id, 'username_to_id.pkl')
+        logger.debug(f"Updated user ID mapping: @{clean_username} -> {user_id}")
+    except Exception as e:
+        logger.error(f"Failed to save username_to_id mapping: {e}")
+
 def is_allowed_group(chat_id: str) -> bool:
     return str(chat_id) in allowed_groups
 
@@ -1923,7 +1997,14 @@ async def handle_message(update: telegram.Update, context: telegram.ext.ContextT
         if username and len(username) <= 32:  # Telegram username limit
             clean_username = re.sub(r'[^a-zA-Z0-9_]', '', username)
             if clean_username:
-                username_to_id[f"@{clean_username.lower()}"] = user_id
+                username_key = f"@{clean_username.lower()}"
+                # Only update if this is new information or if the user ID changed
+                if username_key not in username_to_id or username_to_id[username_key] != user_id:
+                    username_to_id[username_key] = user_id
+                    logger.debug(f"Updated username mapping from message: {username_key} -> {user_id}")
+                    # Periodically save the mapping (every 100 updates to avoid too frequent saves)
+                    if len(username_to_id) % 100 == 0:
+                        save_data(username_to_id, 'username_to_id.pkl')
         
         today = datetime.now(TIMEZONE)
         daily_messages[user_id][today.date()] += 1
@@ -2556,23 +2637,18 @@ async def scameris(update: telegram.Update, context: telegram.ext.ContextTypes.D
     if len(proof_args) >= 1 and proof_args[0].isdigit():
         reported_user_id = int(proof_args[0])
         proof_args = proof_args[1:]  # Remove user ID from proof arguments
+        # Update our mappings with this manually provided user ID
+        update_user_id_mappings(reported_user_id, reported_username)
     
-    # If no user ID provided, try to get it automatically from username
+    # If no user ID provided, try to get it automatically using enhanced resolution
     if not reported_user_id:
-        try:
-            # Remove @ symbol for API call
-            clean_username = reported_username.replace('@', '')
-            user_info = await context.bot.get_chat(f"@{clean_username}")
-            reported_user_id = user_info.id
-            logger.info(f"Auto-detected user ID {reported_user_id} for username {reported_username}")
-        except telegram.error.BadRequest as e:
-            if "User not found" in str(e) or "Chat not found" in str(e):
-                logger.warning(f"User {reported_username} not found or private account")
-            else:
-                logger.warning(f"API error getting user ID for {reported_username}: {e}")
-        except Exception as e:
-            logger.warning(f"Could not auto-detect user ID for {reported_username}: {e}")
-            # Continue without user ID - not critical
+        reported_user_id, resolution_method = await resolve_user_id(reported_username, context, chat_id)
+        if reported_user_id:
+            logger.info(f"Enhanced resolution: {reported_username} -> {reported_user_id} via {resolution_method}")
+            # Update our mappings with this new information
+            update_user_id_mappings(reported_user_id, reported_username)
+        else:
+            logger.warning(f"Enhanced resolution failed for {reported_username}: {resolution_method}")
     
     proof = sanitize_text_input(" ".join(proof_args), max_length=500)
     if not proof or len(proof.strip()) < 10:
@@ -2704,11 +2780,21 @@ async def patikra(update: telegram.Update, context: telegram.ext.ContextTypes.DE
     
     # Check if input is a user ID (numeric)
     check_user_id = None
+    original_input = check_username
     if check_username.isdigit():
         check_user_id = int(check_username)
-        # Find username by user ID
+        # Find username by user ID in scammer database
         if check_user_id in user_id_to_scammer:
             check_username = user_id_to_scammer[check_user_id]
+            logger.info(f"Found scammer by user ID {check_user_id} -> {check_username}")
+        # Also try to find in our general username mapping
+        elif check_user_id in [v for v in username_to_id.values()]:
+            # Find the username for this user ID
+            for username_key, user_id in username_to_id.items():
+                if user_id == check_user_id:
+                    check_username = username_key
+                    logger.info(f"Found username by user ID {check_user_id} -> {check_username}")
+                    break
     
     # Check if in confirmed scammers list
     if check_username.lower() in confirmed_scammers:
@@ -2962,6 +3048,8 @@ async def approve_scammer_callback(query, context, report_id, user_id):
         # Update user_id to scammer mapping
         if report.get('user_id'):
             user_id_to_scammer[report['user_id']] = username
+            # Also update our username mappings
+            update_user_id_mappings(report['user_id'], username)
         
         # Remove from pending
         del pending_scammer_reports[report_id]
@@ -2969,6 +3057,7 @@ async def approve_scammer_callback(query, context, report_id, user_id):
         # Save data
         save_data(confirmed_scammers, 'confirmed_scammers.pkl')
         save_data(pending_scammer_reports, 'pending_scammer_reports.pkl')
+        save_data(user_id_to_scammer, 'user_id_to_scammer.pkl')
         
         # Add points to original reporter (if not already added)
         user_points[report['reporter_id']] = user_points.get(report['reporter_id'], 0) + 3
@@ -3225,23 +3314,18 @@ async def vagis(update: telegram.Update, context: telegram.ext.ContextTypes.DEFA
     if len(reason_args) >= 1 and reason_args[0].isdigit():
         reported_user_id = int(reason_args[0])
         reason_args = reason_args[1:]  # Remove user ID from reason arguments
+        # Update our mappings with this manually provided user ID
+        update_user_id_mappings(reported_user_id, reported_username)
     
-    # If no user ID provided, try to get it automatically from username
+    # If no user ID provided, try to get it automatically using enhanced resolution
     if not reported_user_id:
-        try:
-            # Remove @ symbol for API call
-            clean_username = reported_username.replace('@', '')
-            user_info = await context.bot.get_chat(f"@{clean_username}")
-            reported_user_id = user_info.id
-            logger.info(f"Auto-detected user ID {reported_user_id} for username {reported_username}")
-        except telegram.error.BadRequest as e:
-            if "User not found" in str(e) or "Chat not found" in str(e):
-                logger.warning(f"User {reported_username} not found or private account")
-            else:
-                logger.warning(f"API error getting user ID for {reported_username}: {e}")
-        except Exception as e:
-            logger.warning(f"Could not auto-detect user ID for {reported_username}: {e}")
-            # Continue without user ID - not critical
+        reported_user_id, resolution_method = await resolve_user_id(reported_username, context, chat_id)
+        if reported_user_id:
+            logger.info(f"Enhanced buyer resolution: {reported_username} -> {reported_user_id} via {resolution_method}")
+            # Update our mappings with this new information
+            update_user_id_mappings(reported_user_id, reported_username)
+        else:
+            logger.warning(f"Enhanced buyer resolution failed for {reported_username}: {resolution_method}")
     
     reason = sanitize_text_input(" ".join(reason_args), max_length=500)
     if not reason or len(reason.strip()) < 10:
@@ -3359,11 +3443,21 @@ async def neradejas(update: telegram.Update, context: telegram.ext.ContextTypes.
     
     # Check if input is a user ID (numeric)
     check_user_id = None
+    original_input = check_username
     if check_username.isdigit():
         check_user_id = int(check_username)
-        # Find username by user ID
+        # Find username by user ID in bad buyer database
         if check_user_id in user_id_to_bad_buyer:
             check_username = user_id_to_bad_buyer[check_user_id]
+            logger.info(f"Found bad buyer by user ID {check_user_id} -> {check_username}")
+        # Also try to find in our general username mapping
+        elif check_user_id in [v for v in username_to_id.values()]:
+            # Find the username for this user ID
+            for username_key, user_id in username_to_id.items():
+                if user_id == check_user_id:
+                    check_username = username_key
+                    logger.info(f"Found username by user ID {check_user_id} -> {check_username}")
+                    break
     
     # Check if in confirmed bad buyers list
     if check_username.lower() in confirmed_bad_buyers:
