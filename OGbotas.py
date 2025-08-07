@@ -2681,9 +2681,9 @@ async def patikra(update: telegram.Update, context: telegram.ext.ContextTypes.DE
     
     if len(context.args) < 1:
         msg = await update.message.reply_text(
-                    "📋 Naudojimas: `/patikra @username` arba `/patikra 123456789`\n\n"
-        "Pavyzdys: `/patikra @user123` arba `/patikra 123456789`\n"
-            "Patikrinkite ar vartotojas yra scamerių sąraše"
+            "📋 Naudojimas: `/patikra @username` arba `/patikra 123456789`\n\n"
+            "Pavyzdys: `/patikra @user123` arba `/patikra 123456789`\n"
+            "Patikrinkite ar vartotojas yra scamerių sąraše arba patikimas pardavėjas"
         )
         context.job_queue.run_once(delete_message_job, 45, data=(chat_id, msg.message_id))
         return
@@ -2722,13 +2722,21 @@ async def patikra(update: telegram.Update, context: telegram.ext.ContextTypes.DE
         )
         context.job_queue.run_once(delete_message_job, 120, data=(chat_id, msg.message_id))
     elif check_username in trusted_sellers:
-        # Check if user is a trusted seller
+        # Check if user is a trusted seller - get their voting stats
+        weekly_votes = votes_weekly.get(check_username, 0)
+        monthly_votes = len(votes_monthly.get(check_username, []))
+        alltime_votes = votes_alltime.get(check_username, 0)
+        
         msg = await update.message.reply_text(
-                    f"✅ PATIKIMAS PARDAVĖJAS ✅\n\n"
-        f"Vartotojas: {check_username}\n"
-        f"Statusas: 🟢 LEGIT\n"
-        f"Patikimas pardavėjas: ✅\n\n"
-            f"🎯 Šis vartotojas yra patikimų pardavėjų sąraše!"
+            f"✅ PATIKIMAS PARDAVĖJAS ✅\n\n"
+            f"Vartotojas: {check_username}\n"
+            f"Statusas: 🟢 LEGIT IR PATVIRTINTAS\n"
+            f"🏆 Patvirtintas šios grupės narių balsavimu\n"
+            f"📊 Savaitės balsai: {weekly_votes}\n"
+            f"📊 Mėnesio balsai: {monthly_votes}\n" 
+            f"📊 Visų laikų balsai: {alltime_votes}\n\n"
+            f"✅ Šis pardavėjas yra patikimas ir patvirtintas bendruomenės!\n"
+            f"🛡️ Saugus pasirinkimas sandoriams!"
         )
         context.job_queue.run_once(delete_message_job, 60, data=(chat_id, msg.message_id))
     else:
@@ -3599,7 +3607,7 @@ async def help_command(update: telegram.Update, context: telegram.ext.ContextTyp
 
 🛡️ Saugumo Sistema:
 🚨 /scameris @username įrodymai - Pranešti apie scamerį (+3 tšk)
-🔍 /patikra @username - Patikrinti ar vartotojas scameris
+🔍 /patikra @username - Patikrinti ar vartotojas scameris arba patikimas pardavėjas
 📋 /scameriai - Peržiūrėti visų patvirtintų scamerių sąrašą
 🛒 /vagis @username priežastis - Pranešti apie problematišką pirkėją (+2 tšk)
 🔎 /neradejas @username - Patikrinti ar pirkėjas turi pranešimų
@@ -3649,7 +3657,7 @@ async def komandos(update: telegram.Update, context: telegram.ext.ContextTypes.D
 
 🛡️ SAUGUMO SISTEMA
 🚨 `/scameris @username įrodymai` - Pranešti scamerį (+3 tšk, neribota)
-🔍 `/patikra @username` - Patikrinti ar vartotojas scameris
+🔍 `/patikra @username` - Patikrinti ar vartotojas scameris arba patikimas pardavėjas
 📋 `/scameriai` - Peržiūrėti visų patvirtintų scamerių sąrašą
 🛒 `/vagis @username priežastis` - Pranešti problematišką pirkėją (+2 tšk, neribota)
 🔎 `/neradejas @username` - Patikrinti ar pirkėjas turi pranešimų
