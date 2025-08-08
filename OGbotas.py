@@ -1745,7 +1745,6 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
     
     # Add centered footer
     footer = "📊 STATISTIKOS".center(26) + "\n"
-    footer += ("-" * 26).center(26) + "\n"
     
     total_weekly_votes = sum(votes_weekly.values())
     total_monthly_votes = sum(monthly_totals.values())
@@ -1762,7 +1761,6 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
     next_month = (now.replace(day=1) + timedelta(days=32)).replace(day=1)
     
     footer += "⏰ KITAS RESTARTAS".center(26) + "\n"
-    footer += ("-" * 26).center(26) + "\n"
     footer += f"• Savaitės: {next_sunday.strftime('%m-%d %H:%M')}".center(26) + "\n"
     footer += f"• Mėnesio: {next_month.strftime('%m-%d %H:%M')}".center(26) + "\n\n"
     
