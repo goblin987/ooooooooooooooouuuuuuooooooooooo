@@ -1650,7 +1650,6 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
     # Build centered Weekly Leaderboard
     weekly_board = "🔥 SAVAITĖS ČEMPIONAI 🔥".center(26) + "\n"
     weekly_board += f"📊 {now.strftime('%V savaitė')}".center(26) + "\n"
-    weekly_board += "-" * 26 + "\n"
     
     if not votes_weekly:
         weekly_board += "😴 Dar nėra balsų šią savaitę".center(26) + "\n"
@@ -1681,7 +1680,6 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
     # Build centered Monthly Leaderboard
     monthly_board = "🗓️ MĖNESIO LYDERIAI 🗓️".center(26) + "\n"
     monthly_board += f"📊 {now.strftime('%B %Y')}".center(26) + "\n"
-    monthly_board += "-" * 26 + "\n"
     
     # Calculate current calendar month totals
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -1715,7 +1713,6 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
     # Build centered All-Time Hall of Fame
     alltime_board = "🌟 VISŲ LAIKŲ LEGENDOS 🌟".center(26) + "\n"
     alltime_board += "📈 Istoriniai rekordai".center(26) + "\n"
-    alltime_board += "-" * 26 + "\n"
     
     if not votes_alltime:
         alltime_board += "🎯 Istorija tik prasideda".center(26) + "\n"
