@@ -608,6 +608,8 @@ async def resolve_user_id(username, context, chat_id):
             user_info = await context.bot.get_chat(f"@{clean_username}")
             if user_info and user_info.id:
                 logger.info(f"Resolved @{clean_username} to user ID {user_info.id} via API")
+                # Always update our mappings when we successfully resolve
+                update_user_id_mappings(user_info.id, clean_username)
                 return user_info.id, 'api_lookup'
         except telegram.error.BadRequest as e:
             if "User not found" in str(e) or "Chat not found" in str(e):
@@ -624,7 +626,38 @@ async def resolve_user_id(username, context, chat_id):
             logger.info(f"Resolved @{clean_username} to user ID {user_id} via internal mapping")
             return user_id, 'internal_mapping'
         
-        # Method 3: Try to get recent chat members (if in group)
+        # Method 3: Check confirmed scammers for user ID
+        for scammer_username, scammer_info in confirmed_scammers.items():
+            if scammer_username.lower() == clean_username.lower() and scammer_info.get('user_id'):
+                user_id = scammer_info['user_id']
+                logger.info(f"Resolved @{clean_username} to user ID {user_id} via scammer database")
+                update_user_id_mappings(user_id, clean_username)
+                return user_id, 'scammer_database'
+        
+        # Method 4: Check confirmed bad buyers for user ID
+        for buyer_username, buyer_info in confirmed_bad_buyers.items():
+            if buyer_username.lower() == clean_username.lower() and buyer_info.get('user_id'):
+                user_id = buyer_info['user_id']
+                logger.info(f"Resolved @{clean_username} to user ID {user_id} via buyer database")
+                update_user_id_mappings(user_id, clean_username)
+                return user_id, 'buyer_database'
+        
+        # Method 5: Try alternative username formats
+        alternative_formats = [
+            clean_username.lower(),
+            clean_username.upper(),
+            f"@{clean_username.lower()}",
+            f"@{clean_username.upper()}"
+        ]
+        
+        for alt_format in alternative_formats:
+            if alt_format in username_to_id:
+                user_id = username_to_id[alt_format]
+                logger.info(f"Resolved @{clean_username} to user ID {user_id} via alternative format: {alt_format}")
+                update_user_id_mappings(user_id, clean_username)
+                return user_id, 'alternative_format'
+        
+        # Method 6: Try to get recent chat members (if in group)
         try:
             if chat_id and is_allowed_group(chat_id):
                 # This is a fallback method - try to get user from chat
@@ -2877,6 +2910,16 @@ async def approve_scammer(update: telegram.Update, context: telegram.ext.Context
         report = pending_scammer_reports[report_id]
         username = report['username'].lower()
         
+        # Try to resolve user ID if we don't have it yet
+        if not report.get('user_id'):
+            try:
+                resolved_id, method = await resolve_user_id(report['username'], context, report.get('chat_id'))
+                if resolved_id:
+                    report['user_id'] = resolved_id
+                    logger.info(f"Resolved missing user ID for scammer {report['username']}: {resolved_id} via {method}")
+            except Exception as e:
+                logger.warning(f"Failed to resolve user ID during approval for {report['username']}: {e}")
+        
         # Move to confirmed scammers
         confirmed_scammers[username] = {
             'confirmed_by': user_id,
@@ -2884,8 +2927,15 @@ async def approve_scammer(update: telegram.Update, context: telegram.ext.Context
             'proof': report['proof'],
             'timestamp': datetime.now(TIMEZONE),
             'reports_count': 1,
-            'original_report_id': report_id
+            'original_report_id': report_id,
+            'user_id': report.get('user_id')  # Store user ID if available
         }
+        
+        # Update user ID mappings if we have the user ID
+        if report.get('user_id'):
+            update_user_id_mappings(report['user_id'], report['username'])
+            user_id_to_scammer[report['user_id']] = username
+            logger.info(f"Stored user ID {report['user_id']} for confirmed scammer {username}")
         
         # Remove from pending
         del pending_scammer_reports[report_id]
@@ -3535,6 +3585,16 @@ async def approve_buyer_callback(query, context, report_id, user_id):
         report = pending_buyer_reports[report_id]
         username = report['username'].lower()
         
+        # Try to resolve user ID if we don't have it yet
+        if not report.get('user_id'):
+            try:
+                resolved_id, method = await resolve_user_id(report['username'], context, report.get('chat_id'))
+                if resolved_id:
+                    report['user_id'] = resolved_id
+                    logger.info(f"Resolved missing user ID for bad buyer {report['username']}: {resolved_id} via {method}")
+            except Exception as e:
+                logger.warning(f"Failed to resolve user ID during approval for {report['username']}: {e}")
+        
         # Add to confirmed bad buyers or update existing entry
         if username not in confirmed_bad_buyers:
             confirmed_bad_buyers[username] = {
@@ -3555,9 +3615,11 @@ async def approve_buyer_callback(query, context, report_id, user_id):
         
         confirmed_bad_buyers[username]['total_reports'] = len(confirmed_bad_buyers[username]['reports'])
         
-        # Update user_id to bad buyer mapping
+        # Update user_id to bad buyer mapping and general mappings
         if report.get('user_id'):
             user_id_to_bad_buyer[report['user_id']] = username
+            update_user_id_mappings(report['user_id'], report['username'])
+            logger.info(f"Stored user ID {report['user_id']} for confirmed bad buyer {username}")
         
         # Remove from pending
         del pending_buyer_reports[report_id]
