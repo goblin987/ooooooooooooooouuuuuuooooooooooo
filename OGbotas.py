@@ -1676,7 +1676,7 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
             
             weekly_board += f"{icon} {i}. {vendor_name} - {score} balsų".center(26) + "\n"
     
-    weekly_board += "\n" + "=" * 26 + "\n\n"
+    weekly_board += "\n" + "<><><><><><><><><><><><><>" + "\n\n"
     
     # Build centered Monthly Leaderboard
     monthly_board = "🗓️ MĖNESIO LYDERIAI 🗓️".center(26) + "\n"
@@ -1710,7 +1710,7 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
             vendor_name = vendor[1:] if vendor.startswith('@') else vendor
             monthly_board += f"{icon} {i}. {vendor_name} - {score} balsų".center(26) + "\n"
     
-    monthly_board += "\n" + "=" * 26 + "\n\n"
+    monthly_board += "\n" + "<><><><><><><><><><><><><>" + "\n\n"
     
     # Build centered All-Time Hall of Fame
     alltime_board = "🌟 VISŲ LAIKŲ LEGENDOS 🌟".center(26) + "\n"
@@ -1741,7 +1741,7 @@ async def barygos(update: telegram.Update, context: telegram.ext.ContextTypes.DE
             vendor_name = vendor[1:] if vendor.startswith('@') else vendor
             alltime_board += f"{icon} {i}. {vendor_name} - {score} balsų".center(26) + "\n"
     
-    alltime_board += "\n" + "=" * 26 + "\n\n"
+    alltime_board += "\n" + "<><><><><><><><><><><><><>" + "\n\n"
     
     # Add centered footer
     footer = "📊 STATISTIKOS".center(26) + "\n"
