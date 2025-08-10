@@ -1,0 +1,16 @@
+# Environment Variables for Readonly Scammer Bot
+
+# Telegram Bot Token (get from @BotFather)
+BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+
+# API Secret for syncing data (use a strong random string)
+API_SECRET=your_very_secure_random_secret_key_here
+
+# Database path (SQLite file)
+DATABASE_PATH=scammer_reports.db
+
+# Main bot API URL for syncing (optional)
+MAIN_BOT_API_URL=https://your-main-bot.herokuapp.com
+
+# Port for API server (Render will set this automatically)
+PORT=8080

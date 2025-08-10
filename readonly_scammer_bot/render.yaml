@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: scammer-check-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: API_SECRET
+        sync: false
+      - key: DATABASE_PATH
+        value: scammer_reports.db
+      - key: MAIN_BOT_API_URL
+        sync: false
+    autoDeploy: true
+    
+  - type: web
+    name: scammer-api-server
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python api_server.py
+    envVars:
+      - key: API_SECRET
+        sync: false
+      - key: DATABASE_PATH
+        value: scammer_reports.db
+      - key: PORT
+        value: 8080
+    autoDeploy: true
