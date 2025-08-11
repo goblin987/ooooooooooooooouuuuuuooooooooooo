@@ -1,0 +1,27 @@
+--- a/admin.py
++++ b/admin.py
+@@ -880,7 +880,7 @@ def handle_confirm_add_drop(user_id, product_data, media_files):
+         logger.info(f"Successfully inserted {len(media_inserts)} media records for bulk product 1")
+         
+         # Insert media files into database
+-        c.executemany("INSERT INTO product_media (product_id, media_type, file_path, telegram_file_id) VALUES (?, ?, ?, ?)", media_inserts)
++        c.executemany("INSERT OR IGNORE INTO product_media (product_id, media_type, file_path, telegram_file_id) VALUES (?, ?, ?, ?)", media_inserts)
+         
+         logger.info(f"Media insertion completed for user {user_id}")
+         
+@@ -888,6 +888,15 @@ def handle_confirm_add_drop(user_id, product_data, media_files):
+         logger.error(f"Error saving confirmed drop for user {user_id}: {e}")
+         # Clean up temp directory on error
+         cleanup_temp_directory(temp_dir)
++        
++        # If it's a UNIQUE constraint error, provide helpful information
++        if "UNIQUE constraint failed: product_media.file_path" in str(e):
++            logger.error("UNIQUE constraint failed on product_media.file_path")
++            logger.error("This error occurs when trying to insert duplicate file paths")
++            logger.error("The fix applied uses 'INSERT OR IGNORE' to handle duplicates gracefully")
++            logger.error("If you continue seeing this error, check for duplicate file paths in your media_inserts")
++        
++        raise e  # Re-raise the exception after logging additional info
+ 
+ def cleanup_temp_directory(temp_dir):
+     """Clean up temporary directory after media processing"""
