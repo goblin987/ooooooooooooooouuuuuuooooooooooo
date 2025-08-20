@@ -200,6 +200,397 @@ class BotAnalytics:
 analytics_db_path = os.path.join(os.getenv('DATA_DIR', '/opt/render/data'), 'analytics.db')
 analytics = BotAnalytics(analytics_db_path)
 
+# Enhanced Database class for new features
+class Database:
+    def __init__(self, db_path):
+        self.db_path = db_path
+        self.init_database()
+    
+    def init_database(self):
+        """Initialize database with all tables"""
+        with sqlite3.connect(self.db_path) as conn:
+            # Existing analytics tables
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS command_usage (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    command TEXT NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    chat_id INTEGER NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    success BOOLEAN DEFAULT TRUE,
+                    error_message TEXT
+                )
+            ''')
+            
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS user_activity (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    chat_id INTEGER NOT NULL,
+                    activity_type TEXT NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    metadata TEXT
+                )
+            ''')
+            
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS system_metrics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    metric_name TEXT NOT NULL,
+                    metric_value REAL NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # New tables for recurring messages
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS scheduled_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chat_id INTEGER NOT NULL,
+                    message_text TEXT NOT NULL,
+                    message_media TEXT,
+                    message_buttons TEXT,
+                    message_type TEXT DEFAULT 'text',
+                    repetition_type TEXT DEFAULT '24h',
+                    interval_hours INTEGER DEFAULT 24,
+                    days_of_week TEXT,
+                    days_of_month TEXT,
+                    time_slots TEXT,
+                    start_date TEXT,
+                    end_date TEXT,
+                    pin_message BOOLEAN DEFAULT 0,
+                    delete_last_message BOOLEAN DEFAULT 0,
+                    scheduled_deletion_hours INTEGER DEFAULT 0,
+                    status TEXT DEFAULT 'active',
+                    created_by INTEGER NOT NULL,
+                    created_by_username TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_sent TIMESTAMP,
+                    job_id TEXT
+                )
+            ''')
+            
+            # Banned words table
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS banned_words (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chat_id INTEGER NOT NULL,
+                    word TEXT NOT NULL,
+                    action TEXT DEFAULT 'warn',
+                    created_by INTEGER NOT NULL,
+                    created_by_username TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_active BOOLEAN DEFAULT 1
+                )
+            ''')
+            
+            # Helpers table
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS helpers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chat_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    username TEXT,
+                    added_by INTEGER NOT NULL,
+                    added_by_username TEXT,
+                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_active BOOLEAN DEFAULT 1
+                )
+            ''')
+            
+            # Create indexes for better performance
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_scheduled_messages_chat_id ON scheduled_messages(chat_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_scheduled_messages_status ON scheduled_messages(status)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_banned_words_chat_id ON banned_words(chat_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_banned_words_word ON banned_words(word)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_helpers_chat_id ON helpers(chat_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_helpers_user_id ON helpers(user_id)')
+            
+            conn.commit()
+    
+    # Scheduled messages methods
+    def add_scheduled_message(self, chat_id, message_text, created_by, created_by_username, **kwargs):
+        """Add a new scheduled message"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute('''
+                INSERT INTO scheduled_messages 
+                (chat_id, message_text, message_media, message_buttons, message_type, 
+                 repetition_type, interval_hours, days_of_week, days_of_month, time_slots,
+                 start_date, end_date, pin_message, delete_last_message, scheduled_deletion_hours,
+                 status, created_by, created_by_username)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (chat_id, message_text, kwargs.get('message_media'), kwargs.get('message_buttons'),
+                  kwargs.get('message_type', 'text'), kwargs.get('repetition_type', '24h'),
+                  kwargs.get('interval_hours', 24), kwargs.get('days_of_week'), kwargs.get('days_of_month'),
+                  kwargs.get('time_slots'), kwargs.get('start_date'), kwargs.get('end_date'),
+                  kwargs.get('pin_message', 0), kwargs.get('delete_last_message', 0),
+                  kwargs.get('scheduled_deletion_hours', 0), kwargs.get('status', 'active'),
+                  created_by, created_by_username))
+            conn.commit()
+            return cursor.lastrowid
+    
+    def get_scheduled_messages(self, chat_id):
+        """Get all scheduled messages for a chat"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute('''
+                SELECT * FROM scheduled_messages WHERE chat_id = ? ORDER BY created_at DESC
+            ''', (chat_id,))
+            return cursor.fetchall()
+    
+    def delete_scheduled_message(self, message_id):
+        """Delete a scheduled message"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute('DELETE FROM scheduled_messages WHERE id = ?', (message_id,))
+            conn.commit()
+    
+    def update_scheduled_message_status(self, message_id, status):
+        """Update scheduled message status"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute('UPDATE scheduled_messages SET status = ? WHERE id = ?', (status, message_id))
+            conn.commit()
+    
+    def update_last_sent(self, message_id):
+        """Update last sent timestamp"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute('UPDATE scheduled_messages SET last_sent = CURRENT_TIMESTAMP WHERE id = ?', (message_id,))
+            conn.commit()
+    
+    def get_all_active_scheduled_messages(self):
+        """Get all active scheduled messages"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute('SELECT * FROM scheduled_messages WHERE status = "active"')
+            return cursor.fetchall()
+    
+    # Banned words methods
+    def add_banned_word(self, chat_id, word, action, created_by, created_by_username):
+        """Add a banned word"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute('''
+                INSERT INTO banned_words (chat_id, word, action, created_by, created_by_username)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (chat_id, word.lower(), action, created_by, created_by_username))
+            conn.commit()
+            return cursor.lastrowid
+    
+    def get_banned_words(self, chat_id):
+        """Get all banned words for a chat"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute('''
+                SELECT * FROM banned_words WHERE chat_id = ? AND is_active = 1 ORDER BY created_at DESC
+            ''', (chat_id,))
+            return cursor.fetchall()
+    
+    def delete_banned_word(self, word_id):
+        """Delete a banned word"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute('DELETE FROM banned_words WHERE id = ?', (word_id,))
+            conn.commit()
+    
+    def update_banned_word_status(self, word_id, is_active):
+        """Update banned word status"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute('UPDATE banned_words SET is_active = ? WHERE id = ?', (is_active, word_id))
+            conn.commit()
+    
+    def check_banned_words(self, chat_id, text):
+        """Check if text contains banned words"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute('''
+                SELECT word, action FROM banned_words 
+                WHERE chat_id = ? AND is_active = 1
+            ''', (chat_id,))
+            banned_words = cursor.fetchall()
+            
+            text_lower = text.lower()
+            for word, action in banned_words:
+                if word.lower() in text_lower:
+                    return word, action
+            return None, None
+    
+    # Helpers methods
+    def add_helper(self, chat_id, user_id, username, added_by, added_by_username):
+        """Add a helper"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute('''
+                INSERT INTO helpers (chat_id, user_id, username, added_by, added_by_username)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (chat_id, user_id, username, added_by, added_by_username))
+            conn.commit()
+            return cursor.lastrowid
+    
+    def get_helpers(self, chat_id):
+        """Get all helpers for a chat"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute('''
+                SELECT * FROM helpers WHERE chat_id = ? AND is_active = 1 ORDER BY added_at DESC
+            ''', (chat_id,))
+            return cursor.fetchall()
+    
+    def remove_helper(self, helper_id):
+        """Remove a helper"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute('UPDATE helpers SET is_active = 0 WHERE id = ?', (helper_id,))
+            conn.commit()
+    
+    def is_helper(self, chat_id, user_id):
+        """Check if user is a helper"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute('''
+                SELECT 1 FROM helpers WHERE chat_id = ? AND user_id = ? AND is_active = 1
+            ''', (chat_id, user_id))
+            return cursor.fetchone() is not None
+
+# Initialize enhanced database
+database = Database(analytics_db_path)
+
+# Global variable for application instance (needed for scheduler)
+application_instance = None
+
+# Permission functions for new features
+async def is_admin(update, context):
+    """Check if user is admin or helper"""
+    if not update.effective_chat or update.effective_chat.type == 'private':
+        return False
+    
+    try:
+        # Check if user is a helper first
+        if database.is_helper(update.effective_chat.id, update.effective_user.id):
+            return True
+        
+        # Check if user is admin
+        chat_member = await context.bot.get_chat_member(
+            update.effective_chat.id, update.effective_user.id
+        )
+        return chat_member.status in ['creator', 'administrator']
+    except Exception as e:
+        logger.error(f"Error checking admin status: {e}")
+        return False
+
+async def can_ban_users(update, context):
+    """Check if user can ban users (admin with permissions or helper)"""
+    if not update.effective_chat or update.effective_chat.type == 'private':
+        return False
+    
+    try:
+        # Check if user is a helper first
+        if database.is_helper(update.effective_chat.id, update.effective_user.id):
+            return True
+        
+        # Check if user is admin with ban permissions
+        chat_member = await context.bot.get_chat_member(
+            update.effective_chat.id, update.effective_user.id
+        )
+        return (chat_member.status in ['creator', 'administrator'] and 
+                chat_member.can_restrict_members)
+    except Exception as e:
+        logger.error(f"Error checking ban permissions: {e}")
+        return False
+
+async def can_mute_users(update, context):
+    """Check if user can mute users (admin with permissions or helper)"""
+    if not update.effective_chat or update.effective_chat.type == 'private':
+        return False
+    
+    try:
+        # Check if user is a helper first
+        if database.is_helper(update.effective_chat.id, update.effective_user.id):
+            return True
+        
+        # Check if user is admin with mute permissions
+        chat_member = await context.bot.get_chat_member(
+            update.effective_chat.id, update.effective_user.id
+        )
+        return (chat_member.status in ['creator', 'administrator'] and 
+                chat_member.can_restrict_members)
+    except Exception as e:
+        logger.error(f"Error checking mute permissions: {e}")
+        return False
+
+async def is_admin_callback(query, context):
+    """Check if user is admin or helper for callback queries"""
+    if not query.message or query.message.chat.type == 'private':
+        return False
+    
+    try:
+        # Check if user is a helper first
+        if database.is_helper(query.message.chat.id, query.from_user.id):
+            return True
+        
+        # Check if user is admin
+        chat_member = await context.bot.get_chat_member(
+            query.message.chat.id, query.from_user.id
+        )
+        return chat_member.status in ['creator', 'administrator']
+    except Exception as e:
+        logger.error(f"Error checking admin status in callback: {e}")
+        return False
+
+# Utility functions for scheduling
+def parse_interval(interval_str):
+    """Parse interval string to hours"""
+    try:
+        if 'h' in interval_str:
+            return int(interval_str.replace('h', ''))
+        elif 'd' in interval_str:
+            return int(interval_str.replace('d', '')) * 24
+        else:
+            return int(interval_str)
+    except:
+        return 24
+
+def format_interval(hours):
+    """Format hours to readable string"""
+    if hours < 24:
+        return f"{hours}h"
+    elif hours % 24 == 0:
+        return f"{hours // 24}d"
+    else:
+        return f"{hours}h"
+
+# Scheduler functions for recurring messages
+async def send_scheduled_message(chat_id, message_text, job_id):
+    """Send a scheduled message"""
+    try:
+        if application_instance:
+            await application_instance.bot.send_message(chat_id, message_text, parse_mode='HTML')
+            # Update last sent timestamp
+            database.update_last_sent(job_id)
+            logger.info(f"Sent scheduled message {job_id} to chat {chat_id}")
+    except Exception as e:
+        logger.error(f"Failed to send scheduled message {job_id}: {e}")
+
+async def restore_scheduled_jobs():
+    """Restore active scheduled jobs on startup"""
+    try:
+        active_messages = database.get_all_active_scheduled_messages()
+        for message in active_messages:
+            message_id, chat_id, message_text, _, _, _, repetition_type, interval_hours, _, _, _, _, _, _, _, _, _, _, _, _, job_id = message
+            
+            if repetition_type == '24h':
+                # Schedule for every 24 hours
+                scheduler.add_job(
+                    send_scheduled_message,
+                    'interval',
+                    hours=interval_hours,
+                    args=[chat_id, message_text, message_id],
+                    id=f"scheduled_{message_id}",
+                    replace_existing=True
+                )
+            elif repetition_type == 'custom':
+                # Schedule for custom interval
+                scheduler.add_job(
+                    send_scheduled_message,
+                    'interval',
+                    hours=interval_hours,
+                    args=[chat_id, message_text, message_id],
+                    id=f"scheduled_{message_id}",
+                    replace_existing=True
+                )
+        
+        logger.info(f"Restored {len(active_messages)} scheduled jobs")
+    except Exception as e:
+        logger.error(f"Failed to restore scheduled jobs: {e}")
+
 # Input validation functions
 def sanitize_username(username: str) -> str:
     """Sanitize username input to prevent injection"""
@@ -485,6 +876,11 @@ scheduler.add_executor(ThreadPoolExecutor(max_workers=10), alias='default')
 async def configure_scheduler(application):
     logger.info("Configuring scheduler...")
     application.job_queue.scheduler = scheduler
+    
+    # Set global application instance for scheduled messages
+    global application_instance
+    application_instance = application
+    
     try:
         if not scheduler.running:
             scheduler.start()
@@ -494,6 +890,10 @@ async def configure_scheduler(application):
     except Exception as e:
         logger.error(f"Scheduler failed to start: {str(e)}")
         raise
+    
+    # Restore scheduled jobs from database
+    await restore_scheduled_jobs()
+    
     await initialize_voting_message(application)
 
 # Bot initialization
@@ -2019,6 +2419,165 @@ async def handle_message(update: telegram.Update, context: telegram.ext.ContextT
         
         if not validate_chat_id_safe(chat_id):
             logger.warning(f"Invalid chat_id received: {chat_id}")
+            return
+        
+        # Handle user input for new features
+        if context.user_data.get('waiting_for_word'):
+            # User is adding a banned word
+            word = update.message.text.strip()
+            if len(word) > 50:
+                await update.message.reply_text("❌ Žodis per ilgas! Maksimalus ilgis: 50 simbolių.")
+                return
+            
+            # Show action selection
+            keyboard = [
+                [InlineKeyboardButton("⚠️ Perspėjimas", callback_data=f"action_warn_{word}")],
+                [InlineKeyboardButton("🔇 Nutildyti", callback_data=f"action_mute_{word}")],
+                [InlineKeyboardButton("🚫 Uždrausti", callback_data=f"action_ban_{word}")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                f"🚫 **Pridėti žodį: {word}**\n\n"
+                "Pasirinkite veiksmą, kurį atlikti, kai vartotojas naudos šį žodį:",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            
+            # Clear waiting state
+            context.user_data.pop('waiting_for_word', None)
+            return
+        
+        elif context.user_data.get('waiting_for_helper_id'):
+            # User is adding a helper
+            try:
+                helper_id = int(update.message.text.strip())
+                if helper_id <= 0:
+                    await update.message.reply_text("❌ Neteisingas vartotojo ID!")
+                    return
+                
+                # Try to get user info
+                try:
+                    helper_user = await context.bot.get_chat_member(chat_id, helper_id)
+                    helper_username = helper_user.user.username
+                    
+                    # Add helper to database
+                    database.add_helper(
+                        chat_id, helper_id, helper_username,
+                        user_id, username or f"User {user_id}"
+                    )
+                    
+                    await update.message.reply_text(
+                        f"✅ **Pagalbininkas pridėtas!**\n\n"
+                        f"👤 **Vartotojas:** {helper_user.user.first_name}"
+                        f"{f' (@{helper_username})' if helper_username else ''}\n"
+                        f"🆔 **ID:** `{helper_id}`\n"
+                        f"👮 **Pridėjo:** {update.message.from_user.first_name}"
+                        f"{f' (@{username})' if username else ''}",
+                        parse_mode='Markdown'
+                    )
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Nepavyko pridėti pagalbininko: {str(e)}")
+                
+            except ValueError:
+                await update.message.reply_text("❌ Neteisingas vartotojo ID! Įveskite skaičių.")
+            
+            # Clear waiting state
+            context.user_data.pop('waiting_for_helper_id', None)
+            return
+        
+        elif context.user_data.get('waiting_for_message'):
+            # User is adding a recurring message
+            message_text = update.message.text.strip()
+            if len(message_text) > 1000:
+                await update.message.reply_text("❌ Pranešimas per ilgas! Maksimalus ilgis: 1000 simbolių.")
+                return
+            
+            # Add message to database with default settings
+            message_id = database.add_scheduled_message(
+                chat_id, message_text, user_id, username or f"User {user_id}",
+                repetition_type='24h', interval_hours=24
+            )
+            
+            # Schedule the message
+            scheduler.add_job(
+                send_scheduled_message,
+                'interval',
+                hours=24,
+                args=[chat_id, message_text, message_id],
+                id=f"scheduled_{message_id}",
+                replace_existing=True
+            )
+            
+            await update.message.reply_text(
+                f"✅ **Pranešimas pridėtas!**\n\n"
+                f"📝 **Tekstas:** {message_text[:100]}{'...' if len(message_text) > 100 else ''}\n"
+                f"🔄 **Kartojimas:** Kas 24 valandas\n"
+                f"🆔 **ID:** `{message_id}`\n"
+                f"👮 **Pridėjo:** {update.message.from_user.first_name}"
+                f"{f' (@{username})' if username else ''}",
+                parse_mode='Markdown'
+            )
+            
+            # Clear waiting state
+            context.user_data.pop('waiting_for_message', None)
+            return
+        
+        # Check for banned words
+        banned_word, action = database.check_banned_words(chat_id, update.message.text)
+        if banned_word:
+            # Delete the message
+            try:
+                await update.message.delete()
+            except Exception as e:
+                logger.warning(f"Could not delete message with banned word: {e}")
+            
+            # Take action based on the word's action setting
+            if action == 'warn':
+                await update.message.reply_text(
+                    f"⚠️ **Perspėjimas!**\n\n"
+                    f"Vartotojas {update.message.from_user.first_name} naudojo uždraustą žodį: **{banned_word}**",
+                    parse_mode='Markdown'
+                )
+            elif action == 'mute':
+                # Mute the user for 1 hour
+                until_date = datetime.now() + timedelta(hours=1)
+                try:
+                    await context.bot.restrict_chat_member(
+                        chat_id, user_id,
+                        permissions=telegram.ChatPermissions(
+                            can_send_messages=False,
+                            can_send_media_messages=False,
+                            can_send_other_messages=False,
+                            can_add_web_page_previews=False
+                        ),
+                        until_date=until_date
+                    )
+                    await update.message.reply_text(
+                        f"🔇 **Vartotojas nutildytas!**\n\n"
+                        f"👤 **Vartotojas:** {update.message.from_user.first_name}"
+                        f"{f' (@{username})' if username else ''}\n"
+                        f"🚫 **Priežastis:** Uždraustas žodis: **{banned_word}**\n"
+                        f"⏰ **Trukmė:** 1 valanda",
+                        parse_mode='Markdown'
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to mute user for banned word: {e}")
+            elif action == 'ban':
+                # Ban the user
+                try:
+                    await context.bot.ban_chat_member(chat_id, user_id)
+                    await update.message.reply_text(
+                        f"🚫 **Vartotojas uždraustas!**\n\n"
+                        f"👤 **Vartotojas:** {update.message.from_user.first_name}"
+                        f"{f' (@{username})' if username else ''}\n"
+                        f"🚫 **Priežastis:** Uždraustas žodis: **{banned_word}**\n"
+                        f"⏰ **Data:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                        parse_mode='Markdown'
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to ban user for banned word: {e}")
+            
             return
         
         # Update username mapping if available
@@ -3770,6 +4329,15 @@ async def help_command(update: telegram.Update, context: telegram.ext.ContextTyp
 🛒 /vagis @username priežastis - Pranešti apie problematišką pirkėją (+2 tšk)
 🔎 /neradejas @username - Patikrinti ar pirkėjas turi pranešimų
 
+🛡️ Moderacijos Komandos (Admin/Pagalbininkai):
+🚫 /ban username/id [priežastis] - Uždrausti vartotoją
+✅ /unban username/id - Atšaukti uždraudimą
+🔇 /mute username/id [priežastis] - Nutildyti vartotoją
+🔊 /unmute username/id - Atšaukti nutildymą
+🔄 /recurring - Kartojami pranešimai
+🚫 /bannedwords - Uždrausti žodžiai
+👥 /helpers - Pagalbininkų valdymas
+
 🎮 Žaidimai ir Veikla:
 🎯 /coinflip suma @vartotojas - Iššūkis monetos metimui
 📋 /apklausa klausimas - Sukurti grupės apklausą
@@ -3819,6 +4387,15 @@ async def komandos(update: telegram.Update, context: telegram.ext.ContextTypes.D
 📋 `/scameriai` - Peržiūrėti visų patvirtintų scamerių sąrašą
 🛒 `/vagis @username priežastis` - Pranešti problematišką pirkėją (+2 tšk, neribota)
 🔎 `/neradejas @username` - Patikrinti ar pirkėjas turi pranešimų
+
+🛡️ MODERACIJOS SISTEMA (Admin/Pagalbininkai)
+🚫 `/ban username/id [priežastis]` - Uždrausti vartotoją (ištrina pranešimus)
+✅ `/unban username/id` - Atšaukti uždraudimą
+🔇 `/mute username/id [priežastis]` - Nutildyti vartotoją (24h)
+🔊 `/unmute username/id` - Atšaukti nutildymą
+🔄 `/recurring` - Kartojami pranešimai (GroupHelpBot stilius)
+🚫 `/bannedwords` - Uždrausti žodžiai (automatinis aptikimas)
+👥 `/helpers` - Pagalbininkų valdymas (deleguoti modifikaciją)
 
 💰 TAŠKŲ SISTEMA
 💰 `/points` - Patikrinti savo taškus ir pokalbių seriją
@@ -4314,6 +4891,550 @@ async def moderation_command(update: telegram.Update, context: telegram.ext.Cont
         context.job_queue.run_once(delete_message_job, 60, data=(chat_id, msg.message_id))
     except Exception as e:
         logger.error(f"Error in moderation command: {str(e)}")
+        analytics.log_command_usage('moderation', user_id, chat_id, False, str(e))
+
+# New feature command functions
+async def recurring_messages_menu(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Main menu for recurring messages"""
+    if not await is_admin(update, context):
+        await update.message.reply_text("❌ Tik administratoriai gali naudoti šią komandą!")
+        return
+    
+    keyboard = [
+        [InlineKeyboardButton("➕ Pridėti pranešimą", callback_data="recurring_add")],
+        [InlineKeyboardButton("📋 Valdyti pranešimus", callback_data="recurring_manage")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        "🔄 **Kartojami Pranešimai**\n\n"
+        "Sukurkite pranešimus, kurie kartojasi automatiškai.",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+async def ban_user(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Ban a user"""
+    if not await can_ban_users(update, context):
+        await update.message.reply_text("❌ Neturite teisių uždrausti vartotojų!")
+        return
+    
+    args = context.args
+    if len(args) < 1:
+        await update.message.reply_text("❌ Naudojimas: /ban username/id [priežastis]")
+        return
+    
+    chat_id = update.effective_chat.id
+    admin_user = update.effective_user
+    target = args[0]
+    reason = " ".join(args[1:]) if len(args) > 1 else "Nenurodyta"
+    
+    try:
+        # Get target user
+        if target.startswith('@'):
+            target_user = await context.bot.get_chat_member(chat_id, target)
+            target_user = target_user.user
+        else:
+            try:
+                user_id = int(target)
+                target_user = await context.bot.get_chat_member(chat_id, user_id)
+                target_user = target_user.user
+            except ValueError:
+                await update.message.reply_text("❌ Neteisingas vartotojo ID!")
+                return
+        
+        # Ban the user
+        await context.bot.ban_chat_member(chat_id, target_user.id)
+        
+        # Delete all messages from the banned user
+        messages_deleted = 0
+        try:
+            async for message in context.bot.get_chat_history(chat_id, limit=1000):
+                if message.from_user and message.from_user.id == target_user.id:
+                    try:
+                        await context.bot.delete_message(chat_id, message.message_id)
+                        messages_deleted += 1
+                    except Exception:
+                        continue
+        except Exception as e:
+            logger.warning(f"Could not delete all messages from banned user {target_user.id}: {e}")
+        
+        # Success message
+        ban_text = f"🚫 **VARTOTOJA UŽBANINTAS** 🚫\n\n"
+        ban_text += f"👤 **Vartotojas:** {target_user.first_name}"
+        if target_user.username:
+            ban_text += f" (@{target_user.username})"
+        ban_text += f"\n🆔 **ID:** `{target_user.id}`\n"
+        ban_text += f"👮 **Uždraudė:** {admin_user.first_name}"
+        if admin_user.username:
+            ban_text += f" (@{admin_user.username})"
+        ban_text += f"\n📝 **Priežastis:** {reason}\n"
+        ban_text += f"🗑️ **Ištrinti pranešimai:** {messages_deleted}\n"
+        ban_text += f"⏰ **Data:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        
+        await update.message.reply_text(ban_text, parse_mode='Markdown')
+        
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ **KLAIDA**\n\n"
+            f"Nepavyko uždrausti vartotojo: {str(e)}",
+            parse_mode='Markdown'
+        )
+
+async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Unban a user"""
+    if not await can_ban_users(update, context):
+        await update.message.reply_text("❌ Neturite teisių atšaukti uždraudimą!")
+        return
+    
+    args = context.args
+    if len(args) < 1:
+        await update.message.reply_text("❌ Naudojimas: /unban username/id")
+        return
+    
+    chat_id = update.effective_chat.id
+    admin_user = update.effective_user
+    target = args[0]
+    
+    try:
+        # Get target user
+        if target.startswith('@'):
+            target_user = await context.bot.get_chat_member(chat_id, target)
+            target_user = target_user.user
+        else:
+            try:
+                user_id = int(target)
+                target_user = await context.bot.get_chat_member(chat_id, user_id)
+                target_user = target_user.user
+            except ValueError:
+                await update.message.reply_text("❌ Neteisingas vartotojo ID!")
+                return
+        
+        # Unban the user
+        await context.bot.unban_chat_member(chat_id, target_user.id)
+        
+        unban_text = f"✅ **VARTOTOJAS ATBLOKUOTAS** ✅\n\n"
+        unban_text += f"👤 **Vartotojas:** {target_user.first_name}"
+        if target_user.username:
+            unban_text += f" (@{target_user.username})"
+        unban_text += f"\n🆔 **ID:** `{target_user.id}`\n"
+        unban_text += f"👮 **Atblokavo:** {admin_user.first_name}"
+        if admin_user.username:
+            unban_text += f" (@{admin_user.username})"
+        unban_text += f"\n⏰ **Data:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        
+        await update.message.reply_text(unban_text, parse_mode='Markdown')
+        
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ **KLAIDA**\n\n"
+            f"Nepavyko atblokuoti vartotojo: {str(e)}",
+            parse_mode='Markdown'
+        )
+
+async def mute_user(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Mute a user"""
+    if not await can_mute_users(update, context):
+        await update.message.reply_text("❌ Neturite teisių nutildyti vartotojų!")
+        return
+    
+    args = context.args
+    if len(args) < 1:
+        await update.message.reply_text("❌ Naudojimas: /mute username/id [priežastis]")
+        return
+    
+    chat_id = update.effective_chat.id
+    admin_user = update.effective_user
+    target = args[0]
+    reason = " ".join(args[1:]) if len(args) > 1 else "Nenurodyta"
+    
+    try:
+        # Get target user
+        if target.startswith('@'):
+            target_user = await context.bot.get_chat_member(chat_id, target)
+            target_user = target_user.user
+        else:
+            try:
+                user_id = int(target)
+                target_user = await context.bot.get_chat_member(chat_id, user_id)
+                target_user = target_user.user
+            except ValueError:
+                await update.message.reply_text("❌ Neteisingas vartotojo ID!")
+                return
+        
+        # Mute the user (restrict permissions)
+        until_date = datetime.now() + timedelta(hours=24)  # 24 hour mute
+        await context.bot.restrict_chat_member(
+            chat_id, target_user.id,
+            permissions=telegram.ChatPermissions(
+                can_send_messages=False,
+                can_send_media_messages=False,
+                can_send_other_messages=False,
+                can_add_web_page_previews=False
+            ),
+            until_date=until_date
+        )
+        
+        mute_text = f"🔇 **VARTOTOJAS NUTILDYTAS** 🔇\n\n"
+        mute_text += f"👤 **Vartotojas:** {target_user.first_name}"
+        if target_user.username:
+            mute_text += f" (@{target_user.username})"
+        mute_text += f"\n🆔 **ID:** `{target_user.id}`\n"
+        mute_text += f"👮 **Nutildė:** {admin_user.first_name}"
+        if admin_user.username:
+            mute_text += f" (@{admin_user.username})"
+        mute_text += f"\n📝 **Priežastis:** {reason}\n"
+        mute_text += f"⏰ **Trukmė:** 24 valandos\n"
+        mute_text += f"📅 **Data:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        
+        await update.message.reply_text(mute_text, parse_mode='Markdown')
+        
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ **KLAIDA**\n\n"
+            f"Nepavyko nutildyti vartotojo: {str(e)}",
+            parse_mode='Markdown'
+        )
+
+async def unmute_user(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Unmute a user"""
+    if not await can_mute_users(update, context):
+        await update.message.reply_text("❌ Neturite teisių atšaukti nutildymą!")
+        return
+    
+    args = context.args
+    if len(args) < 1:
+        await update.message.reply_text("❌ Naudojimas: /unmute username/id")
+        return
+    
+    chat_id = update.effective_chat.id
+    admin_user = update.effective_user
+    target = args[0]
+    
+    try:
+        # Get target user
+        if target.startswith('@'):
+            target_user = await context.bot.get_chat_member(chat_id, target)
+            target_user = target_user.user
+        else:
+            try:
+                user_id = int(target)
+                target_user = await context.bot.get_chat_member(chat_id, user_id)
+                target_user = target_user.user
+            except ValueError:
+                await update.message.reply_text("❌ Neteisingas vartotojo ID!")
+                return
+        
+        # Unmute the user (restore permissions)
+        await context.bot.restrict_chat_member(
+            chat_id, target_user.id,
+            permissions=telegram.ChatPermissions(
+                can_send_messages=True,
+                can_send_media_messages=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True
+            )
+        )
+        
+        unmute_text = f"🔊 **VARTOTOJAS ATNUTILDYTAS** 🔊\n\n"
+        unmute_text += f"👤 **Vartotojas:** {target_user.first_name}"
+        if target_user.username:
+            unmute_text += f" (@{target_user.username})"
+        unmute_text += f"\n🆔 **ID:** `{target_user.id}`\n"
+        unmute_text += f"👮 **Atnutildė:** {admin_user.first_name}"
+        if admin_user.username:
+            unmute_text += f" (@{admin_user.username})"
+        unmute_text += f"\n⏰ **Data:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        
+        await update.message.reply_text(unmute_text, parse_mode='Markdown')
+        
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ **KLAIDA**\n\n"
+            f"Nepavyko atnutildyti vartotojo: {str(e)}",
+            parse_mode='Markdown'
+        )
+
+async def banned_words_menu(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Main menu for banned words"""
+    if not await is_admin(update, context):
+        await update.message.reply_text("❌ Tik administratoriai gali naudoti šią komandą!")
+        return
+    
+    chat_id = update.effective_chat.id
+    banned_words = database.get_banned_words(chat_id)
+    
+    keyboard = [
+        [InlineKeyboardButton("➕ Pridėti žodį", callback_data="banned_words_add")]
+    ]
+    
+    if banned_words:
+        keyboard.append([InlineKeyboardButton("📋 Žodžių sąrašas", callback_data="banned_words_list")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    text = "🚫 **Uždrausti Žodžiai**\n\n"
+    if banned_words:
+        text += f"📊 Aktyvūs žodžiai: {len(banned_words)}\n"
+        text += "Žodžiai automatiškai aptinkami ir baudžiami."
+    else:
+        text += "Dar nėra uždraustų žodžių.\nPridėkite žodžius, kuriuos norite drausti."
+    
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def helpers_menu(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Main menu for helpers"""
+    if not await is_admin(update, context):
+        await update.message.reply_text("❌ Tik administratoriai gali naudoti šią komandą!")
+        return
+    
+    chat_id = update.effective_chat.id
+    helpers = database.get_helpers(chat_id)
+    
+    keyboard = [
+        [InlineKeyboardButton("➕ Pridėti pagalbininką", callback_data="helpers_add")]
+    ]
+    
+    if helpers:
+        keyboard.append([InlineKeyboardButton("📋 Pagalbininkų sąrašas", callback_data="helpers_list")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    text = "👥 **Pagalbininkai**\n\n"
+    if helpers:
+        text += f"📊 Aktyvūs pagalbininkai: {len(helpers)}\n"
+        text += "Pagalbininkai gali naudoti ban/mute komandas."
+    else:
+        text += "Dar nėra pagalbininkų.\nPridėkite vartotojus, kurie galės modifikuoti."
+    
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+# Callback handler functions for new features
+async def handle_recurring_callback(query, context):
+    """Handle recurring messages callback queries"""
+    if not await is_admin_callback(query, context):
+        await query.answer("❌ Tik administratoriai gali naudoti šią funkciją!")
+        return
+    
+    data = query.data
+    chat_id = query.message.chat.id
+    user_id = query.from_user.id
+    
+    if data == "recurring_add":
+        # Set user state to wait for message text
+        context.user_data['waiting_for_message'] = True
+        await query.edit_message_text(
+            "📝 **Pridėti Kartojamą Pranešimą**\n\n"
+            "Parašykite pranešimo tekstą:",
+            parse_mode='Markdown'
+        )
+    elif data == "recurring_manage":
+        await show_manage_messages(query, context)
+    elif data.startswith("recurring_info_"):
+        message_id = int(data.split("_")[2])
+        await show_message_info(query, context, message_id)
+    elif data.startswith("recurring_toggle_"):
+        message_id = int(data.split("_")[2])
+        await toggle_message_status(query, context, message_id)
+    elif data.startswith("recurring_delete_"):
+        message_id = int(data.split("_")[2])
+        await delete_message(query, context, message_id)
+
+async def handle_banned_words_callback(query, context):
+    """Handle banned words callback queries"""
+    if not await is_admin_callback(query, context):
+        await query.answer("❌ Tik administratoriai gali naudoti šią funkciją!")
+        return
+    
+    data = query.data
+    chat_id = query.message.chat.id
+    user_id = query.from_user.id
+    
+    if data == "banned_words_add":
+        # Set user state to wait for word
+        context.user_data['waiting_for_word'] = True
+        await query.edit_message_text(
+            "🚫 **Pridėti Uždraustą Žodį**\n\n"
+            "Parašykite žodį, kurį norite drausti:",
+            parse_mode='Markdown'
+        )
+    elif data == "banned_words_list":
+        await show_banned_words_list(query, context)
+    elif data.startswith("banned_words_info_"):
+        word_id = int(data.split("_")[3])
+        await show_word_info(query, context, word_id)
+    elif data.startswith("banned_words_toggle_"):
+        word_id = int(data.split("_")[3])
+        await toggle_word_status(query, context, word_id)
+    elif data.startswith("banned_words_delete_"):
+        word_id = int(data.split("_")[3])
+        await delete_word(query, context, word_id)
+
+async def handle_helpers_callback(query, context):
+    """Handle helpers callback queries"""
+    if not await is_admin_callback(query, context):
+        await query.answer("❌ Tik administratoriai gali naudoti šią funkciją!")
+        return
+    
+    data = query.data
+    chat_id = query.message.chat.id
+    user_id = query.from_user.id
+    
+    if data == "helpers_add":
+        # Set user state to wait for helper ID
+        context.user_data['waiting_for_helper_id'] = True
+        await query.edit_message_text(
+            "👥 **Pridėti Pagalbininką**\n\n"
+            "Parašykite vartotojo ID:",
+            parse_mode='Markdown'
+        )
+    elif data == "helpers_list":
+        await show_helpers_list(query, context)
+    elif data.startswith("helpers_info_"):
+        helper_id = int(data.split("_")[2])
+        await show_helper_info(query, context, helper_id)
+    elif data.startswith("helpers_remove_"):
+        helper_id = int(data.split("_")[2])
+        await remove_helper(query, context, helper_id)
+
+# Helper functions for UI
+async def show_manage_messages(query, context):
+    """Show manage messages interface"""
+    chat_id = query.message.chat.id
+    messages = database.get_scheduled_messages(chat_id)
+    
+    if not messages:
+        await query.edit_message_text(
+            "📋 **Valdyti Pranešimus**\n\n"
+            "Dar nėra suplanuotų pranešimų.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    text = "📋 **Valdyti Pranešimus**\n\n"
+    keyboard = []
+    
+    for message in messages:
+        message_id, _, message_text, _, _, _, repetition_type, interval_hours, _, _, _, _, _, _, _, status, _, _, _, _, _ = message
+        
+        # Truncate message text for display
+        display_text = message_text[:50] + "..." if len(message_text) > 50 else message_text
+        
+        # Status indicator
+        status_icon = "🟢" if status == "active" else "🔴"
+        
+        text += f"{status_icon} **{display_text}**\n"
+        text += f"   📅 {repetition_type} ({format_interval(interval_hours)})\n\n"
+        
+        # Action buttons
+        keyboard.append([
+            InlineKeyboardButton(f"ℹ️ {message_id}", callback_data=f"recurring_info_{message_id}"),
+            InlineKeyboardButton("🔄" if status == "active" else "▶️", callback_data=f"recurring_toggle_{message_id}"),
+            InlineKeyboardButton("🗑️", callback_data=f"recurring_delete_{message_id}")
+        ])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Atgal", callback_data="recurring_back")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_banned_words_list(query, context):
+    """Show banned words list"""
+    chat_id = query.message.chat.id
+    banned_words = database.get_banned_words(chat_id)
+    
+    if not banned_words:
+        await query.edit_message_text(
+            "🚫 **Uždrausti Žodžiai**\n\n"
+            "Dar nėra uždraustų žodžių.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    text = "🚫 **Uždrausti Žodžiai**\n\n"
+    keyboard = []
+    
+    for word_data in banned_words:
+        word_id, _, word, action, _, _, _, _ = word_data
+        
+        text += f"🔴 **{word}** ({action})\n\n"
+        
+        # Action buttons
+        keyboard.append([
+            InlineKeyboardButton(f"ℹ️ {word_id}", callback_data=f"banned_words_info_{word_id}"),
+            InlineKeyboardButton("🗑️", callback_data=f"banned_words_delete_{word_id}")
+        ])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Atgal", callback_data="banned_words_back")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_helpers_list(query, context):
+    """Show helpers list"""
+    chat_id = query.message.chat.id
+    helpers = database.get_helpers(chat_id)
+    
+    if not helpers:
+        await query.edit_message_text(
+            "👥 **Pagalbininkai**\n\n"
+            "Dar nėra pagalbininkų.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    text = "👥 **Pagalbininkai**\n\n"
+    keyboard = []
+    
+    for helper_data in helpers:
+        helper_id, _, user_id, username, _, added_by_username, _, _ = helper_data
+        
+        text += f"👤 **{username or f'User {user_id}'}**\n"
+        text += f"   Pridėjo: {added_by_username}\n\n"
+        
+        # Action buttons
+        keyboard.append([
+            InlineKeyboardButton(f"ℹ️ {helper_id}", callback_data=f"helpers_info_{helper_id}"),
+            InlineKeyboardButton("🗑️", callback_data=f"helpers_remove_{helper_id}")
+        ])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Atgal", callback_data="helpers_back")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+# Placeholder functions for other UI elements
+async def show_message_info(query, context, message_id):
+    await query.answer("ℹ️ Informacija apie pranešimą")
+    # TODO: Implement detailed message info
+
+async def toggle_message_status(query, context, message_id):
+    await query.answer("🔄 Pranešimo statusas pakeistas")
+    # TODO: Implement status toggle
+
+async def delete_message(query, context, message_id):
+    await query.answer("🗑️ Pranešimas ištrintas")
+    # TODO: Implement message deletion
+
+async def show_word_info(query, context, word_id):
+    await query.answer("ℹ️ Informacija apie žodį")
+    # TODO: Implement word info
+
+async def toggle_word_status(query, context, word_id):
+    await query.answer("🔄 Žodžio statusas pakeistas")
+    # TODO: Implement word status toggle
+
+async def delete_word(query, context, word_id):
+    await query.answer("🗑️ Žodis ištrintas")
+    # TODO: Implement word deletion
+
+async def show_helper_info(query, context, helper_id):
+    await query.answer("ℹ️ Informacija apie pagalbininką")
+    # TODO: Implement helper info
+
+async def remove_helper(query, context, helper_id):
+    await query.answer("🗑️ Pagalbininkas pašalintas")
+    # TODO: Implement helper removal
 
 # Add handlers
 application.add_handler(CommandHandler(['startas'], startas))
@@ -4368,6 +5489,15 @@ application.add_handler(CommandHandler(['pending_reports'], pending_reports))
 # Buyer report tracking system handlers
 application.add_handler(CommandHandler(['vagis'], vagis))
 application.add_handler(CommandHandler(['neradejas'], neradejas))
+
+# New feature command handlers
+application.add_handler(CommandHandler(['recurring'], recurring_messages_menu))
+application.add_handler(CommandHandler(['ban'], ban_user))
+application.add_handler(CommandHandler(['unban'], unban_user))
+application.add_handler(CommandHandler(['mute'], mute_user))
+application.add_handler(CommandHandler(['unmute'], unmute_user))
+application.add_handler(CommandHandler(['bannedwords'], banned_words_menu))
+application.add_handler(CommandHandler(['helpers'], helpers_menu))
 # Admin commands removed - now accessible through moderation panel buttons only
 
 # Add callback query handler for inline buttons
@@ -4378,6 +5508,13 @@ application.add_handler(CallbackQueryHandler(handle_vote_button, pattern="vote_"
 application.add_handler(CallbackQueryHandler(handle_poll_button, pattern="poll_"))
 application.add_handler(CallbackQueryHandler(handle_admin_button, pattern="admin_"))
 application.add_handler(CallbackQueryHandler(handle_admin_button, pattern="mod_"))
+
+# New feature callback handlers
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^recurring_"))
+application.add_handler(CallbackQueryHandler(handle_banned_words_callback, pattern="^banned_words_"))
+application.add_handler(CallbackQueryHandler(handle_helpers_callback, pattern="^helpers_"))
+
+# Enhanced message handler for banned words detection
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 # Schedule jobs
