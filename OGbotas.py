@@ -2908,38 +2908,109 @@ def store_user_info(user):
         except Exception as e:
             logger.warning(f"Error storing user info for {user.username}: {e}")
 
-async def find_and_cache_user(context, username_without_at):
-    """Try multiple methods to find a user and cache their info"""
+async def resolve_username_to_id(context, username_without_at, chat_id=None):
+    """
+    AGGRESSIVE username resolution that tries EVERY possible method
+    This function will work like successful bots by trying all available APIs
+    """
     target_user = None
     target_id = None
-    
     methods_tried = []
     
-    # Method 1: Try direct get_chat with @
+    logger.info(f"Starting aggressive username resolution for: {username_without_at}")
+    
+    # Method 1: Check our databases first (fastest)
+    try:
+        with database.get_connection() as conn:
+            # Check ban history first (most reliable for moderation)
+            if chat_id:
+                cursor = conn.execute('''
+                    SELECT user_id, username, first_name FROM ban_history 
+                    WHERE chat_id = ? AND LOWER(username) = LOWER(?)
+                    ORDER BY ban_date DESC LIMIT 1
+                ''', (chat_id, username_without_at))
+                
+                ban_record = cursor.fetchone()
+                if ban_record:
+                    target_id = ban_record[0]
+                    methods_tried.append("ban_history - SUCCESS")
+                    logger.info(f"Found {username_without_at} in ban history: ID {target_id}")
+                    return target_id, ban_record
+            
+            # Check user cache
+            cursor = conn.execute('''
+                SELECT user_id, username, first_name FROM user_cache 
+                WHERE LOWER(username) = LOWER(?) 
+                ORDER BY last_seen DESC LIMIT 1
+            ''', (username_without_at,))
+            
+            user_record = cursor.fetchone()
+            if user_record:
+                target_id = user_record[0]
+                methods_tried.append("user_cache - SUCCESS")
+                logger.info(f"Found {username_without_at} in user cache: ID {target_id}")
+                return target_id, user_record
+                
+    except Exception as e:
+        methods_tried.append(f"database - FAILED: {str(e)}")
+    
+    # Method 2: Try direct get_chat with @
     try:
         user_info = await context.bot.get_chat(f"@{username_without_at}")
-        if hasattr(user_info, 'id') and user_info.type == 'private':
+        if hasattr(user_info, 'id'):
             target_user = user_info
             target_id = user_info.id
             store_user_info(target_user)
-            methods_tried.append(f"get_chat(@{username_without_at}) - SUCCESS")
-            return target_user, target_id
+            methods_tried.append("get_chat(@username) - SUCCESS")
+            logger.info(f"Found {username_without_at} via get_chat(@): ID {target_id}")
+            return target_id, (target_id, target_user.username, target_user.first_name)
     except Exception as e:
-        methods_tried.append(f"get_chat(@{username_without_at}) - FAILED: {str(e)}")
+        methods_tried.append(f"get_chat(@username) - FAILED: {str(e)}")
     
-    # Method 2: Try direct get_chat without @
+    # Method 3: Try direct get_chat without @
     try:
         user_info = await context.bot.get_chat(username_without_at)
-        if hasattr(user_info, 'id') and user_info.type == 'private':
+        if hasattr(user_info, 'id'):
             target_user = user_info
             target_id = user_info.id
             store_user_info(target_user)
-            methods_tried.append(f"get_chat({username_without_at}) - SUCCESS")
-            return target_user, target_id
+            methods_tried.append("get_chat(username) - SUCCESS")
+            logger.info(f"Found {username_without_at} via get_chat: ID {target_id}")
+            return target_id, (target_id, target_user.username, target_user.first_name)
     except Exception as e:
-        methods_tried.append(f"get_chat({username_without_at}) - FAILED: {str(e)}")
+        methods_tried.append(f"get_chat(username) - FAILED: {str(e)}")
     
-    # Method 3: Try using user ID if it's numeric
+    # Method 4: Try get_chat_member if we have chat_id
+    if chat_id:
+        try:
+            chat_member = await context.bot.get_chat_member(chat_id, f"@{username_without_at}")
+            if chat_member and chat_member.user:
+                target_user = chat_member.user
+                target_id = target_user.id
+                store_user_info(target_user)
+                methods_tried.append("get_chat_member - SUCCESS")
+                logger.info(f"Found {username_without_at} via get_chat_member: ID {target_id}")
+                return target_id, (target_id, target_user.username, target_user.first_name)
+        except Exception as e:
+            methods_tried.append(f"get_chat_member - FAILED: {str(e)}")
+    
+    # Method 5: Try searching chat administrators
+    if chat_id:
+        try:
+            admins = await context.bot.get_chat_administrators(chat_id)
+            for admin in admins:
+                if (admin.user.username and 
+                    admin.user.username.lower() == username_without_at.lower()):
+                    target_user = admin.user
+                    target_id = target_user.id
+                    store_user_info(target_user)
+                    methods_tried.append("chat_admins - SUCCESS")
+                    logger.info(f"Found {username_without_at} in chat admins: ID {target_id}")
+                    return target_id, (target_id, target_user.username, target_user.first_name)
+        except Exception as e:
+            methods_tried.append(f"chat_admins - FAILED: {str(e)}")
+    
+    # Method 6: Try numeric ID if it looks like one
     try:
         if username_without_at.isdigit():
             user_id = int(username_without_at)
@@ -2948,12 +3019,31 @@ async def find_and_cache_user(context, username_without_at):
                 target_user = user_info
                 target_id = user_info.id
                 store_user_info(target_user)
-                methods_tried.append(f"get_chat({user_id}) - SUCCESS")
-                return target_user, target_id
+                methods_tried.append("numeric_id - SUCCESS")
+                logger.info(f"Found {username_without_at} as numeric ID: {target_id}")
+                return target_id, (target_id, getattr(target_user, 'username', None), target_user.first_name)
     except Exception as e:
-        methods_tried.append(f"get_chat(numeric) - FAILED: {str(e)}")
+        methods_tried.append(f"numeric_id - FAILED: {str(e)}")
     
-    logger.info(f"All methods failed for {username_without_at}: {methods_tried}")
+    # Log all failed attempts
+    logger.warning(f"ALL methods failed for {username_without_at}: {methods_tried}")
+    return None, None
+
+async def find_and_cache_user(context, username_without_at):
+    """Legacy function - now uses the new aggressive resolver"""
+    target_id, user_data = await resolve_username_to_id(context, username_without_at)
+    
+    if target_id and user_data:
+        # Create mock user object
+        class MockUser:
+            def __init__(self, user_id, username, first_name):
+                self.id = user_id
+                self.username = username
+                self.first_name = first_name
+        
+        target_user = MockUser(user_data[0], user_data[1], user_data[2])
+        return target_user, target_id
+    
     return None, None
 
 async def handle_message(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
@@ -5367,30 +5457,38 @@ async def ban_user(update: telegram.Update, context: telegram.ext.ContextTypes.D
             target_id = None
             
             if target.startswith('@'):
-                # For username, use the most reliable method: try to ban directly
-                # This is how most bots like GroupHelpBot handle usernames
+                # Use aggressive username resolution for ban operations
                 username_without_at = target[1:]  # Remove @ symbol
                 
-                # Try to get user info first for display purposes
-                try:
-                    # Try to get user by username (this works in most cases)
-                    target_user = None
-                    target_id = username_without_at  # Use username directly
+                logger.info(f"Attempting to ban user by username: @{username_without_at}")
+                
+                # Use the new aggressive username resolver
+                target_id, user_data = await resolve_username_to_id(context, username_without_at, chat_id)
+                
+                if target_id and user_data:
+                    # Create user object for display
+                    class MockUser:
+                        def __init__(self, user_id, username, first_name):
+                            self.id = user_id
+                            self.username = username
+                            self.first_name = first_name
                     
-                    # Try to get additional user info if possible
-                    try:
-                        # Try to get user info from chat member
-                        target_member = await context.bot.get_chat_member(chat_id, target)
-                        target_user = target_member.user
-                        target_id = target_user.id  # Use actual user ID if we got it
-                    except telegram.error.BadRequest:
-                        # If we can't get member info, continue with username
-                        pass
-                        
-                except Exception as e:
-                    # If anything fails, still try to ban by username
-                    target_user = None
-                    target_id = username_without_at
+                    target_user = MockUser(user_data[0], user_data[1], user_data[2])
+                    logger.info(f"Successfully resolved @{username_without_at} to ID {target_id}")
+                else:
+                    # If we still can't resolve the username, inform the user
+                    await update.message.reply_text(
+                        f"❌ Negaliu rasti vartotojo @{username_without_at}\n\n"
+                        "**Bandė visos metodas:**\n"
+                        "• Duomenų bazės paieška\n"
+                        "• Telegram API užklausos\n"
+                        "• Chat narių paieška\n\n"
+                        "**Sprendimas:**\n"
+                        f"• Naudokite vartotojo ID: `/ban [user_id] [priežastis]`\n"
+                        f"• Arba paprašykite vartotojo parašyti žinutę grupėje\n"
+                        f"• Tada naudokite `/lookup @{username_without_at}` ir bandykite vėl"
+                    )
+                    return
             else:
                 try:
                     user_id = int(target)
@@ -5857,30 +5955,38 @@ async def mute_user(update: telegram.Update, context: telegram.ext.ContextTypes.
             target_id = None
             
             if target.startswith('@'):
-                # For username, use the most reliable method: try to mute directly
-                # This is how most bots like GroupHelpBot handle usernames
+                # Use aggressive username resolution for mute operations
                 username_without_at = target[1:]  # Remove @ symbol
                 
-                # Try to get user info first for display purposes
-                try:
-                    # Try to get user by username (this works in most cases)
-                    target_user = None
-                    target_id = username_without_at  # Use username directly
+                logger.info(f"Attempting to mute user by username: @{username_without_at}")
+                
+                # Use the new aggressive username resolver
+                target_id, user_data = await resolve_username_to_id(context, username_without_at, chat_id)
+                
+                if target_id and user_data:
+                    # Create user object for display
+                    class MockUser:
+                        def __init__(self, user_id, username, first_name):
+                            self.id = user_id
+                            self.username = username
+                            self.first_name = first_name
                     
-                    # Try to get additional user info if possible
-                    try:
-                        # Try to get user info from chat member
-                        target_member = await context.bot.get_chat_member(chat_id, target)
-                        target_user = target_member.user
-                        target_id = target_user.id  # Use actual user ID if we got it
-                    except telegram.error.BadRequest:
-                        # If we can't get member info, continue with username
-                        pass
-                        
-                except Exception as e:
-                    # If anything fails, still try to mute by username
-                    target_user = None
-                    target_id = username_without_at
+                    target_user = MockUser(user_data[0], user_data[1], user_data[2])
+                    logger.info(f"Successfully resolved @{username_without_at} to ID {target_id}")
+                else:
+                    # If we still can't resolve the username, inform the user
+                    await update.message.reply_text(
+                        f"❌ Negaliu rasti vartotojo @{username_without_at}\n\n"
+                        "**Bandė visos metodas:**\n"
+                        "• Duomenų bazės paieška\n"
+                        "• Telegram API užklausos\n"
+                        "• Chat narių paieška\n\n"
+                        "**Sprendimas:**\n"
+                        f"• Naudokite vartotojo ID: `/mute [user_id] [laikas]`\n"
+                        f"• Arba paprašykite vartotojo parašyti žinutę grupėje\n"
+                        f"• Tada naudokite `/lookup @{username_without_at}` ir bandykite vėl"
+                    )
+                    return
             else:
                 try:
                     user_id = int(target)
@@ -5983,30 +6089,38 @@ async def unmute_user(update: telegram.Update, context: telegram.ext.ContextType
             target_id = None
             
             if target.startswith('@'):
-                # For username, use the most reliable method: try to unmute directly
-                # This is how most bots like GroupHelpBot handle usernames
+                # Use aggressive username resolution for unmute operations
                 username_without_at = target[1:]  # Remove @ symbol
                 
-                # Try to get user info first for display purposes
-                try:
-                    # Try to get user by username (this works in most cases)
-                    target_user = None
-                    target_id = username_without_at  # Use username directly
+                logger.info(f"Attempting to unmute user by username: @{username_without_at}")
+                
+                # Use the new aggressive username resolver
+                target_id, user_data = await resolve_username_to_id(context, username_without_at, chat_id)
+                
+                if target_id and user_data:
+                    # Create user object for display
+                    class MockUser:
+                        def __init__(self, user_id, username, first_name):
+                            self.id = user_id
+                            self.username = username
+                            self.first_name = first_name
                     
-                    # Try to get additional user info if possible
-                    try:
-                        # Try to get user info from chat member
-                        target_member = await context.bot.get_chat_member(chat_id, target)
-                        target_user = target_member.user
-                        target_id = target_user.id  # Use actual user ID if we got it
-                    except telegram.error.BadRequest:
-                        # If we can't get member info, continue with username
-                        pass
-                        
-                except Exception as e:
-                    # If anything fails, still try to unmute by username
-                    target_user = None
-                    target_id = username_without_at
+                    target_user = MockUser(user_data[0], user_data[1], user_data[2])
+                    logger.info(f"Successfully resolved @{username_without_at} to ID {target_id}")
+                else:
+                    # If we still can't resolve the username, inform the user
+                    await update.message.reply_text(
+                        f"❌ Negaliu rasti vartotojo @{username_without_at}\n\n"
+                        "**Bandė visos metodas:**\n"
+                        "• Duomenų bazės paieška\n"
+                        "• Telegram API užklausos\n"
+                        "• Chat narių paieška\n\n"
+                        "**Sprendimas:**\n"
+                        f"• Naudokite vartotojo ID: `/unmute [user_id]`\n"
+                        f"• Arba paprašykite vartotojo parašyti žinutę grupėje\n"
+                        f"• Tada naudokite `/lookup @{username_without_at}` ir bandykite vėl"
+                    )
+                    return
             else:
                 try:
                     user_id = int(target)
