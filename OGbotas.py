@@ -1330,12 +1330,35 @@ async def start_private(update: telegram.Update, context: telegram.ext.ContextTy
 
 async def admin_dashboard(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     """Show admin dashboard with inline buttons for all setup options"""
+    # Handle both message updates and callback queries
+    if update.callback_query:
+        # This is a callback query, we need to handle it differently
+        query = update.callback_query
+        user_id = query.from_user.id
+        
+        if user_id != ADMIN_CHAT_ID:
+            await query.answer("❌ Tik adminas gali naudoti šią komandą!")
+            return
+        
+        # For callback queries, we need to edit the existing message
+        await show_admin_dashboard_ui(query, context)
+        return
+    
+    # This is a regular message update
+    if not update.message:
+        return
+        
     user_id = update.message.from_user.id
     
     if user_id != ADMIN_CHAT_ID:
         await update.message.reply_text("❌ Tik adminas gali naudoti šią komandą!")
         return
     
+    # For regular messages, send a new message
+    await show_admin_dashboard_ui(update, context)
+
+async def show_admin_dashboard_ui(update_or_query, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Show the admin dashboard UI (works with both messages and callback queries)"""
     # Create beautiful admin dashboard with inline buttons
     keyboard = [
         [InlineKeyboardButton("🔄 Kartojami pranešimai", callback_data="admin_recurring")],
@@ -1348,7 +1371,7 @@ async def admin_dashboard(update: telegram.Update, context: telegram.ext.Context
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(
+    dashboard_text = (
         "🎯 **ADMIN DASHBOARD**\n\n"
         "Sveiki, administratoriau! Pasirinkite, ką norite valdyti:\n\n"
         "🔄 **Kartojami pranešimai** - Nustatyti automatinius pranešimus\n"
@@ -1356,19 +1379,27 @@ async def admin_dashboard(update: telegram.Update, context: telegram.ext.Context
         "👥 **Pagalbininkai** - Pridėti/pašalinti pagalbininkus\n"
         "🛡️ **Moderacija** - Ban/mute komandos ir nustatymai\n"
         "📊 **Statistika** - Bot statistikos ir duomenys\n"
-        "⚙️ **Pardavėjų valdymas** - Pridėti/pašalinti pardavėjus",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
+        "⚙️ **Pardavėjų valdymas** - Pridėti/pašalinti pardavėjus"
     )
-
-async def handle_admin_dashboard_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle admin dashboard button clicks"""
-    query = update.callback_query
-    user_id = query.from_user.id
     
-    if user_id != ADMIN_CHAT_ID:
-        await query.answer("❌ Tik adminas gali naudoti šią komandą!")
-        return
+    if hasattr(update_or_query, 'edit_message_text'):
+        # This is a callback query
+        await update_or_query.edit_message_text(
+            dashboard_text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    else:
+        # This is a regular message
+        await update_or_query.message.reply_text(
+            dashboard_text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+
+
+
     
     data = query.data
     
