@@ -5234,15 +5234,21 @@ async def ban_user(update: telegram.Update, context: telegram.ext.ContextTypes.D
         target_id = None
         
         if target.startswith('@'):
-            # For username, try to get user info first
+            # For username, we need to get user info to get the ID
             try:
                 target_member = await context.bot.get_chat_member(chat_id, target)
                 target_user = target_member.user
                 target_id = target_user.id
             except telegram.error.BadRequest:
-                # If we can't get member info, try to ban by username directly
-                target_id = target
-                target_user = None
+                # If we can't get member info, we can't ban by username
+                await update.message.reply_text(
+                    "❌ Negaliu rasti vartotojo su tokiu username!\n\n"
+                    "**Galimi sprendimai:**\n"
+                    "• Naudokite vartotojo ID vietoj username\n"
+                    "• Įsitikinkite, kad vartotojas yra grupėje\n"
+                    "• Patikrinkite, ar username parašytas teisingai"
+                )
+                return
         else:
             try:
                 user_id = int(target)
@@ -5391,15 +5397,21 @@ async def mute_user(update: telegram.Update, context: telegram.ext.ContextTypes.
         target_id = None
         
         if target.startswith('@'):
-            # For username, try to get user info first
+            # For username, we need to get user info to get the ID
             try:
                 target_member = await context.bot.get_chat_member(chat_id, target)
                 target_user = target_member.user
                 target_id = target_user.id
             except telegram.error.BadRequest:
-                # If we can't get member info, try to mute by username directly
-                target_id = target
-                target_user = None
+                # If we can't get member info, we can't mute by username
+                await update.message.reply_text(
+                    "❌ Negaliu rasti vartotojo su tokiu username!\n\n"
+                    "**Galimi sprendimai:**\n"
+                    "• Naudokite vartotojo ID vietoj username\n"
+                    "• Įsitikinkite, kad vartotojas yra grupėje\n"
+                    "• Patikrinkite, ar username parašytas teisingai"
+                )
+                return
         else:
             try:
                 user_id = int(target)
