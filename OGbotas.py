@@ -5219,49 +5219,100 @@ async def ban_user(update: telegram.Update, context: telegram.ext.ContextTypes.D
         return
     
     args = context.args
-    if len(args) < 1:
-        await update.message.reply_text("❌ Naudojimas: /ban username/id [priežastis]")
-        return
-    
     chat_id = update.effective_chat.id
     admin_user = update.effective_user
-    target = args[0]
-    reason = " ".join(args[1:]) if len(args) > 1 else "Nenurodyta"
+    
+    # Check if this is a reply to a message
+    if update.message.reply_to_message:
+        target_user = update.message.reply_to_message.from_user
+        target_id = target_user.id
+        reason = " ".join(args) if args else "Nenurodyta"
+    else:
+        if len(args) < 1:
+            await update.message.reply_text(
+                "❌ Naudojimas: /ban username/id [priežastis]\n\n"
+                "**Arba:** Atsakykite į vartotojo žinutę su `/ban [priežastis]`"
+            )
+            return
+        
+        target = args[0]
+        reason = " ".join(args[1:]) if len(args) > 1 else "Nenurodyta"
     
     try:
-        # Get target user info and try to ban directly
-        target_user = None
-        target_id = None
-        
-        if target.startswith('@'):
-            # For username, we need to get user info to get the ID
-            try:
-                target_member = await context.bot.get_chat_member(chat_id, target)
-                target_user = target_member.user
-                target_id = target_user.id
-            except telegram.error.BadRequest:
-                # If we can't get member info, we can't ban by username
-                await update.message.reply_text(
-                    "❌ Negaliu rasti vartotojo su tokiu username!\n\n"
-                    "**Galimi sprendimai:**\n"
-                    "• Naudokite vartotojo ID vietoj username\n"
-                    "• Įsitikinkite, kad vartotojas yra grupėje\n"
-                    "• Patikrinkite, ar username parašytas teisingai"
-                )
-                return
-        else:
-            try:
-                user_id = int(target)
-                target_id = user_id
-                # Try to get user info for display purposes
+        # If not replying to a message, we need to resolve the target
+        if not update.message.reply_to_message:
+            # Get target user info and try to ban directly
+            target_user = None
+            target_id = None
+            
+            if target.startswith('@'):
+                # For username, we need to resolve it to a user ID
+                # Try multiple approaches to find the user
+                target_user = None
+                target_id = None
+            
+                # Method 1: Try get_chat_member with the username
                 try:
-                    target_member = await context.bot.get_chat_member(chat_id, user_id)
+                    target_member = await context.bot.get_chat_member(chat_id, target)
                     target_user = target_member.user
+                    target_id = target_user.id
                 except telegram.error.BadRequest:
-                    target_user = None
-            except ValueError:
-                await update.message.reply_text("❌ Neteisingas vartotojo ID!")
-                return
+                    pass
+                
+                # Method 2: Try to find user in recent messages
+                if target_id is None:
+                    try:
+                        username_without_at = target[1:].lower()
+                        # Get recent messages to find the user
+                        updates = await context.bot.get_updates(limit=100)
+                        for upd in updates:
+                            if (upd.message and upd.message.chat.id == chat_id and 
+                                upd.message.from_user and upd.message.from_user.username and
+                                upd.message.from_user.username.lower() == username_without_at):
+                                target_user = upd.message.from_user
+                                target_id = target_user.id
+                                break
+                    except Exception:
+                        pass
+                
+                # Method 3: Try getting chat administrators and members
+                if target_id is None:
+                    try:
+                        username_without_at = target[1:].lower()
+                        # Check administrators
+                        admins = await context.bot.get_chat_administrators(chat_id)
+                        for admin in admins:
+                            if (admin.user.username and 
+                                admin.user.username.lower() == username_without_at):
+                                target_user = admin.user
+                                target_id = target_user.id
+                                break
+                    except Exception:
+                        pass
+                
+                if target_id is None:
+                    await update.message.reply_text(
+                        "❌ Negaliu rasti vartotojo su tokiu username!\n\n"
+                        "**Sprendimas:** Naudokite vartotojo ID vietoj username.\n\n"
+                        "**Kaip gauti vartotojo ID:**\n"
+                        "1. Paprašykite vartotojo parašyti žinutę grupėje\n"
+                        "2. Atsakykite į jo žinutę su `/ban` komanda\n"
+                        "3. Arba naudokite @userinfobot, kad sužinotumėte ID"
+                    )
+                    return
+            else:
+                try:
+                    user_id = int(target)
+                    target_id = user_id
+                    # Try to get user info for display purposes
+                    try:
+                        target_member = await context.bot.get_chat_member(chat_id, user_id)
+                        target_user = target_member.user
+                    except telegram.error.BadRequest:
+                        target_user = None
+                except ValueError:
+                    await update.message.reply_text("❌ Neteisingas vartotojo ID!")
+                    return
         
         # Try to ban the user
         try:
@@ -5382,49 +5433,100 @@ async def mute_user(update: telegram.Update, context: telegram.ext.ContextTypes.
         return
     
     args = context.args
-    if len(args) < 1:
-        await update.message.reply_text("❌ Naudojimas: /mute username/id [priežastis]")
-        return
-    
     chat_id = update.effective_chat.id
     admin_user = update.effective_user
-    target = args[0]
-    reason = " ".join(args[1:]) if len(args) > 1 else "Nenurodyta"
+    
+    # Check if this is a reply to a message
+    if update.message.reply_to_message:
+        target_user = update.message.reply_to_message.from_user
+        target_id = target_user.id
+        reason = " ".join(args) if args else "Nenurodyta"
+    else:
+        if len(args) < 1:
+            await update.message.reply_text(
+                "❌ Naudojimas: /mute username/id [priežastis]\n\n"
+                "**Arba:** Atsakykite į vartotojo žinutę su `/mute [priežastis]`"
+            )
+            return
+        
+        target = args[0]
+        reason = " ".join(args[1:]) if len(args) > 1 else "Nenurodyta"
     
     try:
-        # Get target user info and try to mute directly
-        target_user = None
-        target_id = None
-        
-        if target.startswith('@'):
-            # For username, we need to get user info to get the ID
-            try:
-                target_member = await context.bot.get_chat_member(chat_id, target)
-                target_user = target_member.user
-                target_id = target_user.id
-            except telegram.error.BadRequest:
-                # If we can't get member info, we can't mute by username
-                await update.message.reply_text(
-                    "❌ Negaliu rasti vartotojo su tokiu username!\n\n"
-                    "**Galimi sprendimai:**\n"
-                    "• Naudokite vartotojo ID vietoj username\n"
-                    "• Įsitikinkite, kad vartotojas yra grupėje\n"
-                    "• Patikrinkite, ar username parašytas teisingai"
-                )
-                return
-        else:
-            try:
-                user_id = int(target)
-                target_id = user_id
-                # Try to get user info for display purposes
+        # If not replying to a message, we need to resolve the target
+        if not update.message.reply_to_message:
+            # Get target user info and try to mute directly
+            target_user = None
+            target_id = None
+            
+            if target.startswith('@'):
+                # For username, we need to resolve it to a user ID
+                # Try multiple approaches to find the user
+                target_user = None
+                target_id = None
+                
+                # Method 1: Try get_chat_member with the username
                 try:
-                    target_member = await context.bot.get_chat_member(chat_id, user_id)
+                    target_member = await context.bot.get_chat_member(chat_id, target)
                     target_user = target_member.user
+                    target_id = target_user.id
                 except telegram.error.BadRequest:
-                    target_user = None
-            except ValueError:
-                await update.message.reply_text("❌ Neteisingas vartotojo ID!")
-                return
+                    pass
+                
+                # Method 2: Try to find user in recent messages
+                if target_id is None:
+                    try:
+                        username_without_at = target[1:].lower()
+                        # Get recent messages to find the user
+                        updates = await context.bot.get_updates(limit=100)
+                        for upd in updates:
+                            if (upd.message and upd.message.chat.id == chat_id and 
+                                upd.message.from_user and upd.message.from_user.username and
+                                upd.message.from_user.username.lower() == username_without_at):
+                                target_user = upd.message.from_user
+                                target_id = target_user.id
+                                break
+                    except Exception:
+                        pass
+                
+                # Method 3: Try getting chat administrators and members
+                if target_id is None:
+                    try:
+                        username_without_at = target[1:].lower()
+                        # Check administrators
+                        admins = await context.bot.get_chat_administrators(chat_id)
+                        for admin in admins:
+                            if (admin.user.username and 
+                                admin.user.username.lower() == username_without_at):
+                                target_user = admin.user
+                                target_id = target_user.id
+                                break
+                    except Exception:
+                        pass
+                
+                if target_id is None:
+                    await update.message.reply_text(
+                        "❌ Negaliu rasti vartotojo su tokiu username!\n\n"
+                        "**Sprendimas:** Naudokite vartotojo ID vietoj username.\n\n"
+                        "**Kaip gauti vartotojo ID:**\n"
+                        "1. Paprašykite vartotojo parašyti žinutę grupėje\n"
+                        "2. Atsakykite į jo žinutę su `/mute` komanda\n"
+                        "3. Arba naudokite @userinfobot, kad sužinotumėte ID"
+                    )
+                    return
+            else:
+                try:
+                    user_id = int(target)
+                    target_id = user_id
+                    # Try to get user info for display purposes
+                    try:
+                        target_member = await context.bot.get_chat_member(chat_id, user_id)
+                        target_user = target_member.user
+                    except telegram.error.BadRequest:
+                        target_user = None
+                except ValueError:
+                    await update.message.reply_text("❌ Neteisingas vartotojo ID!")
+                    return
         
         # Try to mute the user
         try:
