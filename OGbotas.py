@@ -1507,6 +1507,35 @@ async def handle_admin_dashboard_callback(update: telegram.Update, context: tele
             parse_mode='Markdown'
         )
     
+    elif data.startswith("select_group_"):
+        # Handle group selection from the list
+        parts = data.split("_")
+        if len(parts) >= 4:
+            feature = parts[2]
+            group_id = int(parts[3])
+            
+            # Store the selected group ID
+            context.user_data['target_group_id'] = group_id
+            context.user_data['group_selection_type'] = feature
+            
+            # Show the appropriate management menu for the selected group
+            await show_feature_management_menu(query, context, feature, group_id)
+        else:
+            await query.edit_message_text("❌ Neteisingas grupės pasirinkimas!")
+    
+    elif data.startswith("manual_group_"):
+        # Handle manual group ID input
+        feature = data.replace("manual_group_", "")
+        context.user_data['waiting_for_group_id'] = True
+        context.user_data['group_selection_type'] = feature
+        
+        await query.edit_message_text(
+            f"📝 **Įveskite grupės ID**\n\n"
+            f"Funkcija: **{get_feature_name(feature)}**\n\n"
+            f"Įveskite grupės ID (pvz., -1001234567890):",
+            parse_mode='Markdown'
+        )
+    
     await query.answer()
 
 async def handle_admin_button(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
@@ -1693,6 +1722,190 @@ def get_feature_name(feature):
         'helpers': 'Pagalbininkai'
     }
     return feature_names.get(feature, feature)
+
+async def show_group_selection_menu(query, context, feature, selection_type):
+    """Show a list of all groups where the bot is present for selection"""
+    try:
+        # Get all chats where the bot is present
+        bot = context.bot
+        updates = await bot.get_updates()
+        
+        # Extract unique chat IDs from updates
+        chat_ids = set()
+        for update in updates:
+            if update.message and update.message.chat:
+                chat = update.message.chat
+                if chat.type in ['group', 'supergroup']:
+                    chat_ids.add(chat.id)
+        
+        # Also check allowed_groups from the bot's configuration
+        if 'allowed_groups' in globals():
+            for group_id in allowed_groups:
+                chat_ids.add(int(group_id))
+        
+        if not chat_ids:
+            # Fallback: show manual input option
+            keyboard = [
+                [InlineKeyboardButton("📝 Įvesti grupės ID rankiniu", callback_data=f"manual_group_{feature}")],
+                [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                f"🔍 **Grupės nerastos**\n\n"
+                f"Funkcija: **{get_feature_name(feature)}**\n\n"
+                "Botas dar nebuvo naudojamas grupėse arba negali gauti grupės sąrašo.\n"
+                "Galite įvesti grupės ID rankiniu būdu:",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Create keyboard with group buttons
+        keyboard = []
+        for chat_id in sorted(chat_ids):
+            try:
+                # Get chat info to show group name
+                chat_info = await bot.get_chat(chat_id)
+                group_name = chat_info.title or f"Grupė {chat_id}"
+                # Truncate long names
+                if len(group_name) > 30:
+                    group_name = group_name[:27] + "..."
+                
+                keyboard.append([InlineKeyboardButton(
+                    f"📱 {group_name}", 
+                    callback_data=f"select_group_{feature}_{chat_id}"
+                )])
+            except Exception as e:
+                # If we can't get chat info, just show the ID
+                keyboard.append([InlineKeyboardButton(
+                    f"📱 Grupė {chat_id}", 
+                    callback_data=f"select_group_{feature}_{chat_id}"
+                )])
+        
+        # Add back button
+        keyboard.append([InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        selection_text = "📝" if selection_type == "select" else "🔍"
+        await query.edit_message_text(
+            f"{selection_text} **Pasirinkite grupę**\n\n"
+            f"Funkcija: **{get_feature_name(feature)}**\n\n"
+            f"Botas yra šiose grupėse. Pasirinkite grupę, kurioje norite valdyti:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        # Fallback to manual input
+        keyboard = [
+            [InlineKeyboardButton("📝 Įvesti grupės ID rankiniu", callback_data=f"manual_group_{feature}")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            f"❌ **Klaida gaunant grupes**\n\n"
+            f"Funkcija: **{get_feature_name(feature)}**\n\n"
+            f"Klaida: {str(e)}\n\n"
+            "Galite įvesti grupės ID rankiniu būdu:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+
+async def show_feature_management_menu(query, context, feature, group_id):
+    """Show the appropriate management menu for the selected feature and group"""
+    try:
+        # Get group info
+        bot = context.bot
+        chat_info = await bot.get_chat(group_id)
+        group_name = chat_info.title or f"Grupė {group_id}"
+        
+        if feature == "recurring":
+            # Show recurring messages management for this group
+            await show_recurring_messages_for_group(query, context, group_id, group_name)
+        elif feature == "banned_words":
+            # Show banned words management for this group
+            await show_banned_words_for_group(query, context, group_id, group_name)
+        elif feature == "helpers":
+            # Show helpers management for this group
+            await show_helpers_for_group(query, context, group_id, group_name)
+        else:
+            await query.edit_message_text(f"❌ Nežinoma funkcija: {feature}")
+            
+    except Exception as e:
+        await query.edit_message_text(
+            f"❌ **Klaida gaunant grupės informaciją**\n\n"
+            f"Grupės ID: {group_id}\n"
+            f"Klaida: {str(e)}"
+        )
+
+async def show_recurring_messages_for_group(query, context, group_id, group_name):
+    """Show recurring messages management for a specific group"""
+    # Store the target group ID for future use
+    context.user_data['target_group_id'] = group_id
+    
+    keyboard = [
+        [InlineKeyboardButton("➕ Pridėti naują pranešimą", callback_data="add_recurring_message")],
+        [InlineKeyboardButton("📋 Peržiūrėti pranešimus", callback_data="list_recurring_messages")],
+        [InlineKeyboardButton("⚙️ Nustatymai", callback_data="recurring_settings")],
+        [InlineKeyboardButton("⬅️ Atgal į grupės pasirinkimą", callback_data="admin_recurring")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        f"🔄 **Kartojami pranešimai - {group_name}**\n\n"
+        f"Grupės ID: `{group_id}`\n\n"
+        "Pasirinkite veiksmą:",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+async def show_banned_words_for_group(query, context, group_id, group_name):
+    """Show banned words management for a specific group"""
+    # Store the target group ID for future use
+    context.user_data['target_group_id'] = group_id
+    
+    keyboard = [
+        [InlineKeyboardButton("➕ Pridėti uždraustą žodį", callback_data="add_banned_word")],
+        [InlineKeyboardButton("📋 Peržiūrėti uždraustus žodžius", callback_data="list_banned_words")],
+        [InlineKeyboardButton("⚙️ Nustatymai", callback_data="banned_words_settings")],
+        [InlineKeyboardButton("⬅️ Atgal į grupės pasirinkimą", callback_data="admin_banned_words")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        f"🚫 **Uždrausti žodžiai - {group_name}**\n\n"
+        f"Grupės ID: `{group_id}`\n\n"
+        "Pasirinkite veiksmą:",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+async def show_helpers_for_group(query, context, group_id, group_name):
+    """Show helpers management for a specific group"""
+    # Store the target group ID for future use
+    context.user_data['target_group_id'] = group_id
+    
+    keyboard = [
+        [InlineKeyboardButton("➕ Pridėti pagalbininką", callback_data="add_helper")],
+        [InlineKeyboardButton("📋 Peržiūrėti pagalbininkus", callback_data="list_helpers")],
+        [InlineKeyboardButton("⚙️ Nustatymai", callback_data="helpers_settings")],
+        [InlineKeyboardButton("⬅️ Atgal į grupės pasirinkimą", callback_data="admin_helpers")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        f"👥 **Pagalbininkai - {group_name}**\n\n"
+        f"Grupės ID: `{group_id}`\n\n"
+        "Pasirinkite veiksmą:",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
 
 async def show_pending_scammers_panel(query, context):
     """Show pending scammer reports in moderation panel"""
