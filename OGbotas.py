@@ -5602,16 +5602,66 @@ async def recurring_messages_private(update: telegram.Update, context: telegram.
             await update.message.reply_text("❌ Neteisingas grupės ID formatas!")
             return
     
-    # Show group selection interface
-    keyboard = [
-        [InlineKeyboardButton("📝 Įvesti grupės ID", callback_data="group_select_manual_recurring")],
-        [InlineKeyboardButton("🔍 Rasti grupes", callback_data="group_select_search_recurring")]
-    ]
+    # Show group selection with buttons for already added groups
+    keyboard = []
+    
+    # Add buttons for already added groups
+    if allowed_groups:
+        added_groups_count = 0
+        for group_id_str in allowed_groups:
+            try:
+                group_id = int(group_id_str)
+                # Try to get group name
+                try:
+                    chat_info = await context.bot.get_chat(group_id)
+                    group_name = chat_info.title or f"Grupė {group_id}"
+                    # Truncate long names
+                    if len(group_name) > 25:
+                        group_name = group_name[:22] + "..."
+                    
+                    # Verify user is admin in this group
+                    try:
+                        chat_member = await context.bot.get_chat_member(group_id, update.effective_user.id)
+                        if chat_member.status in ['creator', 'administrator']:
+                            keyboard.append([InlineKeyboardButton(
+                                f"📱 {group_name}", 
+                                callback_data=f"recurring_select_group_{group_id}"
+                            )])
+                            added_groups_count += 1
+                    except Exception:
+                        # User is not admin in this group, skip it
+                        continue
+                        
+                except Exception:
+                    # Can't get group info, but still show it with ID
+                    try:
+                        chat_member = await context.bot.get_chat_member(group_id, update.effective_user.id)
+                        if chat_member.status in ['creator', 'administrator']:
+                            keyboard.append([InlineKeyboardButton(
+                                f"📱 Grupė {group_id}", 
+                                callback_data=f"recurring_select_group_{group_id}"
+                            )])
+                            added_groups_count += 1
+                    except Exception:
+                        continue
+                        
+            except (ValueError, Exception):
+                continue
+    
+    # Add button to add new group by ID
+    keyboard.append([InlineKeyboardButton("➕ Pridėti naują grupę", callback_data="recurring_add_new_group")])
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
+    # Create message text
+    text = "🔄 **Kartojami Pranešimai**\n\n"
+    if keyboard[:-1]:  # If there are group buttons (excluding the add button)
+        text += "Pasirinkite grupę iš sąrašo arba pridėkite naują:"
+    else:
+        text += "Dar neturite pridėtų grupių.\nPridėkite grupę, kad galėtumėte valdyti kartojamuosius pranešimus:"
+    
     await update.message.reply_text(
-        "🔄 **Kartojami Pranešimai**\n\n"
-        "Pasirinkite grupę, kurią norite valdyti:",
+        text,
         reply_markup=reply_markup,
         parse_mode='Markdown'
     )
@@ -6431,6 +6481,61 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         
         await show_message_customization(query, context)
     
+    # Handle group selection for recurring messages
+    elif data.startswith("recurring_select_group_"):
+        group_id = int(data.split("_")[-1])
+        
+        # Store the group_id in user_data
+        context.user_data['target_group_id'] = group_id
+        context.user_data['private_mode'] = True
+        
+        # Get group info for display
+        try:
+            chat_info = await context.bot.get_chat(group_id)
+            group_name = chat_info.title or f"Grupė {group_id}"
+        except Exception:
+            group_name = f"Grupė {group_id}"
+        
+        keyboard = [
+            [InlineKeyboardButton("➕ Pridėti pranešimą", callback_data="recurring_add_private")],
+            [InlineKeyboardButton("📋 Valdyti pranešimus", callback_data="recurring_manage_private")],
+            [InlineKeyboardButton("🔙 Atgal į grupių sąrašą", callback_data="recurring_back_to_groups")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            f"🔄 **Kartojami Pranešimai**\n\n"
+            f"📱 **Grupė:** {group_name}\n"
+            f"🆔 **ID:** `{group_id}`\n\n"
+            f"Pasirinkite veiksmą:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    # Handle add new group button
+    elif data == "recurring_add_new_group":
+        context.user_data['waiting_for_group_id'] = True
+        context.user_data['group_selection_type'] = 'recurring'
+        
+        await query.edit_message_text(
+            "➕ **Pridėti Naują Grupę**\n\n"
+            "Įveskite grupės ID (pvz., -1001234567890):\n\n"
+            "💡 **Kaip gauti grupės ID:**\n"
+            "1. Pridėkite @userinfobot į grupę\n"
+            "2. Parašykite /start grupėje\n"
+            "3. Botas parodys grupės ID",
+            parse_mode='Markdown'
+        )
+    
+    # Handle back to groups list
+    elif data == "recurring_back_to_groups":
+        # Clear user data and show groups list again
+        context.user_data.pop('target_group_id', None)
+        context.user_data.pop('private_mode', None)
+        
+        # Recreate the groups menu
+        await show_recurring_groups_menu(query, context)
+    
     await query.answer()
 
 # GroupHelpBot-style recurring messages functions
@@ -6778,6 +6883,72 @@ async def show_manage_messages(query, context):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_recurring_groups_menu(query, context):
+    """Show the groups menu for recurring messages"""
+    # Show group selection with buttons for already added groups
+    keyboard = []
+    
+    # Add buttons for already added groups
+    if allowed_groups:
+        added_groups_count = 0
+        for group_id_str in allowed_groups:
+            try:
+                group_id = int(group_id_str)
+                # Try to get group name
+                try:
+                    chat_info = await context.bot.get_chat(group_id)
+                    group_name = chat_info.title or f"Grupė {group_id}"
+                    # Truncate long names
+                    if len(group_name) > 25:
+                        group_name = group_name[:22] + "..."
+                    
+                    # Verify user is admin in this group
+                    try:
+                        chat_member = await context.bot.get_chat_member(group_id, query.from_user.id)
+                        if chat_member.status in ['creator', 'administrator']:
+                            keyboard.append([InlineKeyboardButton(
+                                f"📱 {group_name}", 
+                                callback_data=f"recurring_select_group_{group_id}"
+                            )])
+                            added_groups_count += 1
+                    except Exception:
+                        # User is not admin in this group, skip it
+                        continue
+                        
+                except Exception:
+                    # Can't get group info, but still show it with ID
+                    try:
+                        chat_member = await context.bot.get_chat_member(group_id, query.from_user.id)
+                        if chat_member.status in ['creator', 'administrator']:
+                            keyboard.append([InlineKeyboardButton(
+                                f"📱 Grupė {group_id}", 
+                                callback_data=f"recurring_select_group_{group_id}"
+                            )])
+                            added_groups_count += 1
+                    except Exception:
+                        continue
+                        
+            except (ValueError, Exception):
+                continue
+    
+    # Add button to add new group by ID
+    keyboard.append([InlineKeyboardButton("➕ Pridėti naują grupę", callback_data="recurring_add_new_group")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Create message text
+    text = "🔄 **Kartojami Pranešimai**\n\n"
+    if keyboard[:-1]:  # If there are group buttons (excluding the add button)
+        text += "Pasirinkite grupę iš sąrašo arba pridėkite naują:"
+    else:
+        text += "Dar neturite pridėtų grupių.\nPridėkite grupę, kad galėtumėte valdyti kartojamuosius pranešimus:"
+    
+    await query.edit_message_text(
+        text,
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
 
 async def handle_banned_words_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE):
     """Handle banned words callback queries"""
@@ -7260,6 +7431,9 @@ application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern=
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^delete_"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^save_message$"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^topic_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^recurring_select_group_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^recurring_add_new_group$"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^recurring_back_to_groups$"))
 
 # Enhanced message handler for banned words detection
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
