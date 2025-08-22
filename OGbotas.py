@@ -1272,6 +1272,12 @@ async def startas(update: telegram.Update, context: telegram.ext.ContextTypes.DE
             context.job_queue.run_once(delete_message_job, 45, data=(chat_id, msg.message_id))
     else:
         # Private chat
+        # Check if this is the admin - if so, show admin dashboard directly
+        if user_id == ADMIN_CHAT_ID:
+            await admin_dashboard(update, context)
+            return
+            
+        # For non-admin users, require password
         if len(context.args) < 1:
             await update.message.reply_text("Naudok: /startas Password privačiai!")
             return
@@ -2854,6 +2860,25 @@ async def chatking(update: telegram.Update, context: telegram.ext.ContextTypes.D
 async def handle_message(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     try:
         chat_id = update.message.chat_id
+        
+        # Handle private chat messages for admin features
+        if update.message.chat.type == 'private':
+            # Check if user is waiting for input
+            if (context.user_data.get('waiting_for_group_id') or 
+                context.user_data.get('waiting_for_word') or 
+                context.user_data.get('waiting_for_helper_id') or 
+                context.user_data.get('waiting_for_message') or
+                context.user_data.get('waiting_for_manual_groups') or
+                context.user_data.get('waiting_for_new_group')):
+                
+                # Process private chat input
+                await process_private_chat_input(update, context)
+                return
+            
+            # If not waiting for input, ignore private chat messages
+            return
+        
+        # Handle group messages
         if not is_allowed_group(chat_id):
             return
         
@@ -2877,212 +2902,7 @@ async def handle_message(update: telegram.Update, context: telegram.ext.ContextT
             logger.warning(f"Invalid chat_id received: {chat_id}")
             return
         
-        # Handle user input for new features
-        if context.user_data.get('waiting_for_word'):
-            # User is adding a banned word
-            word = update.message.text.strip()
-            if len(word) > 50:
-                await update.message.reply_text("❌ Žodis per ilgas! Maksimalus ilgis: 50 simbolių.")
-                return
-            
-            # Check if this is private mode
-            is_private = context.user_data.get('private_mode', False)
-            target_chat_id = context.user_data.get('target_group_id', chat_id)
-            
-            # Show action selection
-            keyboard = [
-                [InlineKeyboardButton("⚠️ Perspėjimas", callback_data=f"action_warn_{word}_{target_chat_id}" if is_private else f"action_warn_{word}")],
-                [InlineKeyboardButton("🔇 Nutildyti", callback_data=f"action_mute_{word}_{target_chat_id}" if is_private else f"action_mute_{word}")],
-                [InlineKeyboardButton("🚫 Uždrausti", callback_data=f"action_ban_{word}_{target_chat_id}" if is_private else f"action_ban_{word}")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            group_info = f"\nGrupė: `{target_chat_id}`" if is_private else ""
-            await update.message.reply_text(
-                f"🚫 **Pridėti žodį: {word}**{group_info}\n\n"
-                "Pasirinkite veiksmą, kurį atlikti, kai vartotojas naudos šį žodį:",
-                reply_markup=reply_markup,
-                parse_mode='Markdown'
-            )
-            
-            # Clear waiting state
-            context.user_data.pop('waiting_for_word', None)
-            return
-        
-        elif context.user_data.get('waiting_for_helper_id'):
-            # User is adding a helper
-            try:
-                helper_id = int(update.message.text.strip())
-                if helper_id <= 0:
-                    await update.message.reply_text("❌ Neteisingas vartotojo ID!")
-                    return
-                
-                # Check if this is private mode
-                is_private = context.user_data.get('private_mode', False)
-                target_chat_id = context.user_data.get('target_group_id', chat_id)
-                
-                # Try to get user info
-                try:
-                    helper_user = await context.bot.get_chat_member(target_chat_id, helper_id)
-                    helper_username = helper_user.user.username
-                    
-                    # Add helper to database
-                    database.add_helper(
-                        target_chat_id, helper_id, helper_username,
-                        user_id, username or f"User {user_id}"
-                    )
-                    
-                    group_info = f"\nGrupė: `{target_chat_id}`" if is_private else ""
-                    await update.message.reply_text(
-                        f"✅ **Pagalbininkas pridėtas!**{group_info}\n\n"
-                        f"👤 **Vartotojas:** {helper_user.user.first_name}"
-                        f"{f' (@{helper_username})' if helper_username else ''}\n"
-                        f"🆔 **ID:** `{helper_id}`\n"
-                        f"👮 **Pridėjo:** {update.message.from_user.first_name}"
-                        f"{f' (@{username})' if username else ''}",
-                        parse_mode='Markdown'
-                    )
-                except Exception as e:
-                    await update.message.reply_text(f"❌ Nepavyko pridėti pagalbininko: {str(e)}")
-                
-            except ValueError:
-                await update.message.reply_text("❌ Neteisingas vartotojo ID! Įveskite skaičių.")
-            
-            # Clear waiting state
-            context.user_data.pop('waiting_for_helper_id', None)
-            context.user_data.pop('private_mode', None)
-            return
-        
-        elif context.user_data.get('waiting_for_message'):
-            # User is adding a recurring message
-            message_text = update.message.text.strip()
-            if len(message_text) > 1000:
-                await update.message.reply_text("❌ Pranešimas per ilgas! Maksimalus ilgis: 1000 simbolių.")
-                return
-            
-            # Check if this is private mode
-            is_private = context.user_data.get('private_mode', False)
-            target_chat_id = context.user_data.get('target_group_id', chat_id)
-            
-            # Add message to database with default settings
-            message_id = database.add_scheduled_message(
-                target_chat_id, message_text, user_id, username or f"User {user_id}",
-                repetition_type='24h', interval_hours=24
-            )
-            
-            # Schedule the message
-            scheduler.add_job(
-                send_scheduled_message,
-                'interval',
-                hours=24,
-                args=[target_chat_id, message_text, message_id],
-                id=f"scheduled_{message_id}",
-                replace_existing=True
-            )
-            
-            group_info = f"\nGrupė: `{target_chat_id}`" if is_private else ""
-            await update.message.reply_text(
-                f"✅ **Pranešimas pridėtas!**{group_info}\n\n"
-                f"📝 **Tekstas:** {message_text[:100]}{'...' if len(message_text) > 100 else ''}\n"
-                f"🔄 **Kartojimas:** Kas 24 valandas\n"
-                f"🆔 **ID:** `{message_id}`\n"
-                f"👮 **Pridėjo:** {update.message.from_user.first_name}"
-                f"{f' (@{username})' if username else ''}",
-                parse_mode='Markdown'
-            )
-            
-            # Clear waiting state
-            context.user_data.pop('waiting_for_message', None)
-            context.user_data.pop('private_mode', None)
-            return
-        
-        elif context.user_data.get('waiting_for_group_id'):
-            # User is entering a group ID for private chat management
-            try:
-                group_id = int(update.message.text.strip())
-                group_selection_type = context.user_data.get('group_selection_type', 'recurring')
-                
-                # Verify the group exists and user is admin there
-                try:
-                    chat_member = await context.bot.get_chat_member(group_id, user_id)
-                    if chat_member.status not in ['creator', 'administrator']:
-                        await update.message.reply_text("❌ Turite būti administratorius nurodytoje grupėje!")
-                        return
-                except Exception as e:
-                    await update.message.reply_text("❌ Nepavyko patikrinti teisių grupėje arba grupė neegzistuoja!")
-                    return
-                
-                # Store the group_id in user_data for future use
-                context.user_data['target_group_id'] = group_id
-                context.user_data['private_mode'] = True
-                
-                # Show appropriate menu based on selection type
-                if group_selection_type == 'recurring':
-                    keyboard = [
-                        [InlineKeyboardButton("➕ Pridėti pranešimą", callback_data="recurring_add_private")],
-                        [InlineKeyboardButton("📋 Valdyti pranešimus", callback_data="recurring_manage_private")]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    
-                    await update.message.reply_text(
-                        f"🔄 **Kartojami Pranešimai**\n\n"
-                        f"Grupė: `{group_id}`\n"
-                        f"Sukurkite pranešimus, kurie kartojasi automatiškai.",
-                        reply_markup=reply_markup,
-                        parse_mode='Markdown'
-                    )
-                
-                elif group_selection_type == 'banned_words':
-                    banned_words = database.get_banned_words(group_id)
-                    
-                    keyboard = [
-                        [InlineKeyboardButton("➕ Pridėti žodį", callback_data="banned_words_add_private")]
-                    ]
-                    
-                    if banned_words:
-                        keyboard.append([InlineKeyboardButton("📋 Žodžių sąrašas", callback_data="banned_words_list_private")])
-                    
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    
-                    text = f"🚫 **Uždrausti Žodžiai**\n\n"
-                    text += f"Grupė: `{group_id}`\n\n"
-                    if banned_words:
-                        text += f"📊 Aktyvūs žodžiai: {len(banned_words)}\n"
-                        text += "Žodžiai automatiškai aptinkami ir baudžiami."
-                    else:
-                        text += "Dar nėra uždraustų žodžių.\nPridėkite žodžius, kuriuos norite drausti."
-                    
-                    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-                
-                elif group_selection_type == 'helpers':
-                    helpers = database.get_helpers(group_id)
-                    
-                    keyboard = [
-                        [InlineKeyboardButton("➕ Pridėti pagalbininką", callback_data="helpers_add_private")]
-                    ]
-                    
-                    if helpers:
-                        keyboard.append([InlineKeyboardButton("📋 Pagalbininkų sąrašas", callback_data="helpers_list_private")])
-                    
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    
-                    text = f"👥 **Pagalbininkai**\n\n"
-                    text += f"Grupė: `{group_id}`\n\n"
-                    if helpers:
-                        text += f"📊 Aktyvūs pagalbininkai: {len(helpers)}\n"
-                        text += "Pagalbininkai gali naudoti ban/mute komandas."
-                    else:
-                        text += "Dar nėra pagalbininkų.\nPridėkite vartotojus, kurie galės modifikuoti."
-                    
-                    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-                
-            except ValueError:
-                await update.message.reply_text("❌ Neteisingas grupės ID formatas! Įveskite skaičių.")
-            
-            # Clear waiting state
-            context.user_data.pop('waiting_for_group_id', None)
-            context.user_data.pop('group_selection_type', None)
-            return
+        # All private chat input is now handled in process_private_chat_input function
         
         elif context.user_data.get('waiting_for_manual_groups'):
             # User is entering multiple group IDs separated by commas
@@ -5896,6 +5716,284 @@ async def helpers_private(update: telegram.Update, context: telegram.ext.Context
         reply_markup=reply_markup,
         parse_mode='Markdown'
     )
+
+# Function to process private chat input for admin features
+async def process_private_chat_input(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Process input from private chat for admin features"""
+    user_id = update.message.from_user.id
+    username = update.message.from_user.username
+    
+    if context.user_data.get('waiting_for_group_id'):
+        # User is entering a group ID for private chat management
+        try:
+            group_id = int(update.message.text.strip())
+            group_selection_type = context.user_data.get('group_selection_type', 'recurring')
+            
+            # Verify the group exists and user is admin there
+            try:
+                chat_member = await context.bot.get_chat_member(group_id, user_id)
+                if chat_member.status not in ['creator', 'administrator']:
+                    await update.message.reply_text("❌ Turite būti administratorius nurodytoje grupėje!")
+                    return
+            except Exception as e:
+                await update.message.reply_text("❌ Nepavyko patikrinti teisių grupėje arba grupė neegzistuoja!")
+                return
+            
+            # Store the group_id in user_data for future use
+            context.user_data['target_group_id'] = group_id
+            context.user_data['private_mode'] = True
+            
+            # Show appropriate menu based on selection type
+            if group_selection_type == 'recurring':
+                keyboard = [
+                    [InlineKeyboardButton("➕ Pridėti pranešimą", callback_data="recurring_add_private")],
+                    [InlineKeyboardButton("📋 Valdyti pranešimus", callback_data="recurring_manage_private")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await update.message.reply_text(
+                    f"🔄 **Kartojami Pranešimai**\n\n"
+                    f"Grupė: `{group_id}`\n"
+                    f"Sukurkite pranešimus, kurie kartojasi automatiškai.",
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+            
+            elif group_selection_type == 'banned_words':
+                banned_words = database.get_banned_words(group_id)
+                
+                keyboard = [
+                    [InlineKeyboardButton("➕ Pridėti žodį", callback_data="banned_words_add_private")]
+                ]
+                
+                if banned_words:
+                    keyboard.append([InlineKeyboardButton("📋 Žodžių sąrašas", callback_data="banned_words_list_private")])
+                
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                text = f"🚫 **Uždrausti Žodžiai**\n\n"
+                text += f"Grupė: `{group_id}`\n\n"
+                if banned_words:
+                    text += f"📊 Aktyvūs žodžiai: {len(banned_words)}\n"
+                    text += "Žodžiai automatiškai aptinkami ir baudžiami."
+                else:
+                    text += "Dar nėra uždraustų žodžių.\nPridėkite žodžius, kuriuos norite drausti."
+                
+                await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+            
+            elif group_selection_type == 'helpers':
+                helpers = database.get_helpers(group_id)
+                
+                keyboard = [
+                    [InlineKeyboardButton("➕ Pridėti pagalbininką", callback_data="helpers_add_private")]
+                ]
+                
+                if helpers:
+                    keyboard.append([InlineKeyboardButton("📋 Pagalbininkų sąrašas", callback_data="helpers_list_private")])
+                
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                text = f"👥 **Pagalbininkai**\n\n"
+                text += f"Grupė: `{group_id}`\n\n"
+                if helpers:
+                    text += f"📊 Aktyvūs pagalbininkai: {len(helpers)}\n"
+                    text += "Pagalbininkai gali naudoti ban/mute komandas."
+                else:
+                    text += "Dar nėra pagalbininkų.\nPridėkite vartotojus, kurie galės modifikuoti."
+                
+                await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+            
+        except ValueError:
+            await update.message.reply_text("❌ Neteisingas grupės ID formatas! Įveskite skaičių.")
+        
+        # Clear waiting state
+        context.user_data.pop('waiting_for_group_id', None)
+        context.user_data.pop('group_selection_type', None)
+        return
+    
+    elif context.user_data.get('waiting_for_word'):
+        # User is adding a banned word
+        word = update.message.text.strip()
+        if len(word) > 50:
+            await update.message.reply_text("❌ Žodis per ilgas! Maksimalus ilgis: 50 simbolių.")
+            return
+        
+        # Check if this is private mode
+        is_private = context.user_data.get('private_mode', False)
+        target_chat_id = context.user_data.get('target_group_id', update.message.chat_id)
+        
+        # Show action selection
+        keyboard = [
+            [InlineKeyboardButton("⚠️ Perspėjimas", callback_data=f"action_warn_{word}_{target_chat_id}" if is_private else f"action_warn_{word}")],
+            [InlineKeyboardButton("🔇 Nutildyti", callback_data=f"action_mute_{word}_{target_chat_id}" if is_private else f"action_mute_{word}")],
+            [InlineKeyboardButton("🚫 Uždrausti", callback_data=f"action_ban_{word}_{target_chat_id}" if is_private else f"action_ban_{word}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        group_info = f"\nGrupė: `{target_chat_id}`" if is_private else ""
+        await update.message.reply_text(
+            f"🚫 **Pridėti žodį: {word}**{group_info}\n\n"
+            "Pasirinkite veiksmą, kurį atlikti, kai vartotojas naudos šį žodį:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+        # Clear waiting state
+        context.user_data.pop('waiting_for_word', None)
+        return
+    
+    elif context.user_data.get('waiting_for_helper_id'):
+        # User is adding a helper
+        try:
+            helper_id = int(update.message.text.strip())
+            if helper_id <= 0:
+                await update.message.reply_text("❌ Neteisingas vartotojo ID!")
+                return
+            
+            # Check if this is private mode
+            is_private = context.user_data.get('private_mode', False)
+            target_chat_id = context.user_data.get('target_group_id', update.message.chat_id)
+            
+            # Try to get user info
+            try:
+                helper_user = await context.bot.get_chat_member(target_chat_id, helper_id)
+                helper_username = helper_user.user.username
+                
+                # Add helper to database
+                database.add_helper(
+                    target_chat_id, helper_id, helper_username,
+                    user_id, username or f"User {user_id}"
+                )
+                
+                group_info = f"\nGrupė: `{target_chat_id}`" if is_private else ""
+                await update.message.reply_text(
+                    f"✅ **Pagalbininkas pridėtas!**{group_info}\n\n"
+                    f"👤 **Vartotojas:** {helper_user.user.first_name}"
+                    f"{f' (@{helper_username})' if helper_username else ''}\n"
+                    f"🆔 **ID:** `{helper_id}`\n"
+                    f"👮 **Pridėjo:** {update.message.from_user.first_name}"
+                    f"{f' (@{username})' if username else ''}",
+                    parse_mode='Markdown'
+                )
+            except Exception as e:
+                await update.message.reply_text(f"❌ Nepavyko pridėti pagalbininko: {str(e)}")
+            
+        except ValueError:
+            await update.message.reply_text("❌ Neteisingas vartotojo ID! Įveskite skaičių.")
+        
+        # Clear waiting state
+        context.user_data.pop('waiting_for_helper_id', None)
+        context.user_data.pop('private_mode', None)
+        return
+    
+    elif context.user_data.get('waiting_for_message'):
+        # User is adding a recurring message
+        message_text = update.message.text.strip()
+        if len(message_text) > 1000:
+            await update.message.reply_text("❌ Pranešimas per ilgas! Maksimalus ilgis: 1000 simbolių.")
+            return
+        
+        # Check if this is private mode
+        is_private = context.user_data.get('private_mode', False)
+        target_chat_id = context.user_data.get('target_group_id', update.message.chat_id)
+        
+        # Add message to database with default settings
+        message_id = database.add_scheduled_message(
+            target_chat_id, message_text, user_id, username or f"User {user_id}",
+            repetition_type='24h', interval_hours=24
+        )
+        
+        # Schedule the message
+        scheduler.add_job(
+            send_scheduled_message,
+            'interval',
+            hours=24,
+            args=[target_chat_id, message_text, message_id],
+            id=f"scheduled_{message_id}",
+            replace_existing=True
+        )
+        
+        group_info = f"\nGrupė: `{target_chat_id}`" if is_private else ""
+        await update.message.reply_text(
+            f"✅ **Pranešimas pridėtas!**{group_info}\n\n"
+            f"📝 **Tekstas:** {message_text[:100]}{'...' if len(message_text) > 100 else ''}\n"
+            f"🔄 **Kartojimas:** Kas 24 valandas\n"
+            f"🆔 **ID:** `{message_id}`\n"
+            f"👮 **Pridėjo:** {update.message.from_user.first_name}"
+            f"{f' (@{username})' if username else ''}",
+            parse_mode='Markdown'
+        )
+        
+        # Clear waiting state
+        context.user_data.pop('waiting_for_message', None)
+        context.user_data.pop('private_mode', None)
+        return
+    
+    elif context.user_data.get('waiting_for_manual_groups'):
+        # User is entering multiple group IDs separated by commas
+        try:
+            group_ids_text = update.message.text.strip()
+            group_ids = [int(gid.strip()) for gid in group_ids_text.split(',')]
+            group_selection_type = context.user_data.get('group_selection_type', 'recurring')
+            
+            # Verify each group and add to allowed_groups if not already there
+            added_groups = []
+            for group_id in group_ids:
+                try:
+                    # Check if user is admin in this group
+                    chat_member = await context.bot.get_chat_member(group_id, user_id)
+                    if chat_member.status in ['creator', 'administrator']:
+                        if str(group_id) not in allowed_groups:
+                            allowed_groups.append(str(group_id))
+                            added_groups.append(group_id)
+                except Exception:
+                    continue
+            
+            if added_groups:
+                await update.message.reply_text(
+                    f"✅ Pridėtos {len(added_groups)} grupės: {', '.join(map(str, added_groups))}\n\n"
+                    f"Dabar galite pasirinkti grupę iš sąrašo.",
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text("❌ Nepavyko pridėti jokių grupių. Patikrinkite, ar esate administratorius visose grupėse.")
+            
+        except ValueError:
+            await update.message.reply_text("❌ Neteisingas formatas! Įveskite grupės ID atskirtus kableliais (pvz., -1001234567890, -1009876543210)")
+        
+        # Clear waiting state
+        context.user_data.pop('waiting_for_manual_groups', None)
+        context.user_data.pop('group_selection_type', None)
+        return
+    
+    elif context.user_data.get('waiting_for_new_group'):
+        # User is adding a single new group ID
+        try:
+            group_id = int(update.message.text.strip())
+            
+            # Verify the group exists and user is admin there
+            try:
+                chat_member = await context.bot.get_chat_member(group_id, user_id)
+                if chat_member.status not in ['creator', 'administrator']:
+                    await update.message.reply_text("❌ Turite būti administratorius nurodytoje grupėje!")
+                    return
+            except Exception as e:
+                await update.message.reply_text("❌ Nepavyko patikrinti teisių grupėje arba grupė neegzistuoja!")
+                return
+            
+            # Add to allowed_groups if not already there
+            if str(group_id) not in allowed_groups:
+                allowed_groups.append(str(group_id))
+                await update.message.reply_text(f"✅ Grupė `{group_id}` pridėta prie leidžiamų grupių!")
+            else:
+                await update.message.reply_text(f"ℹ️ Grupė `{group_id}` jau yra leidžiamų grupių sąraše.")
+            
+        except ValueError:
+            await update.message.reply_text("❌ Neteisingas grupės ID formatas! Įveskite skaičių.")
+        
+        # Clear waiting state
+        context.user_data.pop('waiting_for_new_group', None)
+        return
 
 # Callback handler functions for new features
 async def handle_recurring_callback(query, context):
