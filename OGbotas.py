@@ -206,6 +206,10 @@ class Database:
         self.db_path = db_path
         self.init_database()
     
+    def get_connection(self):
+        """Get a database connection"""
+        return sqlite3.connect(self.db_path)
+    
     def init_database(self):
         """Initialize database with all tables"""
         with sqlite3.connect(self.db_path) as conn:
@@ -1430,6 +1434,10 @@ async def show_admin_dashboard_ui(update_or_query, context: telegram.ext.Context
 async def handle_admin_button(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     user_id = query.from_user.id
+    
+    # Store user information for username resolution
+    if query.from_user:
+        store_user_info(query.from_user)
     if not is_admin_or_helper(user_id):
         await query.answer("Tik adminai ir pagalbininkai gali tai daryti!")
         return
@@ -2861,12 +2869,13 @@ def store_user_info(user):
     """Store user information in database for future username resolution"""
     if user and user.username:
         try:
-            database.conn.execute('''
-                INSERT OR REPLACE INTO user_cache 
-                (user_id, username, first_name, last_name, last_seen)
-                VALUES (?, ?, ?, ?, datetime('now'))
-            ''', (user.id, user.username, user.first_name, user.last_name))
-            database.conn.commit()
+            with database.get_connection() as conn:
+                conn.execute('''
+                    INSERT OR REPLACE INTO user_cache 
+                    (user_id, username, first_name, last_name, last_seen)
+                    VALUES (?, ?, ?, ?, datetime('now'))
+                ''', (user.id, user.username, user.first_name, user.last_name))
+                conn.commit()
         except Exception as e:
             logger.warning(f"Error storing user info for {user.username}: {e}")
 
@@ -5415,63 +5424,31 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
                 # Method 1: Check our bot's database for stored user info
                 try:
                     # Check if we have this user stored in our database
-                    cursor = database.conn.execute('''
-                        SELECT user_id, username, first_name FROM user_cache 
-                        WHERE LOWER(username) = LOWER(?) 
-                        ORDER BY last_seen DESC LIMIT 1
-                    ''', (username_without_at,))
-                    
-                    user_record = cursor.fetchone()
-                    if user_record:
-                        target_id = user_record[0]  # user_id
-                        # Create a mock user object for display
-                        class MockUser:
-                            def __init__(self, user_id, username, first_name):
-                                self.id = user_id
-                                self.username = username
-                                self.first_name = first_name
+                    with database.get_connection() as conn:
+                        cursor = conn.execute('''
+                            SELECT user_id, username, first_name FROM user_cache 
+                            WHERE LOWER(username) = LOWER(?) 
+                            ORDER BY last_seen DESC LIMIT 1
+                        ''', (username_without_at,))
                         
-                        target_user = MockUser(user_record[0], user_record[1], user_record[2])
-                        logger.info(f"Found user {username_without_at} in database: ID {target_id}")
+                        user_record = cursor.fetchone()
+                        if user_record:
+                            target_id = user_record[0]  # user_id
+                            # Create a mock user object for display
+                            class MockUser:
+                                def __init__(self, user_id, username, first_name):
+                                    self.id = user_id
+                                    self.username = username
+                                    self.first_name = first_name
+                            
+                            target_user = MockUser(user_record[0], user_record[1], user_record[2])
+                            logger.info(f"Found user {username_without_at} in database: ID {target_id}")
                 except Exception as e:
                     logger.warning(f"Error checking database for username {username_without_at}: {e}")
                     pass
                 
-                # Method 2: If not in database, search through recent updates
-                if target_id is None:
-                    try:
-                        updates = await context.bot.get_updates(limit=1000, timeout=3)
-                        for upd in reversed(updates):  # Most recent first
-                            user_to_check = None
-                            
-                            if upd.message and upd.message.from_user:
-                                user_to_check = upd.message.from_user
-                            elif upd.callback_query and upd.callback_query.from_user:
-                                user_to_check = upd.callback_query.from_user
-                            elif upd.inline_query and upd.inline_query.from_user:
-                                user_to_check = upd.inline_query.from_user
-                            
-                            if (user_to_check and user_to_check.username and
-                                user_to_check.username.lower() == username_without_at.lower()):
-                                target_user = user_to_check
-                                target_id = user_to_check.id
-                                
-                                # Store this user in our database for future use
-                                try:
-                                    database.conn.execute('''
-                                        INSERT OR REPLACE INTO user_cache 
-                                        (user_id, username, first_name, last_seen)
-                                        VALUES (?, ?, ?, datetime('now'))
-                                    ''', (target_id, user_to_check.username, 
-                                          user_to_check.first_name or 'Unknown'))
-                                    database.conn.commit()
-                                except Exception:
-                                    pass
-                                break
-                                
-                    except Exception as e:
-                        logger.warning(f"Error searching updates for username {username_without_at}: {e}")
-                        pass
+                # Method 2: If not in database, try direct username resolution
+                # (Skip getUpdates since it conflicts with webhook mode)
                 
                 # Method 2: If not found in updates, try direct username resolution
                 if target_id is None:
@@ -5497,18 +5474,19 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
                     except Exception:
                         pass
                 
-                # If still not found, we'll have to inform the user
+                # If still not found, provide helpful guidance
                 if target_id is None:
                     await update.message.reply_text(
                         f"❌ Negaliu rasti vartotojo @{username_without_at}\n\n"
                         "**Kodėl taip nutiko?**\n"
-                        "• Vartotojas neturi jokių žinučių šiame kanale\n"
+                        "• Vartotojas dar neturi žinučių šiame kanale\n"
                         "• Username gali būti pakeistas\n"
-                        "• Vartotojas nėra aktyvus\n\n"
+                        "• Bot dar nepažįsta šio vartotojo\n\n"
                         "**Sprendimas:**\n"
                         f"• Naudokite vartotojo ID: `/unban [user_id]`\n"
-                        f"• ID rasite ban žinutėje (pvz: 6984985283)\n"
-                        f"• Arba naudokite @userinfobot"
+                        f"• ID rasite ban žinutėje\n"
+                        f"• Arba paprašykite vartotojo parašyti žinutę grupėje\n"
+                        f"• Tada bandykite `/unban @{username_without_at}` vėl"
                     )
                     return
             else:
@@ -6670,6 +6648,10 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
 async def handle_recurring_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE):
     """Handle recurring messages callback queries"""
     query = update.callback_query
+    
+    # Store user information for username resolution
+    if query.from_user:
+        store_user_info(query.from_user)
     if not await is_admin_callback(query, context):
         await query.answer("❌ Tik administratoriai gali naudoti šią funkciją!")
         return
