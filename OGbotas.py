@@ -517,11 +517,10 @@ async def is_admin_callback(query, context):
     if not query.message:
         return False
     
-    # Allow private chat access for configuration
+    # Allow private chat access for configuration - but only for the admin
     if query.message.chat.type == 'private':
-        # For private chats, we need to check if user is admin in any group where bot is present
-        # This is a simplified check - in practice, you might want to store admin groups
-        return True  # Allow access in private chat for now
+        # Check if this is the admin user
+        return query.from_user.id == ADMIN_CHAT_ID
     
     try:
         # Check if user is a helper first
@@ -5996,8 +5995,9 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
         return
 
 # Callback handler functions for new features
-async def handle_recurring_callback(query, context):
+async def handle_recurring_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE):
     """Handle recurring messages callback queries"""
+    query = update.callback_query
     if not await is_admin_callback(query, context):
         await query.answer("❌ Tik administratoriai gali naudoti šią funkciją!")
         return
@@ -6038,9 +6038,12 @@ async def handle_recurring_callback(query, context):
     elif data.startswith("recurring_delete_"):
         message_id = int(data.split("_")[2])
         await delete_message(query, context, message_id)
+    
+    await query.answer()
 
-async def handle_banned_words_callback(query, context):
+async def handle_banned_words_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE):
     """Handle banned words callback queries"""
+    query = update.callback_query
     if not await is_admin_callback(query, context):
         await query.answer("❌ Tik administratoriai gali naudoti šią funkciją!")
         return
@@ -6081,9 +6084,12 @@ async def handle_banned_words_callback(query, context):
     elif data.startswith("banned_words_delete_"):
         word_id = int(data.split("_")[3])
         await delete_word(query, context, word_id)
+    
+    await query.answer()
 
-async def handle_helpers_callback(query, context):
+async def handle_helpers_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE):
     """Handle helpers callback queries"""
+    query = update.callback_query
     if not await is_admin_callback(query, context):
         await query.answer("❌ Tik administratoriai gali naudoti šią funkciją!")
         return
@@ -6121,6 +6127,8 @@ async def handle_helpers_callback(query, context):
     elif data.startswith("helpers_remove_"):
         helper_id = int(data.split("_")[2])
         await remove_helper(query, context, helper_id)
+    
+    await query.answer()
 
 # Group selection callback handlers
 async def handle_group_selection_callback(query, context):
