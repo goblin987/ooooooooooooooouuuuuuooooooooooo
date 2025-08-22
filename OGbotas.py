@@ -6328,8 +6328,11 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         time_value = data.split("_", 1)[1]
         if time_value == "custom":
             context.user_data['waiting_for_custom_time'] = True
+            keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="set_time")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
                 "⏰ **Custom Time**\n\nEnter time in HH:MM format (24-hour):\n\nExample: 14:30",
+                reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
         else:
@@ -6354,8 +6357,11 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
             config['repetition'] = "Every hour"
         elif repeat_value == "custom":
             context.user_data['waiting_for_custom_interval'] = True
+            keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="set_repetition")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
                 "🔄 **Custom Interval**\n\nEnter interval in format:\n`XhYm` (X hours Y minutes)\n\nExamples:\n`2h30m` - Every 2 hours 30 minutes\n`45m` - Every 45 minutes\n`1h` - Every hour\n`5m` - Every 5 minutes",
+                reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
             return
@@ -6390,10 +6396,41 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
     # Handle custom interval button directly
     elif data == "repeat_custom":
         context.user_data['waiting_for_custom_interval'] = True
+        keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="set_repetition")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
             "🔄 **Custom Interval**\n\nEnter interval in format:\n`XhYm` (X hours Y minutes)\n\nExamples:\n`2h30m` - Every 2 hours 30 minutes\n`45m` - Every 45 minutes\n`1h` - Every hour\n`5m` - Every 5 minutes",
+            reply_markup=reply_markup,
             parse_mode='Markdown'
         )
+        return
+    
+    # Handle time slot options
+    elif data.startswith("time_slot_"):
+        slot_type = data.split("_", 2)[2]  # time_slot_morning -> morning
+        config = context.user_data.get('current_message_config', {})
+        
+        slot_times = {
+            'morning': '06:00-12:00',
+            'afternoon': '12:00-18:00', 
+            'evening': '18:00-00:00',
+            'night': '00:00-06:00'
+        }
+        
+        if slot_type in slot_times:
+            config['time_slot'] = slot_times[slot_type]
+            config['repetition'] = f"During {slot_type.title()} hours ({slot_times[slot_type]})"
+            context.user_data['current_message_config'] = config
+            
+            await query.edit_message_text(
+                f"✅ Time slot set to: {slot_times[slot_type]}\n\n"
+                f"Returning to configuration...",
+                parse_mode='Markdown'
+            )
+            
+            # Return to config after a short delay
+            await asyncio.sleep(1.5)
+            await show_message_config(query, context)
         return
     
     # Handle date selection callbacks
@@ -6417,6 +6454,29 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
             config['repetition'] = "Every 24 hours"
         
         await show_days_of_month(query, context)
+    
+    # Handle start/end date buttons
+    elif data == "set_start_date":
+        context.user_data['waiting_for_start_date'] = True
+        keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "📅 **Set Start Date**\n\nEnter start date in DD/MM/YYYY format:\n\nExample: 01/01/2024",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        return
+    
+    elif data == "set_end_date":
+        context.user_data['waiting_for_end_date'] = True
+        keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "📅 **Set End Date**\n\nEnter end date in DD/MM/YYYY format:\n\nExample: 31/12/2024",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        return
     
     # Handle deletion option callbacks
     elif data.startswith("delete_"):
@@ -6774,24 +6834,32 @@ async def show_content_preview(query, context, content_type):
 async def set_message_text(query, context):
     """Set message text"""
     context.user_data['waiting_for_text'] = True
+    keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="customize_message")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(
         "📝 **Set Message Text**\n\n"
         "Send me the text you want to use for the recurring message:",
+        reply_markup=reply_markup,
         parse_mode='Markdown'
     )
 
 async def set_message_media(query, context):
     """Set message media"""
     context.user_data['waiting_for_media'] = True
+    keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="customize_message")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(
         "📷 **Set Message Media**\n\n"
         "Send me a photo, video, or GIF to include with the message:",
+        reply_markup=reply_markup,
         parse_mode='Markdown'
     )
 
 async def set_url_buttons(query, context):
     """Set URL buttons"""
     context.user_data['waiting_for_buttons'] = True
+    keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="customize_message")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(
         "🔗 **Set URL Buttons**\n\n"
         "Send me the button configuration in format:\n"
@@ -6799,6 +6867,7 @@ async def set_url_buttons(query, context):
         "Example:\n"
         "`Visit Website | https://example.com`\n"
         "`Join Channel | https://t.me/channel`",
+        reply_markup=reply_markup,
         parse_mode='Markdown'
     )
 
@@ -6839,6 +6908,21 @@ async def show_topic_selection(query, context):
         [InlineKeyboardButton("📝 Rules", callback_data="topic_rules")],
         [InlineKeyboardButton("💡 Tips", callback_data="topic_tips")],
         [InlineKeyboardButton("🔙 Back", callback_data="customize_message")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_time_slot_options(query, context):
+    """Show time slot options"""
+    text = "🕐 **Set Time Slot**\n\nChoose a time slot for message sending:"
+    
+    keyboard = [
+        [InlineKeyboardButton("🌅 Morning (06:00-12:00)", callback_data="time_slot_morning")],
+        [InlineKeyboardButton("🌞 Afternoon (12:00-18:00)", callback_data="time_slot_afternoon")],
+        [InlineKeyboardButton("🌇 Evening (18:00-00:00)", callback_data="time_slot_evening")],
+        [InlineKeyboardButton("🌙 Night (00:00-06:00)", callback_data="time_slot_night")],
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -7489,8 +7573,11 @@ application.add_handler(CallbackQueryHandler(handle_helpers_callback, pattern="^
 # GroupHelpBot-style recurring message callbacks
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^customize_message$"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^set_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^set_start_date$"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^set_end_date$"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^toggle_"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^time_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^time_slot_"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^repeat_"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^repeat_custom$"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^preview_"))
