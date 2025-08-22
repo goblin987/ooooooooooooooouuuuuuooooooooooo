@@ -2868,7 +2868,10 @@ async def handle_message(update: telegram.Update, context: telegram.ext.ContextT
                 context.user_data.get('waiting_for_helper_id') or 
                 context.user_data.get('waiting_for_message') or
                 context.user_data.get('waiting_for_manual_groups') or
-                context.user_data.get('waiting_for_new_group')):
+                context.user_data.get('waiting_for_new_group') or
+                context.user_data.get('waiting_for_custom_time') or
+                context.user_data.get('waiting_for_custom_interval') or
+                context.user_data.get('waiting_for_text')):
                 
                 # Process private chat input
                 await process_private_chat_input(update, context)
@@ -5177,36 +5180,52 @@ async def moderation_command(update: telegram.Update, context: telegram.ext.Cont
 
 # New feature command functions
 async def recurring_messages_menu(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
-    """Main menu for recurring messages"""
+    """Main menu for recurring messages - GroupHelpBot style"""
     if not await is_admin(update, context):
         await update.message.reply_text("❌ Tik administratoriai gali naudoti šią komandą!")
         return
     
     # Handle private chat - ask for group selection
     if update.effective_chat.type == 'private':
-        await update.message.reply_text(
-            "🔄 **Kartojami Pranešimai**\n\n"
-            "Kadangi esate privatiame pokalbyje, turite nurodyti grupės ID, kurią norite valdyti.\n\n"
-            "📝 **Naudojimas:**\n"
-            "`/recurring_messages [group_id]`\n\n"
-            "**Pavyzdys:**\n"
-            "`/recurring_messages -1001234567890`",
-            parse_mode='Markdown'
-        )
+        await recurring_messages_private(update, context)
         return
     
-    keyboard = [
-        [InlineKeyboardButton("➕ Pridėti pranešimą", callback_data="recurring_add")],
-        [InlineKeyboardButton("📋 Valdyti pranešimus", callback_data="recurring_manage")]
-    ]
+    chat_id = update.effective_chat.id
+    current_time = datetime.now().strftime("%d/%m/%y %H:%M")
+    
+    # Get scheduled messages for this chat
+    scheduled_messages = database.get_scheduled_messages(chat_id)
+    
+    # Create main menu text exactly like GroupHelpBot
+    text = (
+        "🔄 **Recurring messages**\n\n"
+        "From this menu you can set messages that will be sent "
+        "repeatedly to the group every few minutes/hours or every "
+        "few messages.\n\n"
+        f"Current time: {current_time}"
+    )
+    
+    # Add message entries if they exist
+    if scheduled_messages:
+        for i, msg in enumerate(scheduled_messages, 1):
+            status_icon = "✅" if msg['is_active'] else "❌"
+            time_str = format_interval(msg['interval_hours'], msg.get('interval_minutes', 0))
+            
+            # Get message preview
+            message_preview = "Message is not set." if not msg.get('message_text') else msg['message_text'][:30]
+            if msg.get('message_text') and len(msg['message_text']) > 30:
+                message_preview += "..."
+            
+            text += f"\n\n**{i} • Off** {status_icon}\n"
+            text += f"⏰ Time: {time_str}\n"
+            text += f"📝 {message_preview}"
+    
+    # Create keyboard
+    keyboard = [[InlineKeyboardButton("➕ Add message", callback_data="recurring_add")]]
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(
-        "🔄 **Kartojami Pranešimai**\n\n"
-        "Sukurkite pranešimus, kurie kartojasi automatiškai.",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def ban_user(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     """Ban a user"""
@@ -5993,6 +6012,106 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
         # Clear waiting state
         context.user_data.pop('waiting_for_new_group', None)
         return
+    
+    elif context.user_data.get('waiting_for_custom_time'):
+        # User is entering custom time
+        try:
+            time_text = update.message.text.strip()
+            # Validate time format (HH:MM)
+            if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', time_text):
+                await update.message.reply_text("❌ Neteisingas laiko formatas! Naudokite HH:MM (pvz., 14:30)")
+                return
+            
+            config = context.user_data.get('current_message_config', {})
+            config['time'] = time_text
+            context.user_data['current_message_config'] = config
+            
+            # Show updated config screen
+            await update.message.reply_text(
+                f"✅ Laikas nustatytas: {time_text}\n\n"
+                "Grįžtame į konfigūraciją...",
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await update.message.reply_text("❌ Klaida nustatant laiką!")
+        
+        # Clear waiting state
+        context.user_data.pop('waiting_for_custom_time', None)
+        return
+    
+    elif context.user_data.get('waiting_for_custom_interval'):
+        # User is entering custom interval
+        try:
+            interval_text = update.message.text.strip().lower()
+            
+            # Parse interval (e.g., "2h30m", "45m", "1h")
+            hours = 0
+            minutes = 0
+            
+            # Extract hours
+            hour_match = re.search(r'(\d+)h', interval_text)
+            if hour_match:
+                hours = int(hour_match.group(1))
+            
+            # Extract minutes
+            minute_match = re.search(r'(\d+)m', interval_text)
+            if minute_match:
+                minutes = int(minute_match.group(1))
+            
+            if hours == 0 and minutes == 0:
+                await update.message.reply_text("❌ Neteisingas intervalo formatas! Naudokite XhYm formatą (pvz., 2h30m)")
+                return
+            
+            # Format the repetition text
+            if hours > 0 and minutes > 0:
+                repetition_text = f"Every {hours}h {minutes}m"
+            elif hours > 0:
+                repetition_text = f"Every {hours} hour{'s' if hours > 1 else ''}"
+            else:
+                repetition_text = f"Every {minutes} minute{'s' if minutes > 1 else ''}"
+            
+            config = context.user_data.get('current_message_config', {})
+            config['repetition'] = repetition_text
+            config['interval_hours'] = hours
+            config['interval_minutes'] = minutes
+            context.user_data['current_message_config'] = config
+            
+            await update.message.reply_text(
+                f"✅ Intervalas nustatytas: {repetition_text}\n\n"
+                "Grįžtame į konfigūraciją...",
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await update.message.reply_text("❌ Klaida nustatant intervalą!")
+        
+        # Clear waiting state
+        context.user_data.pop('waiting_for_custom_interval', None)
+        return
+    
+    elif context.user_data.get('waiting_for_text'):
+        # User is setting message text
+        message_text = update.message.text.strip()
+        if len(message_text) > 4000:
+            await update.message.reply_text("❌ Tekstas per ilgas! Maksimalus ilgis: 4000 simbolių.")
+            return
+        
+        config = context.user_data.get('current_message_config', {})
+        config['text'] = message_text
+        config['has_text'] = True
+        context.user_data['current_message_config'] = config
+        
+        await update.message.reply_text(
+            f"✅ Tekstas nustatytas!\n\n"
+            f"**Peržiūra:** {message_text[:100]}{'...' if len(message_text) > 100 else ''}\n\n"
+            "Grįžtame į konfigūraciją...",
+            parse_mode='Markdown'
+        )
+        
+        # Clear waiting state
+        context.user_data.pop('waiting_for_text', None)
+        return
 
 # Callback handler functions for new features
 async def handle_recurring_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE):
@@ -6006,29 +6125,49 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
     chat_id = query.message.chat.id
     user_id = query.from_user.id
     
-    # Handle private chat scenarios
-    if data == "recurring_add_private":
-        # Set user state to wait for message text
-        context.user_data['waiting_for_message'] = True
-        context.user_data['private_mode'] = True
-        await query.edit_message_text(
-            "📝 **Pridėti Kartojamą Pranešimą**\n\n"
-            "Parašykite pranešimo tekstą:",
-            parse_mode='Markdown'
-        )
-    elif data == "recurring_manage_private":
-        await show_manage_messages_private(query, context)
-    elif data == "recurring_add":
-        # Set user state to wait for message text
-        context.user_data['waiting_for_message'] = True
-        context.user_data['private_mode'] = False
-        await query.edit_message_text(
-            "📝 **Pridėti Kartojamą Pranešimą**\n\n"
-            "Parašykite pranešimo tekstą:",
-            parse_mode='Markdown'
-        )
+    # Handle callback queries
+    if data == "recurring_add":
+        await show_message_config(query, context)
     elif data == "recurring_manage":
         await show_manage_messages(query, context)
+    elif data == "recurring_add_private":
+        await show_message_config(query, context, private_mode=True)
+    elif data == "recurring_manage_private":
+        await show_manage_messages_private(query, context)
+    elif data == "customize_message":
+        await show_message_customization(query, context)
+    elif data == "set_time":
+        await show_time_selection(query, context)
+    elif data == "set_repetition":
+        await show_repetition_options(query, context)
+    elif data == "set_days_week":
+        await show_days_of_week(query, context)
+    elif data == "set_days_month":
+        await show_days_of_month(query, context)
+    elif data == "set_time_slot":
+        await show_time_slot_options(query, context)
+    elif data == "toggle_pin_message":
+        await toggle_pin_message(query, context)
+    elif data == "toggle_delete_last":
+        await toggle_delete_last_message(query, context)
+    elif data == "scheduled_deletion":
+        await show_scheduled_deletion_options(query, context)
+    elif data == "set_text":
+        await set_message_text(query, context)
+    elif data == "set_media":
+        await set_message_media(query, context)
+    elif data == "set_url_buttons":
+        await set_url_buttons(query, context)
+    elif data.startswith("preview_"):
+        await show_content_preview(query, context, data.split("_")[1])
+    elif data == "full_preview":
+        await show_full_preview(query, context)
+    elif data == "select_topic":
+        await show_topic_selection(query, context)
+    elif data == "back_to_config":
+        await show_message_config(query, context)
+    elif data == "back_to_main":
+        await show_recurring_main_menu(query, context)
     elif data.startswith("recurring_info_"):
         message_id = int(data.split("_")[2])
         await show_message_info(query, context, message_id)
@@ -6038,8 +6177,205 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
     elif data.startswith("recurring_delete_"):
         message_id = int(data.split("_")[2])
         await delete_message(query, context, message_id)
+    # Handle time selection callbacks
+    elif data.startswith("time_"):
+        time_value = data.split("_", 1)[1]
+        if time_value == "custom":
+            context.user_data['waiting_for_custom_time'] = True
+            await query.edit_message_text(
+                "⏰ **Custom Time**\n\nEnter time in HH:MM format (24-hour):\n\nExample: 14:30",
+                parse_mode='Markdown'
+            )
+        else:
+            config = context.user_data.get('current_message_config', {})
+            config['time'] = time_value
+            context.user_data['current_message_config'] = config
+            await show_message_config(query, context)
+    
+    # Handle repetition callbacks
+    elif data.startswith("repeat_"):
+        repeat_value = data.split("_", 1)[1]
+        config = context.user_data.get('current_message_config', {})
+        if repeat_value == "24h":
+            config['repetition'] = "Every 24 hours"
+        elif repeat_value == "12h":
+            config['repetition'] = "Every 12 hours"
+        elif repeat_value == "6h":
+            config['repetition'] = "Every 6 hours"
+        elif repeat_value == "3h":
+            config['repetition'] = "Every 3 hours"
+        elif repeat_value == "1h":
+            config['repetition'] = "Every hour"
+        elif repeat_value == "custom":
+            context.user_data['waiting_for_custom_interval'] = True
+            await query.edit_message_text(
+                "🔄 **Custom Interval**\n\nEnter interval in format:\n`XhYm` (X hours Y minutes)\n\nExamples:\n`2h30m` - Every 2 hours 30 minutes\n`45m` - Every 45 minutes\n`1h` - Every hour",
+                parse_mode='Markdown'
+            )
+            return
+        context.user_data['current_message_config'] = config
+        await show_message_config(query, context)
     
     await query.answer()
+
+# GroupHelpBot-style recurring messages functions
+async def show_message_config(query, context, private_mode=False):
+    """Show message configuration screen - GroupHelpBot style"""
+    chat_id = query.message.chat.id if not private_mode else context.user_data.get('target_group_id', query.message.chat.id)
+    current_time = datetime.now().strftime("%H:%M")
+    
+    # Get current message config from user data or defaults
+    message_config = context.user_data.get('current_message_config', {
+        'status': 'Off',
+        'time': current_time,
+        'repetition': 'Every 24 hours',
+        'pin_message': False,
+        'delete_last': False,
+        'has_text': False,
+        'has_media': False,
+        'has_buttons': False
+    })
+    
+    # Build the configuration screen exactly like GroupHelpBot
+    text = "🔄 **Recurring messages**\n\n"
+    text += f"📊 **Status:** ❌ {message_config['status']}\n"
+    text += f"⏰ **Time:** {message_config['time']}\n"
+    text += f"🔄 **Repetition:** {message_config['repetition']}\n"
+    text += f"📌 **Pin message:** {'✅' if message_config['pin_message'] else '❌'}\n"
+    text += f"🗑️ **Delete last message:** {'✅' if message_config['delete_last'] else '❌'}"
+    
+    # Create keyboard exactly like GroupHelpBot
+    keyboard = [
+        [InlineKeyboardButton("✏️ Customize message", callback_data="customize_message")],
+        [InlineKeyboardButton("⏰ Time", callback_data="set_time"), 
+         InlineKeyboardButton("🔄 Repetition", callback_data="set_repetition")],
+        [InlineKeyboardButton("📅 Days of the week", callback_data="set_days_week")],
+        [InlineKeyboardButton("📅 Days of the month", callback_data="set_days_month")],
+        [InlineKeyboardButton("🕐 Set time slot", callback_data="set_time_slot")],
+        [InlineKeyboardButton("📅 Start date", callback_data="set_start_date"), 
+         InlineKeyboardButton("📅 End date", callback_data="set_end_date")],
+        [InlineKeyboardButton(f"📌 Pin message {'✅' if message_config['pin_message'] else '❌'}", 
+                            callback_data="toggle_pin_message")],
+        [InlineKeyboardButton(f"🗑️ Delete last message {'✅' if message_config['delete_last'] else '❌'}", 
+                            callback_data="toggle_delete_last")],
+        [InlineKeyboardButton("⏱️ Scheduled deletion", callback_data="scheduled_deletion")],
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_main")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_message_customization(query, context):
+    """Show message customization screen - GroupHelpBot style"""
+    message_config = context.user_data.get('current_message_config', {})
+    
+    text = "🔄 **Recurring messages**\n\n"
+    text += f"📝 **Text:** {'✅' if message_config.get('has_text', False) else '❌'}\n"
+    text += f"📷 **Media:** {'✅' if message_config.get('has_media', False) else '❌'}\n"
+    text += f"🔗 **Url Buttons:** {'✅' if message_config.get('has_buttons', False) else '❌'}\n\n"
+    text += "Use the buttons below to choose what you want to set"
+    
+    keyboard = [
+        [InlineKeyboardButton("📝 Text", callback_data="set_text"), 
+         InlineKeyboardButton("👁️ See", callback_data="preview_text")],
+        [InlineKeyboardButton("📷 Media", callback_data="set_media"), 
+         InlineKeyboardButton("👁️ See", callback_data="preview_media")],
+        [InlineKeyboardButton("🔗 Url Buttons", callback_data="set_url_buttons"), 
+         InlineKeyboardButton("👁️ See", callback_data="preview_buttons")],
+        [InlineKeyboardButton("👁️ Full preview", callback_data="full_preview")],
+        [InlineKeyboardButton("📋 Select a Topic", callback_data="select_topic")],
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_time_selection(query, context):
+    """Show time selection options"""
+    text = "⏰ **Set Time**\n\nChoose when to send the message:"
+    
+    keyboard = [
+        [InlineKeyboardButton("🌅 Morning (08:00)", callback_data="time_08:00")],
+        [InlineKeyboardButton("🌞 Midday (12:00)", callback_data="time_12:00")],
+        [InlineKeyboardButton("🌇 Evening (18:00)", callback_data="time_18:00")],
+        [InlineKeyboardButton("🌙 Night (22:00)", callback_data="time_22:00")],
+        [InlineKeyboardButton("⏰ Custom time", callback_data="time_custom")],
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_repetition_options(query, context):
+    """Show repetition options"""
+    text = "🔄 **Set Repetition**\n\nChoose how often to repeat:"
+    
+    keyboard = [
+        [InlineKeyboardButton("⏰ Every 24 hours", callback_data="repeat_24h")],
+        [InlineKeyboardButton("🔄 Every 12 hours", callback_data="repeat_12h")],
+        [InlineKeyboardButton("🔄 Every 6 hours", callback_data="repeat_6h")],
+        [InlineKeyboardButton("🔄 Every 3 hours", callback_data="repeat_3h")],
+        [InlineKeyboardButton("🔄 Every hour", callback_data="repeat_1h")],
+        [InlineKeyboardButton("⏰ Custom interval", callback_data="repeat_custom")],
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def toggle_pin_message(query, context):
+    """Toggle pin message setting"""
+    config = context.user_data.get('current_message_config', {})
+    config['pin_message'] = not config.get('pin_message', False)
+    context.user_data['current_message_config'] = config
+    
+    await show_message_config(query, context)
+
+async def toggle_delete_last_message(query, context):
+    """Toggle delete last message setting"""
+    config = context.user_data.get('current_message_config', {})
+    config['delete_last'] = not config.get('delete_last', False)
+    context.user_data['current_message_config'] = config
+    
+    await show_message_config(query, context)
+
+async def show_recurring_main_menu(query, context):
+    """Show main recurring messages menu via callback"""
+    chat_id = query.message.chat.id
+    current_time = datetime.now().strftime("%d/%m/%y %H:%M")
+    
+    # Get scheduled messages for this chat
+    scheduled_messages = database.get_scheduled_messages(chat_id)
+    
+    # Create main menu text exactly like GroupHelpBot
+    text = (
+        "🔄 **Recurring messages**\n\n"
+        "From this menu you can set messages that will be sent "
+        "repeatedly to the group every few minutes/hours or every "
+        "few messages.\n\n"
+        f"Current time: {current_time}"
+    )
+    
+    # Add message entries if they exist
+    if scheduled_messages:
+        for i, msg in enumerate(scheduled_messages, 1):
+            status_icon = "✅" if msg['is_active'] else "❌"
+            time_str = format_interval(msg['interval_hours'], msg.get('interval_minutes', 0))
+            
+            # Get message preview
+            message_preview = "Message is not set." if not msg.get('message_text') else msg['message_text'][:30]
+            if msg.get('message_text') and len(msg['message_text']) > 30:
+                message_preview += "..."
+            
+            text += f"\n\n**{i} • Off** {status_icon}\n"
+            text += f"⏰ Time: {time_str}\n"
+            text += f"📝 {message_preview}"
+    
+    # Create keyboard
+    keyboard = [[InlineKeyboardButton("➕ Add message", callback_data="recurring_add")]]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def handle_banned_words_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE):
     """Handle banned words callback queries"""
