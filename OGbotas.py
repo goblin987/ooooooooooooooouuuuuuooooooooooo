@@ -5230,16 +5230,24 @@ async def ban_user(update: telegram.Update, context: telegram.ext.ContextTypes.D
     
     try:
         # Get target user
+        target_user = None
         if target.startswith('@'):
-            target_user = await context.bot.get_chat_member(chat_id, target)
-            target_user = target_user.user
+            try:
+                target_member = await context.bot.get_chat_member(chat_id, target)
+                target_user = target_member.user
+            except telegram.error.BadRequest:
+                await update.message.reply_text("❌ Vartotojas nerastas arba nėra grupės narys!")
+                return
         else:
             try:
                 user_id = int(target)
-                target_user = await context.bot.get_chat_member(chat_id, user_id)
-                target_user = target_user.user
+                target_member = await context.bot.get_chat_member(chat_id, user_id)
+                target_user = target_member.user
             except ValueError:
                 await update.message.reply_text("❌ Neteisingas vartotojo ID!")
+                return
+            except telegram.error.BadRequest:
+                await update.message.reply_text("❌ Vartotojas su tokiu ID nerastas arba nėra grupės narys!")
                 return
         
         # Ban the user
@@ -5273,10 +5281,17 @@ async def ban_user(update: telegram.Update, context: telegram.ext.ContextTypes.D
         
         await update.message.reply_text(ban_text, parse_mode='Markdown')
         
+    except telegram.error.BadRequest as e:
+        if "Invalid user_id specified" in str(e):
+            await update.message.reply_text("❌ Neteisingas vartotojo ID arba vartotojas nerastas!")
+        else:
+            await update.message.reply_text(f"❌ Klaida uždraudžiant vartotoją: {str(e)}")
     except Exception as e:
+        # Escape markdown characters in error message
+        error_msg = str(e).replace('*', '\\*').replace('_', '\\_').replace('`', '\\`')
         await update.message.reply_text(
             f"❌ **KLAIDA**\n\n"
-            f"Nepavyko uždrausti vartotojo: {str(e)}",
+            f"Nepavyko uždrausti vartotojo: {error_msg}",
             parse_mode='Markdown'
         )
 
@@ -5349,16 +5364,24 @@ async def mute_user(update: telegram.Update, context: telegram.ext.ContextTypes.
     
     try:
         # Get target user
+        target_user = None
         if target.startswith('@'):
-            target_user = await context.bot.get_chat_member(chat_id, target)
-            target_user = target_user.user
+            try:
+                target_member = await context.bot.get_chat_member(chat_id, target)
+                target_user = target_member.user
+            except telegram.error.BadRequest:
+                await update.message.reply_text("❌ Vartotojas nerastas arba nėra grupės narys!")
+                return
         else:
             try:
                 user_id = int(target)
-                target_user = await context.bot.get_chat_member(chat_id, user_id)
-                target_user = target_user.user
+                target_member = await context.bot.get_chat_member(chat_id, user_id)
+                target_user = target_member.user
             except ValueError:
                 await update.message.reply_text("❌ Neteisingas vartotojo ID!")
+                return
+            except telegram.error.BadRequest:
+                await update.message.reply_text("❌ Vartotojas su tokiu ID nerastas arba nėra grupės narys!")
                 return
         
         # Mute the user (restrict permissions)
@@ -5388,10 +5411,17 @@ async def mute_user(update: telegram.Update, context: telegram.ext.ContextTypes.
         
         await update.message.reply_text(mute_text, parse_mode='Markdown')
         
+    except telegram.error.BadRequest as e:
+        if "Invalid user_id specified" in str(e):
+            await update.message.reply_text("❌ Neteisingas vartotojo ID arba vartotojas nerastas!")
+        else:
+            await update.message.reply_text(f"❌ Klaida nutildant vartotoją: {str(e)}")
     except Exception as e:
+        # Escape markdown characters in error message
+        error_msg = str(e).replace('*', '\\*').replace('_', '\\_').replace('`', '\\`')
         await update.message.reply_text(
             f"❌ **KLAIDA**\n\n"
-            f"Nepavyko nutildyti vartotojo: {str(e)}",
+            f"Nepavyko nutildyti vartotojo: {error_msg}",
             parse_mode='Markdown'
         )
 
