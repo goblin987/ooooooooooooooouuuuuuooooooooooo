@@ -5766,6 +5766,16 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
                 await update.message.reply_text("❌ Nepavyko patikrinti teisių grupėje arba grupė neegzistuoja!")
                 return
             
+            # Add group to allowed_groups list if not already there
+            group_id_str = str(group_id)
+            group_was_added = False
+            if group_id_str not in allowed_groups:
+                allowed_groups.append(group_id_str)
+                group_was_added = True
+                logger.info(f"Added group {group_id} to allowed_groups via private chat")
+                # Save the updated allowed_groups list
+                save_data(allowed_groups, 'allowed_groups.pkl')
+            
             # Store the group_id in user_data for future use
             context.user_data['target_group_id'] = group_id
             context.user_data['private_mode'] = True
@@ -5778,8 +5788,14 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
+                # Add feedback about group being added to the list
+                status_text = ""
+                if group_was_added:
+                    status_text = "✅ Grupė pridėta į sąrašą! Dabar ji bus rodoma pasirinkimo meniu.\n\n"
+                
                 await update.message.reply_text(
                     f"🔄 **Kartojami Pranešimai**\n\n"
+                    f"{status_text}"
                     f"Grupė: `{group_id}`\n"
                     f"Sukurkite pranešimus, kurie kartojasi automatiškai.",
                     reply_markup=reply_markup,
@@ -5798,7 +5814,13 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
                 
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
+                # Add feedback about group being added to the list
+                status_text = ""
+                if group_was_added:
+                    status_text = "✅ Grupė pridėta į sąrašą! Dabar ji bus rodoma pasirinkimo meniu.\n\n"
+                
                 text = f"🚫 **Uždrausti Žodžiai**\n\n"
+                text += f"{status_text}"
                 text += f"Grupė: `{group_id}`\n\n"
                 if banned_words:
                     text += f"📊 Aktyvūs žodžiai: {len(banned_words)}\n"
@@ -5820,7 +5842,13 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
                 
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
+                # Add feedback about group being added to the list
+                status_text = ""
+                if group_was_added:
+                    status_text = "✅ Grupė pridėta į sąrašą! Dabar ji bus rodoma pasirinkimo meniu.\n\n"
+                
                 text = f"👥 **Pagalbininkai**\n\n"
+                text += f"{status_text}"
                 text += f"Grupė: `{group_id}`\n\n"
                 if helpers:
                     text += f"📊 Aktyvūs pagalbininkai: {len(helpers)}\n"
