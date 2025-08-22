@@ -6355,7 +6355,7 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         elif repeat_value == "custom":
             context.user_data['waiting_for_custom_interval'] = True
             await query.edit_message_text(
-                "🔄 **Custom Interval**\n\nEnter interval in format:\n`XhYm` (X hours Y minutes)\n\nExamples:\n`2h30m` - Every 2 hours 30 minutes\n`45m` - Every 45 minutes\n`1h` - Every hour",
+                "🔄 **Custom Interval**\n\nEnter interval in format:\n`XhYm` (X hours Y minutes)\n\nExamples:\n`2h30m` - Every 2 hours 30 minutes\n`45m` - Every 45 minutes\n`1h` - Every hour\n`5m` - Every 5 minutes",
                 parse_mode='Markdown'
             )
             return
@@ -6386,6 +6386,15 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
             config['repetition'] = "Every 24 hours"
         
         await show_days_of_week(query, context)
+    
+    # Handle custom interval button directly
+    elif data == "repeat_custom":
+        context.user_data['waiting_for_custom_interval'] = True
+        await query.edit_message_text(
+            "🔄 **Custom Interval**\n\nEnter interval in format:\n`XhYm` (X hours Y minutes)\n\nExamples:\n`2h30m` - Every 2 hours 30 minutes\n`45m` - Every 45 minutes\n`1h` - Every hour\n`5m` - Every 5 minutes",
+            parse_mode='Markdown'
+        )
+        return
     
     # Handle date selection callbacks
     elif data.startswith("date_"):
@@ -7483,6 +7492,7 @@ application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern=
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^toggle_"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^time_"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^repeat_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^repeat_custom$"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^preview_"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^back_to_"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^full_preview$"))
