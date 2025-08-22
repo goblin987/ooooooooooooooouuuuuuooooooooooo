@@ -5229,49 +5229,72 @@ async def ban_user(update: telegram.Update, context: telegram.ext.ContextTypes.D
     reason = " ".join(args[1:]) if len(args) > 1 else "Nenurodyta"
     
     try:
-        # Get target user
+        # Get target user info and try to ban directly
         target_user = None
+        target_id = None
+        
         if target.startswith('@'):
+            # For username, try to get user info first
             try:
                 target_member = await context.bot.get_chat_member(chat_id, target)
                 target_user = target_member.user
+                target_id = target_user.id
             except telegram.error.BadRequest:
-                await update.message.reply_text("❌ Vartotojas nerastas arba nėra grupės narys!")
-                return
+                # If we can't get member info, try to ban by username directly
+                target_id = target
+                target_user = None
         else:
             try:
                 user_id = int(target)
-                target_member = await context.bot.get_chat_member(chat_id, user_id)
-                target_user = target_member.user
+                target_id = user_id
+                # Try to get user info for display purposes
+                try:
+                    target_member = await context.bot.get_chat_member(chat_id, user_id)
+                    target_user = target_member.user
+                except telegram.error.BadRequest:
+                    target_user = None
             except ValueError:
                 await update.message.reply_text("❌ Neteisingas vartotojo ID!")
                 return
-            except telegram.error.BadRequest:
-                await update.message.reply_text("❌ Vartotojas su tokiu ID nerastas arba nėra grupės narys!")
-                return
         
-        # Ban the user
-        await context.bot.ban_chat_member(chat_id, target_user.id)
+        # Try to ban the user
+        try:
+            await context.bot.ban_chat_member(chat_id, target_id)
+        except telegram.error.BadRequest as e:
+            if "USER_NOT_PARTICIPANT" in str(e):
+                await update.message.reply_text("❌ Vartotojas nėra grupės narys!")
+            elif "CHAT_ADMIN_REQUIRED" in str(e):
+                await update.message.reply_text("❌ Neturite teisių uždrausti vartotojų!")
+            elif "USER_IS_CHAT_OWNER" in str(e):
+                await update.message.reply_text("❌ Negalite uždrausti grupės savininko!")
+            else:
+                await update.message.reply_text(f"❌ Klaida uždraudžiant vartotoją: {str(e)}")
+            return
         
         # Delete all messages from the banned user
         messages_deleted = 0
-        try:
-            async for message in context.bot.get_chat_history(chat_id, limit=1000):
-                if message.from_user and message.from_user.id == target_user.id:
-                    try:
-                        await context.bot.delete_message(chat_id, message.message_id)
-                        messages_deleted += 1
-                    except Exception:
-                        continue
-        except Exception as e:
-            logger.warning(f"Could not delete all messages from banned user {target_user.id}: {e}")
+        if target_user:
+            try:
+                async for message in context.bot.get_chat_history(chat_id, limit=1000):
+                    if message.from_user and message.from_user.id == target_id:
+                        try:
+                            await context.bot.delete_message(chat_id, message.message_id)
+                            messages_deleted += 1
+                        except Exception:
+                            continue
+            except Exception as e:
+                logger.warning(f"Could not delete all messages from banned user {target_id}: {e}")
         
         # Success message
         ban_text = f"🚫 **VARTOTOJA UŽBANINTAS** 🚫\n\n"
-        ban_text += f"👤 **Vartotojas:** {target_user.first_name}"
-        if target_user.username:
-            ban_text += f" (@{target_user.username})"
-        ban_text += f"\n🆔 **ID:** `{target_user.id}`\n"
+        if target_user:
+            ban_text += f"👤 **Vartotojas:** {target_user.first_name}"
+            if target_user.username:
+                ban_text += f" (@{target_user.username})"
+            ban_text += f"\n🆔 **ID:** `{target_user.id}`\n"
+        else:
+            ban_text += f"👤 **Vartotojas:** {target}\n"
+            ban_text += f"🆔 **ID:** `{target_id}`\n"
         ban_text += f"👮 **Uždraudė:** {admin_user.first_name}"
         if admin_user.username:
             ban_text += f" (@{admin_user.username})"
@@ -5363,45 +5386,67 @@ async def mute_user(update: telegram.Update, context: telegram.ext.ContextTypes.
     reason = " ".join(args[1:]) if len(args) > 1 else "Nenurodyta"
     
     try:
-        # Get target user
+        # Get target user info and try to mute directly
         target_user = None
+        target_id = None
+        
         if target.startswith('@'):
+            # For username, try to get user info first
             try:
                 target_member = await context.bot.get_chat_member(chat_id, target)
                 target_user = target_member.user
+                target_id = target_user.id
             except telegram.error.BadRequest:
-                await update.message.reply_text("❌ Vartotojas nerastas arba nėra grupės narys!")
-                return
+                # If we can't get member info, try to mute by username directly
+                target_id = target
+                target_user = None
         else:
             try:
                 user_id = int(target)
-                target_member = await context.bot.get_chat_member(chat_id, user_id)
-                target_user = target_member.user
+                target_id = user_id
+                # Try to get user info for display purposes
+                try:
+                    target_member = await context.bot.get_chat_member(chat_id, user_id)
+                    target_user = target_member.user
+                except telegram.error.BadRequest:
+                    target_user = None
             except ValueError:
                 await update.message.reply_text("❌ Neteisingas vartotojo ID!")
                 return
-            except telegram.error.BadRequest:
-                await update.message.reply_text("❌ Vartotojas su tokiu ID nerastas arba nėra grupės narys!")
-                return
         
-        # Mute the user (restrict permissions)
-        until_date = datetime.now() + timedelta(hours=24)  # 24 hour mute
-        await context.bot.restrict_chat_member(
-            chat_id, target_user.id,
-            permissions=telegram.ChatPermissions(
-                can_send_messages=False,
-                can_send_media_messages=False,
-                can_send_other_messages=False,
-                can_add_web_page_previews=False
-            ),
-            until_date=until_date
-        )
+        # Try to mute the user
+        try:
+            until_date = datetime.now() + timedelta(hours=24)  # 24 hour mute
+            await context.bot.restrict_chat_member(
+                chat_id, target_id,
+                permissions=telegram.ChatPermissions(
+                    can_send_messages=False,
+                    can_send_media_messages=False,
+                    can_send_other_messages=False,
+                    can_add_web_page_previews=False
+                ),
+                until_date=until_date
+            )
+        except telegram.error.BadRequest as e:
+            if "USER_NOT_PARTICIPANT" in str(e):
+                await update.message.reply_text("❌ Vartotojas nėra grupės narys!")
+            elif "CHAT_ADMIN_REQUIRED" in str(e):
+                await update.message.reply_text("❌ Neturite teisių nutildyti vartotojų!")
+            elif "USER_IS_CHAT_OWNER" in str(e):
+                await update.message.reply_text("❌ Negalite nutildyti grupės savininko!")
+            else:
+                await update.message.reply_text(f"❌ Klaida nutildant vartotoją: {str(e)}")
+            return
         
         mute_text = f"🔇 **VARTOTOJAS NUTILDYTAS** 🔇\n\n"
-        mute_text += f"👤 **Vartotojas:** {target_user.first_name}"
-        if target_user.username:
-            mute_text += f" (@{target_user.username})"
-        mute_text += f"\n🆔 **ID:** `{target_user.id}`\n"
+        if target_user:
+            mute_text += f"👤 **Vartotojas:** {target_user.first_name}"
+            if target_user.username:
+                mute_text += f" (@{target_user.username})"
+            mute_text += f"\n🆔 **ID:** `{target_user.id}`\n"
+        else:
+            mute_text += f"👤 **Vartotojas:** {target}\n"
+            mute_text += f"🆔 **ID:** `{target_id}`\n"
         mute_text += f"👮 **Nutildė:** {admin_user.first_name}"
         if admin_user.username:
             mute_text += f" (@{admin_user.username})"
