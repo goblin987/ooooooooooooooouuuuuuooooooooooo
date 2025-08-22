@@ -5374,36 +5374,20 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
                 # This is how most bots like GroupHelpBot handle usernames
                 username_without_at = target[1:]  # Remove @ symbol
                 
-                # Try to get user info first for display purposes
-                try:
-                    # Try to get user by username (this works in most cases)
-                    target_user = None
-                    target_id = username_without_at  # Use username directly
-                    
-                    # Try to get additional user info if possible
-                    try:
-                        # Try to get user info from chat member
-                        target_member = await context.bot.get_chat_member(chat_id, target)
-                        target_user = target_member.user
-                        target_id = target_user.id  # Use actual user ID if we got it
-                    except telegram.error.BadRequest:
-                        # If we can't get member info, continue with username
-                        pass
-                        
-                except Exception as e:
-                    # If anything fails, still try to unban by username
-                    target_user = None
-                    target_id = username_without_at
+                # For unban operations, we can't get chat member info since user is banned
+                # So we'll use the username directly and try to unban
+                target_user = None
+                target_id = username_without_at  # Use username directly
+                
+                # Note: We can't get user info from chat member for banned users
+                # This is expected behavior for unban operations
             else:
                 try:
                     user_id = int(target)
                     target_id = user_id
-                    # Try to get user info for display purposes
-                    try:
-                        target_member = await context.bot.get_chat_member(chat_id, user_id)
-                        target_user = target_member.user
-                    except telegram.error.BadRequest:
-                        target_user = None
+                    # For unban operations, we can't get chat member info since user is banned
+                    # So we'll just use the user ID directly
+                    target_user = None
                 except ValueError:
                     await update.message.reply_text("❌ Neteisingas vartotojo ID!")
                     return
