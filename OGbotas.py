@@ -568,14 +568,21 @@ def parse_interval(interval_str):
     except:
         return 24
 
-def format_interval(hours):
-    """Format hours to readable string"""
-    if hours < 24:
-        return f"{hours}h"
-    elif hours % 24 == 0:
-        return f"{hours // 24}d"
+def format_interval(hours, minutes=0):
+    """Format hours and minutes to readable string"""
+    if hours == 0 and minutes == 0:
+        return "Not set"
+    elif hours == 0:
+        return f"{minutes}m"
+    elif minutes == 0:
+        if hours < 24:
+            return f"{hours}h"
+        elif hours % 24 == 0:
+            return f"{hours // 24}d"
+        else:
+            return f"{hours}h"
     else:
-        return f"{hours}h"
+        return f"{hours}h {minutes}m"
 
 # Scheduler functions for recurring messages
 async def send_scheduled_message(chat_id, message_text, job_id):
@@ -2871,7 +2878,9 @@ async def handle_message(update: telegram.Update, context: telegram.ext.ContextT
                 context.user_data.get('waiting_for_new_group') or
                 context.user_data.get('waiting_for_custom_time') or
                 context.user_data.get('waiting_for_custom_interval') or
-                context.user_data.get('waiting_for_text')):
+                context.user_data.get('waiting_for_text') or
+                context.user_data.get('waiting_for_media') or
+                context.user_data.get('waiting_for_buttons')):
                 
                 # Process private chat input
                 await process_private_chat_input(update, context)
@@ -6112,6 +6121,77 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
         # Clear waiting state
         context.user_data.pop('waiting_for_text', None)
         return
+    
+    elif context.user_data.get('waiting_for_media'):
+        # User is setting message media
+        if update.message.photo or update.message.video or update.message.animation:
+            config = context.user_data.get('current_message_config', {})
+            config['has_media'] = True
+            if update.message.photo:
+                config['media_type'] = 'photo'
+                config['media_file_id'] = update.message.photo[-1].file_id
+            elif update.message.video:
+                config['media_type'] = 'video'
+                config['media_file_id'] = update.message.video.file_id
+            elif update.message.animation:
+                config['media_type'] = 'animation'
+                config['media_file_id'] = update.message.animation.file_id
+            
+            context.user_data['current_message_config'] = config
+            
+            await update.message.reply_text(
+                "✅ Media nustatytas!\n\n"
+                f"**Tipas:** {config['media_type'].title()}\n\n"
+                "Grįžtame į konfigūraciją...",
+                parse_mode='Markdown'
+            )
+        else:
+            await update.message.reply_text("❌ Prašome atsiųsti nuotrauką, video ar GIF!")
+            return
+        
+        # Clear waiting state
+        context.user_data.pop('waiting_for_media', None)
+        return
+    
+    elif context.user_data.get('waiting_for_buttons'):
+        # User is setting URL buttons
+        try:
+            button_text = update.message.text.strip()
+            lines = button_text.split('\n')
+            buttons = []
+            
+            for line in lines:
+                if '|' in line:
+                    parts = line.split('|', 1)
+                    if len(parts) == 2:
+                        button_name = parts[0].strip()
+                        button_url = parts[1].strip()
+                        if button_name and button_url:
+                            buttons.append({'text': button_name, 'url': button_url})
+            
+            if buttons:
+                config = context.user_data.get('current_message_config', {})
+                config['has_buttons'] = True
+                config['buttons'] = buttons
+                context.user_data['current_message_config'] = config
+                
+                await update.message.reply_text(
+                    f"✅ URL mygtukai nustatyti!\n\n"
+                    f"**Sukurta:** {len(buttons)} mygtuk{'ų' if len(buttons) > 1 else 'as'}\n\n"
+                    "Grįžtame į konfigūraciją...",
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text("❌ Neteisingas formatas! Naudokite: Pavadinimas | URL")
+                return
+            
+        except Exception as e:
+            await update.message.reply_text("❌ Klaida apdorojant mygtukus!")
+            return
+        
+        # Clear waiting state
+        context.user_data.pop('waiting_for_buttons', None)
+        return
 
 # Callback handler functions for new features
 async def handle_recurring_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE):
@@ -6215,6 +6295,113 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
             return
         context.user_data['current_message_config'] = config
         await show_message_config(query, context)
+    
+    # Handle day selection callbacks
+    elif data.startswith("day_"):
+        day_value = data.split("_", 1)[1]
+        config = context.user_data.get('current_message_config', {})
+        selected_days = config.get('selected_days', [])
+        
+        if day_value in selected_days:
+            selected_days.remove(day_value)
+        else:
+            selected_days.append(day_value)
+        
+        config['selected_days'] = selected_days
+        context.user_data['current_message_config'] = config
+        
+        # Update repetition text to show selected days
+        if selected_days:
+            day_names = {'mon': 'Monday', 'tue': 'Tuesday', 'wed': 'Wednesday', 
+                        'thu': 'Thursday', 'fri': 'Friday', 'sat': 'Saturday', 'sun': 'Sunday'}
+            selected_day_names = [day_names.get(day, day) for day in selected_days]
+            config['repetition'] = f"On {', '.join(selected_day_names)}"
+        else:
+            config['repetition'] = "Every 24 hours"
+        
+        await show_days_of_week(query, context)
+    
+    # Handle date selection callbacks
+    elif data.startswith("date_"):
+        date_value = int(data.split("_", 1)[1])
+        config = context.user_data.get('current_message_config', {})
+        selected_dates = config.get('selected_dates', [])
+        
+        if date_value in selected_dates:
+            selected_dates.remove(date_value)
+        else:
+            selected_dates.append(date_value)
+        
+        config['selected_dates'] = selected_dates
+        context.user_data['current_message_config'] = config
+        
+        # Update repetition text to show selected dates
+        if selected_dates:
+            config['repetition'] = f"On dates: {', '.join(map(str, sorted(selected_dates)))}"
+        else:
+            config['repetition'] = "Every 24 hours"
+        
+        await show_days_of_month(query, context)
+    
+    # Handle deletion option callbacks
+    elif data.startswith("delete_"):
+        delete_value = data.split("_", 1)[1]
+        config = context.user_data.get('current_message_config', {})
+        
+        if delete_value == "never":
+            config['scheduled_deletion'] = None
+        elif delete_value == "1h":
+            config['scheduled_deletion'] = "1 hour"
+        elif delete_value == "6h":
+            config['scheduled_deletion'] = "6 hours"
+        elif delete_value == "1d":
+            config['scheduled_deletion'] = "1 day"
+        elif delete_value == "7d":
+            config['scheduled_deletion'] = "7 days"
+        
+        context.user_data['current_message_config'] = config
+        await show_message_config(query, context)
+    
+    # Handle save message callback
+    elif data == "save_message":
+        config = context.user_data.get('current_message_config', {})
+        
+        if not config.get('text') and not config.get('has_media'):
+            await query.answer("❌ Please set message text or media first!")
+            return
+        
+        # TODO: Save the message to database and schedule it
+        await query.edit_message_text(
+            "✅ **Message Saved!**\n\n"
+            "Your recurring message has been configured and will start sending according to your schedule.\n\n"
+            f"⏰ **Schedule:** {config.get('repetition', 'Every 24 hours')}\n"
+            f"📌 **Pin:** {'Yes' if config.get('pin_message') else 'No'}\n"
+            f"🗑️ **Delete last:** {'Yes' if config.get('delete_last') else 'No'}",
+            parse_mode='Markdown'
+        )
+        
+        # Clear the configuration
+        context.user_data.pop('current_message_config', None)
+    
+    # Handle topic selection callbacks
+    elif data.startswith("topic_"):
+        topic_type = data.split("_", 1)[1]
+        config = context.user_data.get('current_message_config', {})
+        
+        # Set predefined text based on topic
+        if topic_type == "announcements":
+            config['text'] = "📢 Important announcement will be posted here!"
+        elif topic_type == "events":
+            config['text'] = "🎉 Upcoming events and activities will be shared here!"
+        elif topic_type == "rules":
+            config['text'] = "📝 Please follow our group rules and guidelines."
+        elif topic_type == "tips":
+            config['text'] = "💡 Helpful tips and tricks will be shared regularly!"
+        
+        config['has_text'] = True
+        context.user_data['current_message_config'] = config
+        
+        await show_message_customization(query, context)
     
     await query.answer()
 
@@ -6373,6 +6560,193 @@ async def show_recurring_main_menu(query, context):
     
     # Create keyboard
     keyboard = [[InlineKeyboardButton("➕ Add message", callback_data="recurring_add")]]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_days_of_week(query, context):
+    """Show days of week selection"""
+    text = "📅 **Days of the Week**\n\nSelect which days to send messages:"
+    
+    keyboard = [
+        [InlineKeyboardButton("📅 Monday", callback_data="day_mon")],
+        [InlineKeyboardButton("📅 Tuesday", callback_data="day_tue")],
+        [InlineKeyboardButton("📅 Wednesday", callback_data="day_wed")],
+        [InlineKeyboardButton("📅 Thursday", callback_data="day_thu")],
+        [InlineKeyboardButton("📅 Friday", callback_data="day_fri")],
+        [InlineKeyboardButton("📅 Saturday", callback_data="day_sat")],
+        [InlineKeyboardButton("📅 Sunday", callback_data="day_sun")],
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_days_of_month(query, context):
+    """Show days of month selection"""
+    text = "📅 **Days of the Month**\n\nSelect which dates to send messages:"
+    
+    # Create a grid of date buttons (1-31)
+    keyboard = []
+    for row in range(0, 31, 7):  # 7 buttons per row
+        button_row = []
+        for day in range(row + 1, min(row + 8, 32)):
+            button_row.append(InlineKeyboardButton(str(day), callback_data=f"date_{day}"))
+        keyboard.append(button_row)
+    
+    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="back_to_config")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_scheduled_deletion_options(query, context):
+    """Show scheduled deletion options"""
+    text = "⏱️ **Scheduled Deletion**\n\nChoose when to delete messages:"
+    
+    keyboard = [
+        [InlineKeyboardButton("🕐 After 1 hour", callback_data="delete_1h")],
+        [InlineKeyboardButton("🕕 After 6 hours", callback_data="delete_6h")],
+        [InlineKeyboardButton("📅 After 1 day", callback_data="delete_1d")],
+        [InlineKeyboardButton("📅 After 7 days", callback_data="delete_7d")],
+        [InlineKeyboardButton("❌ Never delete", callback_data="delete_never")],
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_content_preview(query, context, content_type):
+    """Show preview of specific content type"""
+    config = context.user_data.get('current_message_config', {})
+    
+    if content_type == "text":
+        preview = config.get('text', 'No text set')
+        text = f"📝 **Text Preview:**\n\n{preview}"
+    elif content_type == "media":
+        preview = "📷 Media attached" if config.get('has_media') else "No media set"
+        text = f"📷 **Media Preview:**\n\n{preview}"
+    elif content_type == "buttons":
+        preview = "🔗 URL buttons configured" if config.get('has_buttons') else "No buttons set"
+        text = f"🔗 **Buttons Preview:**\n\n{preview}"
+    else:
+        text = "❌ Unknown preview type"
+    
+    keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="customize_message")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def set_message_text(query, context):
+    """Set message text"""
+    context.user_data['waiting_for_text'] = True
+    await query.edit_message_text(
+        "📝 **Set Message Text**\n\n"
+        "Send me the text you want to use for the recurring message:",
+        parse_mode='Markdown'
+    )
+
+async def set_message_media(query, context):
+    """Set message media"""
+    context.user_data['waiting_for_media'] = True
+    await query.edit_message_text(
+        "📷 **Set Message Media**\n\n"
+        "Send me a photo, video, or GIF to include with the message:",
+        parse_mode='Markdown'
+    )
+
+async def set_url_buttons(query, context):
+    """Set URL buttons"""
+    context.user_data['waiting_for_buttons'] = True
+    await query.edit_message_text(
+        "🔗 **Set URL Buttons**\n\n"
+        "Send me the button configuration in format:\n"
+        "`Button Text | URL`\n\n"
+        "Example:\n"
+        "`Visit Website | https://example.com`\n"
+        "`Join Channel | https://t.me/channel`",
+        parse_mode='Markdown'
+    )
+
+async def show_full_preview(query, context):
+    """Show full message preview"""
+    config = context.user_data.get('current_message_config', {})
+    
+    text = "👁️ **Full Message Preview**\n\n"
+    
+    if config.get('text'):
+        text += f"📝 **Text:**\n{config['text']}\n\n"
+    
+    if config.get('has_media'):
+        text += "📷 **Media:** Attached\n\n"
+    
+    if config.get('has_buttons'):
+        text += "🔗 **URL Buttons:** Configured\n\n"
+    
+    text += f"⏰ **Schedule:** {config.get('repetition', 'Every 24 hours')}\n"
+    text += f"📌 **Pin:** {'Yes' if config.get('pin_message') else 'No'}\n"
+    text += f"🗑️ **Delete last:** {'Yes' if config.get('delete_last') else 'No'}"
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ Save Message", callback_data="save_message")],
+        [InlineKeyboardButton("🔙 Back", callback_data="customize_message")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_topic_selection(query, context):
+    """Show topic selection (placeholder)"""
+    text = "📋 **Select a Topic**\n\nChoose a predefined message topic:"
+    
+    keyboard = [
+        [InlineKeyboardButton("📢 Announcements", callback_data="topic_announcements")],
+        [InlineKeyboardButton("🎉 Events", callback_data="topic_events")],
+        [InlineKeyboardButton("📝 Rules", callback_data="topic_rules")],
+        [InlineKeyboardButton("💡 Tips", callback_data="topic_tips")],
+        [InlineKeyboardButton("🔙 Back", callback_data="customize_message")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_manage_messages(query, context):
+    """Show manage messages screen with existing scheduled messages"""
+    chat_id = query.message.chat.id
+    current_time = datetime.now().strftime("%d/%m/%y %H:%M")
+    
+    # Get all scheduled messages for this chat
+    scheduled_messages = database.get_scheduled_messages(chat_id)
+    
+    text = (
+        "🔄 **Recurring messages**\n\n"
+        f"From this menu you can set messages that will be sent "
+        f"repeatedly to the group every few minutes/hours or every "
+        f"few messages.\n\n"
+        f"Current time: {current_time}"
+    )
+    
+    # Add message entries if they exist
+    if scheduled_messages:
+        for i, msg in enumerate(scheduled_messages, 1):
+            status = "✅ Active" if msg['is_active'] else "❌ Inactive"
+            status_icon = "✅" if msg['is_active'] else "❌"
+            
+            # Format time
+            time_str = format_interval(msg['interval_hours'], msg.get('interval_minutes', 0))
+            
+            # Get message preview
+            message_preview = msg['message_text'][:50] if msg['message_text'] else "Message is not set."
+            if len(msg['message_text'] or "") > 50:
+                message_preview += "..."
+            
+            text += f"\n\n**{i} • {status}** {status_icon}\n"
+            text += f"   Time: {time_str}\n"
+            text += f"   {message_preview}"
+    
+    keyboard = [
+        [InlineKeyboardButton("➕ Add message", callback_data="recurring_add")],
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_main")]
+    ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
@@ -6841,6 +7215,23 @@ application.add_handler(CallbackQueryHandler(handle_admin_button, pattern="^grou
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^recurring_"))
 application.add_handler(CallbackQueryHandler(handle_banned_words_callback, pattern="^banned_words_"))
 application.add_handler(CallbackQueryHandler(handle_helpers_callback, pattern="^helpers_"))
+
+# GroupHelpBot-style recurring message callbacks
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^customize_message$"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^set_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^toggle_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^time_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^repeat_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^preview_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^back_to_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^full_preview$"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^select_topic$"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^scheduled_deletion$"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^day_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^date_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^delete_"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^save_message$"))
+application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^topic_"))
 
 # Enhanced message handler for banned words detection
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
