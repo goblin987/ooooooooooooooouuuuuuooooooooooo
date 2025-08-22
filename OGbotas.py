@@ -2904,8 +2904,57 @@ def store_user_info(user):
                     VALUES (?, ?, ?, ?, datetime('now'))
                 ''', (user.id, user.username, user.first_name, user.last_name))
                 conn.commit()
+                logger.debug(f"Stored user info: {user.username} (ID: {user.id})")
         except Exception as e:
             logger.warning(f"Error storing user info for {user.username}: {e}")
+
+async def find_and_cache_user(context, username_without_at):
+    """Try multiple methods to find a user and cache their info"""
+    target_user = None
+    target_id = None
+    
+    methods_tried = []
+    
+    # Method 1: Try direct get_chat with @
+    try:
+        user_info = await context.bot.get_chat(f"@{username_without_at}")
+        if hasattr(user_info, 'id') and user_info.type == 'private':
+            target_user = user_info
+            target_id = user_info.id
+            store_user_info(target_user)
+            methods_tried.append(f"get_chat(@{username_without_at}) - SUCCESS")
+            return target_user, target_id
+    except Exception as e:
+        methods_tried.append(f"get_chat(@{username_without_at}) - FAILED: {str(e)}")
+    
+    # Method 2: Try direct get_chat without @
+    try:
+        user_info = await context.bot.get_chat(username_without_at)
+        if hasattr(user_info, 'id') and user_info.type == 'private':
+            target_user = user_info
+            target_id = user_info.id
+            store_user_info(target_user)
+            methods_tried.append(f"get_chat({username_without_at}) - SUCCESS")
+            return target_user, target_id
+    except Exception as e:
+        methods_tried.append(f"get_chat({username_without_at}) - FAILED: {str(e)}")
+    
+    # Method 3: Try using user ID if it's numeric
+    try:
+        if username_without_at.isdigit():
+            user_id = int(username_without_at)
+            user_info = await context.bot.get_chat(user_id)
+            if hasattr(user_info, 'id'):
+                target_user = user_info
+                target_id = user_info.id
+                store_user_info(target_user)
+                methods_tried.append(f"get_chat({user_id}) - SUCCESS")
+                return target_user, target_id
+    except Exception as e:
+        methods_tried.append(f"get_chat(numeric) - FAILED: {str(e)}")
+    
+    logger.info(f"All methods failed for {username_without_at}: {methods_tried}")
+    return None, None
 
 async def handle_message(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     try:
@@ -5544,23 +5593,63 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
                                 admin.user.username.lower() == username_without_at.lower()):
                                 target_user = admin.user
                                 target_id = target_user.id
+                                logger.info(f"Found {username_without_at} in chat admins: ID {target_id}")
                                 break
                     except Exception:
                         pass
+                
+                # Method 4: Try to search through chat members (if possible)
+                if target_id is None:
+                    try:
+                        # Try to get chat member by username directly
+                        chat_member = await context.bot.get_chat_member(chat_id, f"@{username_without_at}")
+                        if chat_member and chat_member.user:
+                            target_user = chat_member.user
+                            target_id = target_user.id
+                            logger.info(f"Found {username_without_at} via get_chat_member: ID {target_id}")
+                            
+                            # Store this user in our cache for future use
+                            store_user_info(target_user)
+                    except Exception as e:
+                        logger.debug(f"get_chat_member failed for {username_without_at}: {e}")
+                        pass
+                
+                # Method 5: Try alternative username formats
+                if target_id is None:
+                    try:
+                        # Sometimes usernames work without @ in the API
+                        user_info = await context.bot.get_chat(username_without_at)
+                        if hasattr(user_info, 'id') and user_info.type == 'private':
+                            target_user = user_info
+                            target_id = user_info.id
+                            logger.info(f"Found {username_without_at} via get_chat without @: ID {target_id}")
+                            
+                            # Store this user in our cache
+                            store_user_info(target_user)
+                    except Exception:
+                        pass
+                
+                # Method 6: Final attempt with comprehensive search
+                if target_id is None:
+                    logger.info(f"Attempting comprehensive search for {username_without_at}")
+                    target_user, target_id = await find_and_cache_user(context, username_without_at)
+                    
+                    if target_id:
+                        logger.info(f"Successfully found {username_without_at} via comprehensive search: ID {target_id}")
                 
                 # If still not found, provide helpful guidance
                 if target_id is None:
                     await update.message.reply_text(
                         f"❌ Negaliu rasti vartotojo @{username_without_at}\n\n"
                         "**Kodėl taip nutiko?**\n"
-                        "• Vartotojas dar neturi žinučių šiame kanale\n"
-                        "• Username gali būti pakeistas\n"
-                        "• Bot dar nepažįsta šio vartotojo\n\n"
+                        "• Vartotojas nėra šio chat'o narys\n"
+                        "• Username gali būti pakeistas arba neteisingas\n"
+                        "• Vartotojas gali būti blokuotas privačiai\n\n"
                         "**Sprendimas:**\n"
                         f"• Naudokite vartotojo ID: `/unban [user_id]`\n"
-                        f"• ID rasite ban žinutėje\n"
-                        f"• Arba paprašykite vartotojo parašyti žinutę grupėje\n"
-                        f"• Tada bandykite `/unban @{username_without_at}` vėl"
+                        f"• ID rasite ban žinutėje arba ban log'uose\n"
+                        f"• Patikrinkite ar username teisingas\n"
+                        f"• Arba naudokite @userinfobot sužinoti ID"
                     )
                     return
             else:
@@ -5689,6 +5778,50 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
             f"Nepavyko atblokuoti vartotojo: {error_msg}",
             parse_mode='Markdown'
         )
+
+async def lookup_user(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Lookup and cache a user by username - for testing and building user database"""
+    if not await can_ban_users(update, context):
+        await update.message.reply_text("❌ Tik adminai gali naudoti šią komandą!")
+        return
+    
+    args = context.args
+    if len(args) < 1:
+        await update.message.reply_text("❌ Naudojimas: /lookup @username")
+        return
+    
+    target = args[0]
+    if not target.startswith('@'):
+        await update.message.reply_text("❌ Naudokite: /lookup @username")
+        return
+    
+    username_without_at = target[1:]
+    
+    try:
+        # Try to find and cache the user
+        target_user, target_id = await find_and_cache_user(context, username_without_at)
+        
+        if target_id:
+            lookup_text = f"✅ **VARTOTOJAS RASTAS** ✅\n\n"
+            lookup_text += f"👤 **Vardas:** {target_user.first_name}\n"
+            lookup_text += f"🆔 **ID:** `{target_id}`\n"
+            lookup_text += f"👤 **Username:** @{target_user.username}\n"
+            lookup_text += f"💾 **Statusas:** Išsaugotas duomenų bazėje\n"
+            lookup_text += f"⏰ **Data:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            
+            await update.message.reply_text(lookup_text, parse_mode='Markdown')
+        else:
+            await update.message.reply_text(
+                f"❌ Nepavyko rasti vartotojo @{username_without_at}\n\n"
+                "Vartotojas gali būti:\n"
+                "• Nepublikavęs jokių žinučių\n"
+                "• Pakeičęs username\n"
+                "• Blokavęs botą privačiai\n"
+                "• Neegzistuojantis"
+            )
+    except Exception as e:
+        error_msg = str(e).replace('*', '\\*').replace('_', '\\_').replace('`', '\\`')
+        await update.message.reply_text(f"❌ Klaida ieškant vartotojo: {error_msg}")
 
 async def mute_user(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     """Mute a user"""
@@ -8341,6 +8474,7 @@ application.add_handler(CommandHandler(['neradejas'], neradejas))
 application.add_handler(CommandHandler(['recurring'], recurring_messages_menu))
 application.add_handler(CommandHandler(['ban'], ban_user))
 application.add_handler(CommandHandler(['unban'], unban_user))
+application.add_handler(CommandHandler(['lookup'], lookup_user))
 application.add_handler(CommandHandler(['mute'], mute_user))
 application.add_handler(CommandHandler(['unmute'], unmute_user))
 application.add_handler(CommandHandler(['bannedwords'], banned_words_menu))
