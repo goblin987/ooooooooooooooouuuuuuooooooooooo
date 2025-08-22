@@ -1325,13 +1325,189 @@ async def start_private(update: telegram.Update, context: telegram.ext.ContextTy
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
     if chat_id == user_id and user_id == ADMIN_CHAT_ID:
+        # Show the new admin dashboard instead of the old simple menu
+        await admin_dashboard(update, context)
+
+async def admin_dashboard(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Show admin dashboard with inline buttons for all setup options"""
+    user_id = update.message.from_user.id
+    
+    if user_id != ADMIN_CHAT_ID:
+        await update.message.reply_text("❌ Tik adminas gali naudoti šią komandą!")
+        return
+    
+    # Create beautiful admin dashboard with inline buttons
+    keyboard = [
+        [InlineKeyboardButton("🔄 Kartojami pranešimai", callback_data="admin_recurring")],
+        [InlineKeyboardButton("🚫 Uždrausti žodžiai", callback_data="admin_banned_words")],
+        [InlineKeyboardButton("👥 Pagalbininkai", callback_data="admin_helpers")],
+        [InlineKeyboardButton("🛡️ Moderacija", callback_data="admin_moderation")],
+        [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
+        [InlineKeyboardButton("⚙️ Pardavėjų valdymas", callback_data="admin_vendors")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        "🎯 **ADMIN DASHBOARD**\n\n"
+        "Sveiki, administratoriau! Pasirinkite, ką norite valdyti:\n\n"
+        "🔄 **Kartojami pranešimai** - Nustatyti automatinius pranešimus\n"
+        "🚫 **Uždrausti žodžiai** - Valdyti draudžiamus žodžius ir baudas\n"
+        "👥 **Pagalbininkai** - Pridėti/pašalinti pagalbininkus\n"
+        "🛡️ **Moderacija** - Ban/mute komandos ir nustatymai\n"
+        "📊 **Statistika** - Bot statistikos ir duomenys\n"
+        "⚙️ **Pardavėjų valdymas** - Pridėti/pašalinti pardavėjus",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+async def handle_admin_dashboard_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle admin dashboard button clicks"""
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    if user_id != ADMIN_CHAT_ID:
+        await query.answer("❌ Tik adminas gali naudoti šią komandą!")
+        return
+    
+    data = query.data
+    
+    if data == "admin_recurring":
+        # Show group selection for recurring messages
         keyboard = [
-            [InlineKeyboardButton("Pridėti pardavėją", callback_data="admin_addseller")],
-            [InlineKeyboardButton("Pašalinti pardavėją", callback_data="admin_removeseller")],
-                            [InlineKeyboardButton("Redaguoti /balsuoti tekstą", callback_data="admin_editpardavejai")]
+            [InlineKeyboardButton("📝 Įvesti grupės ID", callback_data="group_select_recurring")],
+            [InlineKeyboardButton("🔍 Rasti grupes", callback_data="group_find_recurring")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("Sveikas, admin! Ką nori valdyti?", reply_markup=reply_markup)
+        
+        await query.edit_message_text(
+            "🔄 **Kartojami pranešimai**\n\n"
+            "Pasirinkite grupę, kurioje norite valdyti kartojamus pranešimus:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_banned_words":
+        # Show group selection for banned words
+        keyboard = [
+            [InlineKeyboardButton("📝 Įvesti grupės ID", callback_data="group_select_banned_words")],
+            [InlineKeyboardButton("🔍 Rasti grupes", callback_data="group_find_banned_words")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🚫 **Uždrausti žodžiai**\n\n"
+            "Pasirinkite grupę, kurioje norite valdyti uždraustus žodžius:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_helpers":
+        # Show group selection for helpers
+        keyboard = [
+            [InlineKeyboardButton("📝 Įvesti grupės ID", callback_data="group_select_helpers")],
+            [InlineKeyboardButton("🔍 Rasti grupes", callback_data="group_find_helpers")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "👥 **Pagalbininkai**\n\n"
+            "Pasirinkite grupę, kurioje norite valdyti pagalbininkus:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_moderation":
+        # Show moderation options
+        keyboard = [
+            [InlineKeyboardButton("🔄 Kartojami pranešimai", callback_data="admin_recurring")],
+            [InlineKeyboardButton("🚫 Uždrausti žodžiai", callback_data="admin_banned_words")],
+            [InlineKeyboardButton("👥 Pagalbininkai", callback_data="admin_helpers")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🛡️ **Moderacija**\n\n"
+            "Moderacijos funkcijos yra integruotos į kitus menius:\n\n"
+            "• **Ban/Mute komandos** - naudokite `/ban`, `/mute` grupėse\n"
+            "• **Uždrausti žodžiai** - automatinės baudas\n"
+            "• **Pagalbininkai** - deleguoti teises\n\n"
+            "Pasirinkite meniu elementą:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_stats":
+        # Show bot statistics
+        keyboard = [
+            [InlineKeyboardButton("📊 Grupės statistika", callback_data="admin_group_stats")],
+            [InlineKeyboardButton("👥 Vartotojų statistika", callback_data="admin_user_stats")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "📊 **Bot statistika**\n\n"
+            "Pasirinkite statistikos tipą:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_vendors":
+        # Show vendor management options
+        keyboard = [
+            [InlineKeyboardButton("➕ Pridėti pardavėją", callback_data="admin_add_vendor")],
+            [InlineKeyboardButton("➖ Pašalinti pardavėją", callback_data="admin_remove_vendor")],
+            [InlineKeyboardButton("✏️ Redaguoti pardavėjus", callback_data="admin_edit_vendors")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "⚙️ **Pardavėjų valdymas**\n\n"
+            "Pasirinkite veiksmą:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_dashboard_back":
+        # Return to main admin dashboard
+        await admin_dashboard(update, context)
+        await query.delete_message()
+        
+    elif data.startswith("group_select_"):
+        # Handle group selection for different features
+        feature = data.replace("group_select_", "")
+        context.user_data['waiting_for_group_id'] = True
+        context.user_data['group_selection_type'] = feature
+        
+        await query.edit_message_text(
+            f"📝 **Įveskite grupės ID**\n\n"
+            f"Funkcija: **{get_feature_name(feature)}**\n\n"
+            f"Įveskite grupės ID (pvz., -1001234567890):",
+            parse_mode='Markdown'
+        )
+        
+    elif data.startswith("group_find_"):
+        # Handle group find for different features
+        feature = data.replace("group_find_", "")
+        # For now, just show the group selection option
+        context.user_data['waiting_for_group_id'] = True
+        context.user_data['group_selection_type'] = feature
+        
+        await query.edit_message_text(
+            f"🔍 **Rasti grupes**\n\n"
+            f"Funkcija: **{get_feature_name(feature)}**\n\n"
+            "Šiuo metu reikia įvesti grupės ID rankiniu būdu.\n"
+            f"Įveskite grupės ID (pvz., -1001234567890):",
+            parse_mode='Markdown'
+        )
+    
+    await query.answer()
 
 async def handle_admin_button(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -1347,6 +1523,140 @@ async def handle_admin_button(update: telegram.Update, context: telegram.ext.Con
         await query.edit_message_text("Įvesk: /removeseller @VendorTag")
     elif data == "admin_editpardavejai":
         await query.edit_message_text("Įvesk: /editpardavejai 'Naujas tekstas'")
+    elif data == "admin_recurring":
+        # Show group selection for recurring messages
+        keyboard = [
+            [InlineKeyboardButton("📝 Įvesti grupės ID", callback_data="group_select_recurring")],
+            [InlineKeyboardButton("🔍 Rasti grupes", callback_data="group_find_recurring")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🔄 **Kartojami pranešimai**\n\n"
+            "Pasirinkite grupę, kurioje norite valdyti kartojamus pranešimus:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_banned_words":
+        # Show group selection for banned words
+        keyboard = [
+            [InlineKeyboardButton("📝 Įvesti grupės ID", callback_data="group_select_banned_words")],
+            [InlineKeyboardButton("🔍 Rasti grupes", callback_data="group_find_banned_words")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🚫 **Uždrausti žodžiai**\n\n"
+            "Pasirinkite grupę, kurioje norite valdyti uždraustus žodžius:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_helpers":
+        # Show group selection for helpers
+        keyboard = [
+            [InlineKeyboardButton("📝 Įvesti grupės ID", callback_data="group_select_helpers")],
+            [InlineKeyboardButton("🔍 Rasti grupes", callback_data="group_find_helpers")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "👥 **Pagalbininkai**\n\n"
+            "Pasirinkite grupę, kurioje norite valdyti pagalbininkus:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_moderation":
+        # Show moderation options
+        keyboard = [
+            [InlineKeyboardButton("🔄 Kartojami pranešimai", callback_data="admin_recurring")],
+            [InlineKeyboardButton("🚫 Uždrausti žodžiai", callback_data="admin_banned_words")],
+            [InlineKeyboardButton("👥 Pagalbininkai", callback_data="admin_helpers")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🛡️ **Moderacija**\n\n"
+            "Moderacijos funkcijos yra integruotos į kitus menius:\n\n"
+            "• **Ban/Mute komandos** - naudokite `/ban`, `/mute` grupėse\n"
+            "• **Uždrausti žodžiai** - automatinės baudas\n"
+            "• **Pagalbininkai** - deleguoti teises\n\n"
+            "Pasirinkite meniu elementą:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_stats":
+        # Show bot statistics
+        keyboard = [
+            [InlineKeyboardButton("📊 Grupės statistika", callback_data="admin_group_stats")],
+            [InlineKeyboardButton("👥 Vartotojų statistika", callback_data="admin_user_stats")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "📊 **Bot statistika**\n\n"
+            "Pasirinkite statistikos tipą:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_vendors":
+        # Show vendor management options
+        keyboard = [
+            [InlineKeyboardButton("➕ Pridėti pardavėją", callback_data="admin_add_vendor")],
+            [InlineKeyboardButton("➖ Pašalinti pardavėją", callback_data="admin_remove_vendor")],
+            [InlineKeyboardButton("✏️ Redaguoti pardavėjus", callback_data="admin_edit_vendor")],
+            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "⚙️ **Pardavėjų valdymas**\n\n"
+            "Pasirinkite veiksmą:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_dashboard_back":
+        # Return to main admin dashboard
+        await admin_dashboard(update, context)
+        await query.delete_message()
+        
+    elif data.startswith("group_select_"):
+        # Handle group selection for different features
+        feature = data.replace("group_select_", "")
+        context.user_data['waiting_for_group_id'] = True
+        context.user_data['group_selection_type'] = feature
+        
+        await query.edit_message_text(
+            f"📝 **Įveskite grupės ID**\n\n"
+            f"Funkcija: **{get_feature_name(feature)}**\n\n"
+            f"Įveskite grupės ID (pvz., -1001234567890):",
+            parse_mode='Markdown'
+        )
+        
+    elif data.startswith("group_find_"):
+        # Handle group find for different features
+        feature = data.replace("group_find_", "")
+        # For now, just show the group selection option
+        context.user_data['waiting_for_group_id'] = True
+        context.user_data['group_selection_type'] = feature
+        
+        await query.edit_message_text(
+            f"🔍 **Rasti grupes**\n\n"
+            f"Funkcija: **{get_feature_name(feature)}**\n\n"
+            "Šiuo metu reikia įvesti grupės ID rankiniu būdu.\n"
+            f"Įveskite grupės ID (pvz., -1001234567890):",
+            parse_mode='Markdown'
+        )
     elif data == "mod_pending_scammers":
         await show_pending_scammers_panel(query, context)
     elif data == "mod_pending_buyers":
@@ -1374,6 +1684,15 @@ async def handle_admin_button(update: telegram.Update, context: telegram.ext.Con
     else:
         await query.edit_message_text("❌ Nežinomas veiksmas!")
     await query.answer()
+
+def get_feature_name(feature):
+    """Get human-readable feature name"""
+    feature_names = {
+        'recurring': 'Kartojami pranešimai',
+        'banned_words': 'Uždrausti žodžiai',
+        'helpers': 'Pagalbininkai'
+    }
+    return feature_names.get(feature, feature)
 
 async def show_pending_scammers_panel(query, context):
     """Show pending scammer reports in moderation panel"""
@@ -4237,203 +4556,6 @@ async def neradejas(update: telegram.Update, context: telegram.ext.ContextTypes.
 
 # Admin commands for buyer report management moved to moderation panel buttons
 
-# Callback handlers for buyer report inline buttons
-async def handle_buyer_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle inline button callbacks for buyer reports"""
-    query = update.callback_query
-    await query.answer()  # Acknowledge the callback
-    
-    user_id = query.from_user.id
-    callback_data = query.data
-    
-    # Check if user is authorized
-    if not is_admin_or_helper(user_id):
-        await query.edit_message_text("❌ Tik adminai ir pagalbininkai gali valdyti pirkėjų pranešimus!")
-        return
-    
-    try:
-        # Parse callback data
-        if callback_data.startswith("approve_buyer_"):
-            report_id = int(callback_data.replace("approve_buyer_", ""))
-            await approve_buyer_callback(query, context, report_id, user_id)
-        elif callback_data.startswith("reject_buyer_"):
-            report_id = int(callback_data.replace("reject_buyer_", ""))
-            await reject_buyer_callback(query, context, report_id, user_id)
-        elif callback_data.startswith("buyer_details_"):
-            report_id = int(callback_data.replace("buyer_details_", ""))
-            await buyer_details_callback(query, context, report_id)
-        else:
-            await query.edit_message_text("❌ Nežinomas veiksmas!")
-    except ValueError:
-        await query.edit_message_text("❌ Neteisingas report ID!")
-    except Exception as e:
-        logger.error(f"Error handling buyer callback: {str(e)}")
-        await query.edit_message_text("❌ Klaida vykdant veiksmą!")
-
-async def approve_buyer_callback(query, context, report_id, user_id):
-    """Handle approve buyer button callback"""
-    if report_id not in pending_buyer_reports:
-        await query.edit_message_text(f"❌ Pranešimas #{report_id} nerastas arba jau apdorotas!")
-        return
-    
-    try:
-        report = pending_buyer_reports[report_id]
-        username = report['username'].lower()
-        
-        # Try to resolve user ID if we don't have it yet
-        if not report.get('user_id'):
-            try:
-                resolved_id, method = await resolve_user_id(report['username'], context, report.get('chat_id'))
-                if resolved_id:
-                    report['user_id'] = resolved_id
-                    logger.info(f"Resolved missing user ID for bad buyer {report['username']}: {resolved_id} via {method}")
-            except Exception as e:
-                logger.warning(f"Failed to resolve user ID during approval for {report['username']}: {e}")
-        
-        # Add to confirmed bad buyers or update existing entry
-        if username not in confirmed_bad_buyers:
-            confirmed_bad_buyers[username] = {
-                'reports': [],
-                'total_reports': 0,
-                'user_id': report.get('user_id')
-            }
-        
-        # Add this report to the list
-        confirmed_bad_buyers[username]['reports'].append({
-            'confirmed_by': user_id,
-            'reporter_id': report['reporter_id'],
-            'reporter_username': report['reporter_username'],
-            'reason': report['reason'],
-            'timestamp': datetime.now(TIMEZONE),
-            'original_report_id': report_id
-        })
-        
-        confirmed_bad_buyers[username]['total_reports'] = len(confirmed_bad_buyers[username]['reports'])
-        
-        # Update user_id to bad buyer mapping and general mappings
-        if report.get('user_id'):
-            user_id_to_bad_buyer[report['user_id']] = username
-            update_user_id_mappings(report['user_id'], report['username'])
-            logger.info(f"Stored user ID {report['user_id']} for confirmed bad buyer {username}")
-        
-        # Remove from pending
-        del pending_buyer_reports[report_id]
-        
-        # Save data
-        save_data(confirmed_bad_buyers, 'confirmed_bad_buyers.pkl')
-        save_data(pending_buyer_reports, 'pending_buyer_reports.pkl')
-        save_data(user_id_to_bad_buyer, 'user_id_to_bad_buyer.pkl')
-        
-        # Add points to original reporter
-        user_points[report['reporter_id']] = user_points.get(report['reporter_id'], 0) + 2
-        save_data(user_points, 'user_points.pkl')
-        
-        # Update message
-        confirmed_text = (
-            f"✅ PIRKĖJO PRANEŠIMAS PATVIRTINTAS\n\n"
-            f"Report ID: #{report_id}\n"
-            f"Pirkėjas: {report['username']}\n"
-            f"Patvirtino: {query.from_user.first_name or 'Moderatorius'}\n"
-            f"Laikas: {datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')}\n\n"
-            f"Pirkėjas pridėtas į problematišių pirkėjų sąrašą!"
-        )
-        await query.edit_message_text(confirmed_text)
-        
-        # Notify original reporter
-        try:
-            await context.bot.send_message(
-                chat_id=report['chat_id'],
-                text=f"🛒 PIRKĖJO PRANEŠIMAS PATVIRTINTAS! 🛒\n\n"
-                     f"{report['username']} pridėtas į problematišių pirkėjų sąrašą!\n"
-                     f"+2 taškai už patvirtintą pranešimą! 🛡️"
-            )
-        except Exception as e:
-            logger.warning(f"Failed to notify reporter about approved buyer report: {e}")
-        
-        logger.info(f"Admin {user_id} approved buyer report #{report_id} for {report['username']} via callback")
-        
-    except Exception as e:
-        logger.error(f"Error in approve buyer callback: {str(e)}")
-        await query.edit_message_text("❌ Klaida patvirtinant pranešimą!")
-
-async def reject_buyer_callback(query, context, report_id, user_id):
-    """Handle reject buyer button callback"""
-    if report_id not in pending_buyer_reports:
-        await query.edit_message_text(f"❌ Pranešimas #{report_id} nerastas arba jau apdorotas!")
-        return
-    
-    try:
-        report = pending_buyer_reports[report_id]
-        
-        # Remove from pending
-        del pending_buyer_reports[report_id]
-        
-        # Save data
-        save_data(pending_buyer_reports, 'pending_buyer_reports.pkl')
-        
-        # Update message
-        rejected_text = (
-            f"❌ PIRKĖJO PRANEŠIMAS ATMESTAS\n\n"
-            f"Report ID: #{report_id}\n"
-            f"Pirkėjas: {report['username']}\n"
-            f"Atmėtė: {query.from_user.first_name or 'Moderatorius'}\n"
-            f"Laikas: {datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')}\n\n"
-            f"Pranešimas atmestas - nepakankama informacija arba netinkama priežastis."
-        )
-        await query.edit_message_text(rejected_text)
-        
-        # Notify original reporter
-        try:
-            await context.bot.send_message(
-                chat_id=report['chat_id'],
-                text=f"📋 Jūsų pirkėjo pranešimas #{report_id} buvo atmestas moderatoriaus.\n"
-                     f"Apie: {report['username']}\n"
-                     f"Priežastis gali būti nepakankama arba netinkama."
-            )
-        except Exception as e:
-            logger.warning(f"Failed to notify reporter about rejected buyer report: {e}")
-        
-        logger.info(f"Admin {user_id} rejected buyer report #{report_id} for {report['username']} via callback")
-        
-    except Exception as e:
-        logger.error(f"Error in reject buyer callback: {str(e)}")
-        await query.edit_message_text("❌ Klaida atmestant pranešimą!")
-
-async def buyer_details_callback(query, context, report_id):
-    """Handle buyer details button callback"""
-    if report_id not in pending_buyer_reports:
-        await query.edit_message_text(f"❌ Pranešimas #{report_id} nerastas!")
-        return
-    
-    try:
-        report = pending_buyer_reports[report_id]
-        
-        details_text = (
-            f"📋 PIRKĖJO PRANEŠIMO DETALĖS\n\n"
-            f"Report ID: #{report_id}\n"
-            f"Pranešė: {report['reporter_username']}\n"
-            f"Apie: {report['username']}\n"
-            f"User ID: {report.get('user_id', 'Nežinomas')}\n"
-            f"Laikas: {report['timestamp'].strftime('%Y-%m-%d %H:%M')}\n\n"
-            f"Priežastis:\n{report['reason']}\n\n"
-            f"Pasirinkite veiksmą:"
-        )
-        
-        # Create inline keyboard with approve/reject buttons
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ Patvirtinti", callback_data=f"approve_buyer_{report_id}"),
-                InlineKeyboardButton("❌ Atmesti", callback_data=f"reject_buyer_{report_id}")
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(details_text, reply_markup=reply_markup)
-        
-    except Exception as e:
-        logger.error(f"Error showing buyer details: {str(e)}")
-        await query.edit_message_text("❌ Klaida rodant detales!")
-
 # pending_buyer_reports_command removed - now accessible through moderation panel
 
 
@@ -4879,7 +5001,7 @@ async def leaderboard(update: telegram.Update, context: telegram.ext.ContextType
         achievements_board += "└─────────────────────────────────────┘\n\n"
         
         # Community statistics
-        stats = "📊 **BENDRUOMENĖS STATISTIKOS**\n"
+        stats = "📊 **BENDRUOMĖS STATISTIKOS**\n"
         total_users = len(user_points)
         total_points = sum(user_points.values())
         total_messages = sum(alltime_messages.values())
@@ -6071,7 +6193,6 @@ application.add_handler(CommandHandler(['helpers'], helpers_private))
 
 # Add callback query handler for inline buttons
 application.add_handler(CallbackQueryHandler(handle_scammer_callback, pattern=r"^(approve_scammer_|reject_scammer_|scammer_details_)"))
-application.add_handler(CallbackQueryHandler(handle_buyer_callback, pattern=r"^(approve_buyer_|reject_buyer_|buyer_details_)"))
 application.add_handler(MessageHandler(filters.Regex('^/start$') & filters.ChatType.PRIVATE, start_private))
 application.add_handler(CallbackQueryHandler(handle_vote_button, pattern="vote_"))
 application.add_handler(CallbackQueryHandler(handle_poll_button, pattern="poll_"))
