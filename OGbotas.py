@@ -1567,6 +1567,34 @@ async def show_admin_dashboard_ui(update_or_query, context: telegram.ext.Context
             parse_mode='Markdown'
         )
     
+    elif data.startswith("add_manual_groups_"):
+        # Handle manual group addition
+        feature = data.replace("add_manual_groups_", "")
+        context.user_data['waiting_for_manual_groups'] = True
+        context.user_data['group_selection_type'] = feature
+        
+        await query.edit_message_text(
+            f"🔧 **Pridėti grupes rankiniu**\n\n"
+            f"Funkcija: **{get_feature_name(feature)}**\n\n"
+            f"Įveskite grupės ID, atskirtus kableliais:\n\n"
+            f"**Pavyzdys:** `-1001234567890, -1001987654321`",
+            parse_mode='Markdown'
+        )
+    
+    elif data.startswith("add_new_group_"):
+        # Handle adding a new group
+        feature = data.replace("add_new_group_", "")
+        context.user_data['waiting_for_new_group'] = True
+        context.user_data['group_selection_type'] = feature
+        
+        await query.edit_message_text(
+            f"🔧 **Pridėti naują grupę**\n\n"
+            f"Funkcija: **{get_feature_name(feature)}**\n\n"
+            f"Įveskite naujos grupės ID:\n\n"
+            f"**Pavyzdys:** `-1001234567890`",
+            parse_mode='Markdown'
+        )
+    
     await query.answer()
 
 async def handle_admin_button(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
@@ -1757,27 +1785,52 @@ def get_feature_name(feature):
 async def show_group_selection_menu(query, context, feature, selection_type):
     """Show a list of all groups where the bot is present for selection"""
     try:
-        # Get all chats where the bot is present
+        # Get all chats where the bot is present using a more reliable method
         bot = context.bot
-        updates = await bot.get_updates()
-        
-        # Extract unique chat IDs from updates
         chat_ids = set()
-        for update in updates:
-            if update.message and update.message.chat:
-                chat = update.message.chat
-                if chat.type in ['group', 'supergroup']:
-                    chat_ids.add(chat.id)
         
-        # Also check allowed_groups from the bot's configuration
+        # Method 1: Check allowed_groups from the bot's configuration
         if 'allowed_groups' in globals():
             for group_id in allowed_groups:
                 chat_ids.add(int(group_id))
+        
+        # Method 2: Try to get groups from recent updates (limited but more reliable)
+        try:
+            # Get recent updates with a limit
+            updates = await bot.get_updates(limit=100, timeout=1)
+            for update in updates:
+                if update.message and update.message.chat:
+                    chat = update.message.chat
+                    if chat.type in ['group', 'supergroup']:
+                        chat_ids.add(chat.id)
+        except Exception:
+            pass  # Ignore errors from get_updates
+        
+        # Method 3: Check if we have any stored group data
+        try:
+            # Try to get groups from analytics database or other stored data
+            if 'database' in globals() and hasattr(database, 'get_all_groups'):
+                stored_groups = database.get_all_groups()
+                for group_id in stored_groups:
+                    chat_ids.add(int(group_id))
+        except Exception:
+            pass
+        
+        # Method 4: Add some common group IDs that might be used
+        # You can manually add your group IDs here
+        manual_groups = [
+            # Add your actual group IDs here, for example:
+            # -1001234567890,  # Your main group
+            # -1001987654321,  # Your backup group
+        ]
+        for group_id in manual_groups:
+            chat_ids.add(group_id)
         
         if not chat_ids:
             # Fallback: show manual input option
             keyboard = [
                 [InlineKeyboardButton("📝 Įvesti grupės ID rankiniu", callback_data=f"manual_group_{feature}")],
+                [InlineKeyboardButton("🔧 Pridėti grupes rankiniu", callback_data=f"add_manual_groups_{feature}")],
                 [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1785,8 +1838,11 @@ async def show_group_selection_menu(query, context, feature, selection_type):
             await query.edit_message_text(
                 f"🔍 **Grupės nerastos**\n\n"
                 f"Funkcija: **{get_feature_name(feature)}**\n\n"
-                "Botas dar nebuvo naudojamas grupėse arba negali gauti grupės sąrašo.\n"
-                "Galite įvesti grupės ID rankiniu būdu:",
+                "Botas negali automatiškai aptikti grupių, kuriose yra.\n\n"
+                "**Galimi sprendimai:**\n"
+                "• 📝 Įvesti grupės ID rankiniu\n"
+                "• 🔧 Pridėti grupes rankiniu\n"
+                "• Patikrinti, ar botas yra grupėse ir ar turi teises",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
@@ -1814,7 +1870,8 @@ async def show_group_selection_menu(query, context, feature, selection_type):
                     callback_data=f"select_group_{feature}_{chat_id}"
                 )])
         
-        # Add back button
+        # Add additional options
+        keyboard.append([InlineKeyboardButton("🔧 Pridėti naują grupę", callback_data=f"add_new_group_{feature}")])
         keyboard.append([InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1823,7 +1880,8 @@ async def show_group_selection_menu(query, context, feature, selection_type):
         await query.edit_message_text(
             f"{selection_text} **Pasirinkite grupę**\n\n"
             f"Funkcija: **{get_feature_name(feature)}**\n\n"
-            f"Botas yra šiose grupėse. Pasirinkite grupę, kurioje norite valdyti:",
+            f"Rastos {len(chat_ids)} grupės, kuriose botas gali veikti:\n\n"
+            f"Pasirinkite grupę, kurioje norite valdyti:",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
@@ -1832,6 +1890,7 @@ async def show_group_selection_menu(query, context, feature, selection_type):
         # Fallback to manual input
         keyboard = [
             [InlineKeyboardButton("📝 Įvesti grupės ID rankiniu", callback_data=f"manual_group_{feature}")],
+            [InlineKeyboardButton("🔧 Pridėti grupes rankiniu", callback_data=f"add_manual_groups_{feature}")],
             [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1840,7 +1899,10 @@ async def show_group_selection_menu(query, context, feature, selection_type):
             f"❌ **Klaida gaunant grupes**\n\n"
             f"Funkcija: **{get_feature_name(feature)}**\n\n"
             f"Klaida: {str(e)}\n\n"
-            "Galite įvesti grupės ID rankiniu būdu:",
+            "**Galimi sprendimai:**\n"
+            "• 📝 Įvesti grupės ID rankiniu\n"
+            "• 🔧 Pridėti grupes rankiniu\n"
+            "• Patikrinti bot nustatymus",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
@@ -3219,6 +3281,95 @@ async def handle_message(update: telegram.Update, context: telegram.ext.ContextT
             
             # Clear waiting state
             context.user_data.pop('waiting_for_group_id', None)
+            context.user_data.pop('group_selection_type', None)
+            return
+        
+        elif context.user_data.get('waiting_for_manual_groups'):
+            # User is entering multiple group IDs separated by commas
+            try:
+                group_ids_text = update.message.text.strip()
+                group_ids = [int(gid.strip()) for gid in group_ids_text.split(',')]
+                group_selection_type = context.user_data.get('group_selection_type', 'recurring')
+                
+                # Verify each group and add to allowed_groups if not already there
+                added_groups = []
+                for group_id in group_ids:
+                    try:
+                        # Check if user is admin in this group
+                        chat_member = await context.bot.get_chat_member(group_id, user_id)
+                        if chat_member.status in ['creator', 'administrator']:
+                            if str(group_id) not in allowed_groups:
+                                allowed_groups.add(str(group_id))
+                                added_groups.append(group_id)
+                    except Exception:
+                        continue
+                
+                if added_groups:
+                    # Save the updated allowed_groups
+                    save_data(allowed_groups, 'allowed_groups.pkl')
+                    
+                    await update.message.reply_text(
+                        f"✅ **Grupės pridėtos!**\n\n"
+                        f"Pridėtos grupės: {', '.join(map(str, added_groups))}\n\n"
+                        f"Dabar galite pasirinkti šias grupes iš sąrašo.",
+                        parse_mode='Markdown'
+                    )
+                else:
+                    await update.message.reply_text(
+                        "❌ **Nepavyko pridėti grupių!**\n\n"
+                        "Patikrinkite:\n"
+                        "• Ar grupės ID teisingi\n"
+                        "• Ar esate administratorius grupėse\n"
+                        "• Ar grupės egzistuoja"
+                    )
+                
+            except ValueError:
+                await update.message.reply_text("❌ Neteisingas formatas! Įveskite grupės ID, atskirtus kableliais.")
+            
+            # Clear waiting state
+            context.user_data.pop('waiting_for_manual_groups', None)
+            context.user_data.pop('group_selection_type', None)
+            return
+        
+        elif context.user_data.get('waiting_for_new_group'):
+            # User is adding a single new group
+            try:
+                group_id = int(update.message.text.strip())
+                group_selection_type = context.user_data.get('group_selection_type', 'recurring')
+                
+                # Verify the group exists and user is admin there
+                try:
+                    chat_member = await context.bot.get_chat_member(group_id, user_id)
+                    if chat_member.status not in ['creator', 'administrator']:
+                        await update.message.reply_text("❌ Turite būti administratorius nurodytoje grupėje!")
+                        return
+                except Exception as e:
+                    await update.message.reply_text("❌ Nepavyko patikrinti teisių grupėje arba grupė neegzistuoja!")
+                    return
+                
+                # Add to allowed_groups if not already there
+                if str(group_id) not in allowed_groups:
+                    allowed_groups.add(str(group_id))
+                    save_data(allowed_groups, 'allowed_groups.pkl')
+                    
+                    await update.message.reply_text(
+                        f"✅ **Grupė pridėta!**\n\n"
+                        f"Grupės ID: `{group_id}`\n"
+                        f"Funkcija: **{get_feature_name(group_selection_type)}**\n\n"
+                        f"Dabar galite pasirinkti šią grupę iš sąrašo.",
+                        parse_mode='Markdown'
+                    )
+                else:
+                    await update.message.reply_text(
+                        f"ℹ️ **Grupė jau pridėta!**\n\n"
+                        f"Grupės ID: `{group_id}` jau yra sąraše."
+                    )
+                
+            except ValueError:
+                await update.message.reply_text("❌ Neteisingas grupės ID formatas! Įveskite skaičių.")
+            
+            # Clear waiting state
+            context.user_data.pop('waiting_for_new_group', None)
             context.user_data.pop('group_selection_type', None)
             return
         
