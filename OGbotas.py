@@ -298,6 +298,24 @@ class Database:
                 )
             ''')
             
+            # User cache table for username resolution
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS user_cache (
+                    user_id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(user_id)
+                )
+            ''')
+            
+            # Create index for fast username lookups
+            conn.execute('''
+                CREATE INDEX IF NOT EXISTS idx_user_cache_username 
+                ON user_cache(username)
+            ''')
+            
             # Create indexes for better performance
             conn.execute('CREATE INDEX IF NOT EXISTS idx_scheduled_messages_chat_id ON scheduled_messages(chat_id)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_scheduled_messages_status ON scheduled_messages(status)')
@@ -2839,9 +2857,26 @@ async def chatking(update: telegram.Update, context: telegram.ext.ContextTypes.D
         msg = await update.message.reply_text(fallback_message)
         context.job_queue.run_once(delete_message_job, 60, data=(chat_id, msg.message_id))
 
+def store_user_info(user):
+    """Store user information in database for future username resolution"""
+    if user and user.username:
+        try:
+            database.conn.execute('''
+                INSERT OR REPLACE INTO user_cache 
+                (user_id, username, first_name, last_name, last_seen)
+                VALUES (?, ?, ?, ?, datetime('now'))
+            ''', (user.id, user.username, user.first_name, user.last_name))
+            database.conn.commit()
+        except Exception as e:
+            logger.warning(f"Error storing user info for {user.username}: {e}")
+
 async def handle_message(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     try:
         chat_id = update.message.chat_id
+        
+        # Store user information for username resolution
+        if update.message.from_user:
+            store_user_info(update.message.from_user)
         
         # Handle private chat messages for admin features
         if update.message.chat.type == 'private':
@@ -5370,84 +5405,112 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
             target_id = None
             
             if target.startswith('@'):
-                # For username, we need to resolve it to a user ID for unban operations
-                # Telegram's unban_chat_member API only accepts user IDs, not usernames
+                # For unban operations, we need a different approach
+                # Let's try the most direct method that GroupHelpBot likely uses
                 username_without_at = target[1:]  # Remove @ symbol
                 
-                # Use the most reliable approach like GroupHelpBot
-                # Try to resolve username to user ID using multiple advanced methods
                 target_user = None
                 target_id = None
                 
-                # Method 1: Try to use Telegram's search functionality
+                # Method 1: Check our bot's database for stored user info
                 try:
-                    # This is a more advanced approach that some bots use
-                    # Try to get user info by sending a message mention and checking response
-                    search_query = f"@{username_without_at}"
+                    # Check if we have this user stored in our database
+                    cursor = database.conn.execute('''
+                        SELECT user_id, username, first_name FROM user_cache 
+                        WHERE LOWER(username) = LOWER(?) 
+                        ORDER BY last_seen DESC LIMIT 1
+                    ''', (username_without_at,))
                     
-                    # Try to resolve using different API calls
-                    try:
-                        # Method 1a: Try using get_chat for the username (sometimes works)
-                        user_chat = await context.bot.get_chat(target)
-                        if user_chat.type == 'private':
-                            target_user = user_chat
-                            target_id = user_chat.id
-                    except Exception:
-                        pass
-                    
-                    # Method 1b: Try searching in recent updates with better logic
-                    if target_id is None:
-                        try:
-                            updates = await context.bot.get_updates(limit=200, timeout=1)
-                            for upd in reversed(updates):
-                                if (upd.message and upd.message.from_user and 
-                                    upd.message.from_user.username and
-                                    upd.message.from_user.username.lower() == username_without_at.lower()):
-                                    target_user = upd.message.from_user
-                                    target_id = target_user.id
-                                    break
-                                # Also check callback queries
-                                elif (upd.callback_query and upd.callback_query.from_user and 
-                                      upd.callback_query.from_user.username and
-                                      upd.callback_query.from_user.username.lower() == username_without_at.lower()):
-                                    target_user = upd.callback_query.from_user
-                                    target_id = target_user.id
-                                    break
-                        except Exception:
-                            pass
-                    
-                    # Method 1c: Check administrators and members
-                    if target_id is None:
-                        try:
-                            admins = await context.bot.get_chat_administrators(chat_id)
-                            for admin in admins:
-                                if (admin.user.username and 
-                                    admin.user.username.lower() == username_without_at.lower()):
-                                    target_user = admin.user
-                                    target_id = target_user.id
-                                    break
-                        except Exception:
-                            pass
-                    
-                    # Method 1d: Try to get banned users list (some bots can do this)
-                    if target_id is None:
-                        try:
-                            # This might work for some bot configurations
-                            # Try to get user from banned list if API supports it
-                            pass
-                        except Exception:
-                            pass
-                            
-                except Exception:
+                    user_record = cursor.fetchone()
+                    if user_record:
+                        target_id = user_record[0]  # user_id
+                        # Create a mock user object for display
+                        class MockUser:
+                            def __init__(self, user_id, username, first_name):
+                                self.id = user_id
+                                self.username = username
+                                self.first_name = first_name
+                        
+                        target_user = MockUser(user_record[0], user_record[1], user_record[2])
+                        logger.info(f"Found user {username_without_at} in database: ID {target_id}")
+                except Exception as e:
+                    logger.warning(f"Error checking database for username {username_without_at}: {e}")
                     pass
                 
-                # If all methods fail, try a different approach - use username directly
-                # Some Telegram bot libraries can handle username resolution internally
+                # Method 2: If not in database, search through recent updates
                 if target_id is None:
-                    # Last resort: try using the username directly with unban
-                    # This might work depending on the bot's permissions and Telegram's internal resolution
-                    target_id = target  # Use full @username
-                    target_user = None
+                    try:
+                        updates = await context.bot.get_updates(limit=1000, timeout=3)
+                        for upd in reversed(updates):  # Most recent first
+                            user_to_check = None
+                            
+                            if upd.message and upd.message.from_user:
+                                user_to_check = upd.message.from_user
+                            elif upd.callback_query and upd.callback_query.from_user:
+                                user_to_check = upd.callback_query.from_user
+                            elif upd.inline_query and upd.inline_query.from_user:
+                                user_to_check = upd.inline_query.from_user
+                            
+                            if (user_to_check and user_to_check.username and
+                                user_to_check.username.lower() == username_without_at.lower()):
+                                target_user = user_to_check
+                                target_id = user_to_check.id
+                                
+                                # Store this user in our database for future use
+                                try:
+                                    database.conn.execute('''
+                                        INSERT OR REPLACE INTO user_cache 
+                                        (user_id, username, first_name, last_seen)
+                                        VALUES (?, ?, ?, datetime('now'))
+                                    ''', (target_id, user_to_check.username, 
+                                          user_to_check.first_name or 'Unknown'))
+                                    database.conn.commit()
+                                except Exception:
+                                    pass
+                                break
+                                
+                    except Exception as e:
+                        logger.warning(f"Error searching updates for username {username_without_at}: {e}")
+                        pass
+                
+                # Method 2: If not found in updates, try direct username resolution
+                if target_id is None:
+                    try:
+                        # Try to get user info directly (this sometimes works)
+                        user_info = await context.bot.get_chat(f"@{username_without_at}")
+                        if hasattr(user_info, 'id'):
+                            target_user = user_info
+                            target_id = user_info.id
+                    except Exception:
+                        pass
+                
+                # Method 3: Try searching in chat administrators
+                if target_id is None:
+                    try:
+                        admins = await context.bot.get_chat_administrators(chat_id)
+                        for admin in admins:
+                            if (admin.user.username and 
+                                admin.user.username.lower() == username_without_at.lower()):
+                                target_user = admin.user
+                                target_id = target_user.id
+                                break
+                    except Exception:
+                        pass
+                
+                # If still not found, we'll have to inform the user
+                if target_id is None:
+                    await update.message.reply_text(
+                        f"❌ Negaliu rasti vartotojo @{username_without_at}\n\n"
+                        "**Kodėl taip nutiko?**\n"
+                        "• Vartotojas neturi jokių žinučių šiame kanale\n"
+                        "• Username gali būti pakeistas\n"
+                        "• Vartotojas nėra aktyvus\n\n"
+                        "**Sprendimas:**\n"
+                        f"• Naudokite vartotojo ID: `/unban [user_id]`\n"
+                        f"• ID rasite ban žinutėje (pvz: 6984985283)\n"
+                        f"• Arba naudokite @userinfobot"
+                    )
+                    return
             else:
                 try:
                     user_id = int(target)
