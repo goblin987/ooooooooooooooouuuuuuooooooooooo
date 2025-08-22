@@ -314,10 +314,38 @@ class Database:
                 )
             ''')
             
-            # Create index for fast username lookups
+            # Ban history table to track bans for reliable username resolution
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS ban_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chat_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    username TEXT,
+                    first_name TEXT,
+                    banned_by INTEGER NOT NULL,
+                    banned_by_username TEXT,
+                    reason TEXT,
+                    ban_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    is_active BOOLEAN DEFAULT 1,
+                    unban_date DATETIME,
+                    unbanned_by INTEGER
+                )
+            ''')
+            
+            # Create indexes for fast lookups
             conn.execute('''
                 CREATE INDEX IF NOT EXISTS idx_user_cache_username 
                 ON user_cache(username)
+            ''')
+            
+            conn.execute('''
+                CREATE INDEX IF NOT EXISTS idx_ban_history_chat_user 
+                ON ban_history(chat_id, user_id)
+            ''')
+            
+            conn.execute('''
+                CREATE INDEX IF NOT EXISTS idx_ban_history_username 
+                ON ban_history(chat_id, username, is_active)
             ''')
             
             # Create indexes for better performance
@@ -5342,6 +5370,27 @@ async def ban_user(update: telegram.Update, context: telegram.ext.ContextTypes.D
                 await update.message.reply_text(f"❌ Klaida uždraudžiant vartotoją: {str(e)}")
             return
         
+        # Store ban information in database for future username resolution
+        try:
+            with database.get_connection() as conn:
+                conn.execute('''
+                    INSERT INTO ban_history 
+                    (chat_id, user_id, username, first_name, banned_by, banned_by_username, reason)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    chat_id, 
+                    target_id,
+                    target_user.username if target_user else None,
+                    target_user.first_name if target_user else None,
+                    admin_user.id,
+                    admin_user.username,
+                    reason
+                ))
+                conn.commit()
+                logger.info(f"Stored ban info for user {target_id} (@{target_user.username if target_user else 'unknown'}) in database")
+        except Exception as db_e:
+            logger.warning(f"Failed to store ban info in database: {db_e}")
+        
         # Delete all messages from the banned user
         messages_deleted = 0
         # Note: get_chat_history is not available in python-telegram-bot
@@ -5421,19 +5470,18 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
                 target_user = None
                 target_id = None
                 
-                # Method 1: Check our bot's database for stored user info
+                # Method 1: Check ban history first - this is the most reliable for unban
                 try:
-                    # Check if we have this user stored in our database
                     with database.get_connection() as conn:
                         cursor = conn.execute('''
-                            SELECT user_id, username, first_name FROM user_cache 
-                            WHERE LOWER(username) = LOWER(?) 
-                            ORDER BY last_seen DESC LIMIT 1
-                        ''', (username_without_at,))
+                            SELECT user_id, username, first_name FROM ban_history 
+                            WHERE chat_id = ? AND LOWER(username) = LOWER(?) AND is_active = 1
+                            ORDER BY ban_date DESC LIMIT 1
+                        ''', (chat_id, username_without_at))
                         
-                        user_record = cursor.fetchone()
-                        if user_record:
-                            target_id = user_record[0]  # user_id
+                        ban_record = cursor.fetchone()
+                        if ban_record:
+                            target_id = ban_record[0]  # user_id
                             # Create a mock user object for display
                             class MockUser:
                                 def __init__(self, user_id, username, first_name):
@@ -5441,11 +5489,37 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
                                     self.username = username
                                     self.first_name = first_name
                             
-                            target_user = MockUser(user_record[0], user_record[1], user_record[2])
-                            logger.info(f"Found user {username_without_at} in database: ID {target_id}")
+                            target_user = MockUser(ban_record[0], ban_record[1], ban_record[2])
+                            logger.info(f"Found banned user {username_without_at} in ban history: ID {target_id}")
                 except Exception as e:
-                    logger.warning(f"Error checking database for username {username_without_at}: {e}")
+                    logger.warning(f"Error checking ban history for username {username_without_at}: {e}")
                     pass
+                
+                # Method 2: If not in ban history, check general user cache
+                if target_id is None:
+                    try:
+                        with database.get_connection() as conn:
+                            cursor = conn.execute('''
+                                SELECT user_id, username, first_name FROM user_cache 
+                                WHERE LOWER(username) = LOWER(?) 
+                                ORDER BY last_seen DESC LIMIT 1
+                            ''', (username_without_at,))
+                            
+                            user_record = cursor.fetchone()
+                            if user_record:
+                                target_id = user_record[0]  # user_id
+                                # Create a mock user object for display
+                                class MockUser:
+                                    def __init__(self, user_id, username, first_name):
+                                        self.id = user_id
+                                        self.username = username
+                                        self.first_name = first_name
+                                
+                                target_user = MockUser(user_record[0], user_record[1], user_record[2])
+                                logger.info(f"Found user {username_without_at} in user cache: ID {target_id}")
+                    except Exception as e:
+                        logger.warning(f"Error checking user cache for username {username_without_at}: {e}")
+                        pass
                 
                 # Method 2: If not in database, try direct username resolution
                 # (Skip getUpdates since it conflicts with webhook mode)
@@ -5572,6 +5646,19 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
                 return
         
         # If we reach here, unban was successful
+        
+        # Update ban history to mark as inactive
+        try:
+            with database.get_connection() as conn:
+                conn.execute('''
+                    UPDATE ban_history 
+                    SET is_active = 0, unban_date = datetime('now'), unbanned_by = ?
+                    WHERE chat_id = ? AND user_id = ? AND is_active = 1
+                ''', (admin_user.id, chat_id, target_id))
+                conn.commit()
+                logger.info(f"Updated ban history for user {target_id} - marked as unbanned")
+        except Exception as db_e:
+            logger.warning(f"Failed to update ban history: {db_e}")
         
         unban_text = f"✅ **VARTOTOJAS ATBLOKUOTAS** ✅\n\n"
         if target_user:
