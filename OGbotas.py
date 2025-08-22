@@ -5370,17 +5370,60 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
             target_id = None
             
             if target.startswith('@'):
-                # For username, use the most reliable method: try to unban directly
-                # This is how most bots like GroupHelpBot handle usernames
+                # For username, we need to resolve it to a user ID for unban operations
+                # Telegram's unban_chat_member API only accepts user IDs, not usernames
                 username_without_at = target[1:]  # Remove @ symbol
                 
-                # For unban operations, we can't get chat member info since user is banned
-                # So we'll use the username directly and try to unban
+                # Try different methods to resolve username to user ID
                 target_user = None
-                target_id = username_without_at  # Use username directly
+                target_id = None
                 
-                # Note: We can't get user info from chat member for banned users
-                # This is expected behavior for unban operations
+                # Method 1: Check if user has sent recent messages (check updates)
+                try:
+                    updates = await context.bot.get_updates(limit=100)
+                    for upd in reversed(updates):  # Check most recent first
+                        if (upd.message and upd.message.from_user and 
+                            upd.message.from_user.username and
+                            upd.message.from_user.username.lower() == username_without_at.lower()):
+                            target_user = upd.message.from_user
+                            target_id = target_user.id
+                            break
+                except Exception:
+                    pass
+                
+                # Method 2: Try to get user from chat administrators (in case they're admin)
+                if target_id is None:
+                    try:
+                        admins = await context.bot.get_chat_administrators(chat_id)
+                        for admin in admins:
+                            if (admin.user.username and 
+                                admin.user.username.lower() == username_without_at.lower()):
+                                target_user = admin.user
+                                target_id = target_user.id
+                                break
+                    except Exception:
+                        pass
+                
+                # Method 3: Try using the user ID from the ban message if available
+                # This is a fallback that might help in some cases
+                if target_id is None:
+                    try:
+                        # Try to find the user in the bot's database or recent interactions
+                        # For now, we'll just proceed with a more informative error
+                        pass
+                    except Exception:
+                        pass
+                
+                # If we still can't resolve the username, inform the user
+                if target_id is None:
+                    await update.message.reply_text(
+                        f"❌ Negaliu rasti vartotojo ID pagal username @{username_without_at}\n\n"
+                        "**Sprendimas:**\n"
+                        "• Naudokite vartotojo ID vietoj username: `/unban 123456789`\n"
+                        "• Arba paprašykite vartotojo parašyti žinutę grupėje ir tada bandykite vėl\n"
+                        "• Galite naudoti @userinfobot, kad sužinotumėte vartotojo ID"
+                    )
+                    return
             else:
                 try:
                     user_id = int(target)
