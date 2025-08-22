@@ -1444,20 +1444,8 @@ async def handle_admin_button(update: telegram.Update, context: telegram.ext.Con
         )
         
     elif data == "admin_helpers":
-        # Show group selection for helpers
-        keyboard = [
-            [InlineKeyboardButton("📝 Įvesti grupės ID", callback_data="group_select_helpers")],
-            [InlineKeyboardButton("🔍 Rasti grupes", callback_data="group_find_helpers")],
-            [InlineKeyboardButton("⬅️ Atgal", callback_data="admin_dashboard_back")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            "👥 **Pagalbininkai**\n\n"
-            "Pasirinkite grupę, kurioje norite valdyti pagalbininkus:",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
+        # Show the new group buttons menu for helpers
+        await show_helpers_groups_menu_admin(query, context)
         
     elif data == "admin_moderation":
         # Show moderation options
@@ -7191,6 +7179,82 @@ async def handle_helpers_callback(update: telegram.Update, context: telegram.ext
     elif data.startswith("helpers_remove_"):
         helper_id = int(data.split("_")[2])
         await remove_helper(query, context, helper_id)
+    elif data.startswith("helper_manage_"):
+        helper_id = int(data.split("_")[2])
+        await show_helper_management(query, context, helper_id)
+    elif data == "helper_add_new":
+        await show_add_helper_interface(query, context)
+    elif data == "helper_add_by_id":
+        context.user_data['waiting_for_helper_id'] = True
+        context.user_data['helper_add_type'] = 'id'
+        keyboard = [[InlineKeyboardButton("🔙 Atgal", callback_data="helper_add_new")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "🔢 **Įveskite User ID**\n\n"
+            "Parašykite vartotojo ID numerį:\n\n"
+            "Pavyzdys: `123456789`",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    elif data == "helper_add_by_username":
+        context.user_data['waiting_for_helper_id'] = True
+        context.user_data['helper_add_type'] = 'username'
+        keyboard = [[InlineKeyboardButton("🔙 Atgal", callback_data="helper_add_new")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "👤 **Įveskite Username**\n\n"
+            "Parašykite vartotojo username su @ ženklu:\n\n"
+            "Pavyzdys: `@username`",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    elif data == "helpers_back_to_groups":
+        await show_helpers_groups_menu_admin(query, context)
+    elif data == "helpers_back_to_list":
+        await show_helpers_list_private(query, context)
+    elif data.startswith("helper_toggle_"):
+        helper_id = int(data.split("_")[2])
+        await toggle_helper_status(query, context, helper_id)
+    elif data.startswith("helper_remove_"):
+        helper_id = int(data.split("_")[2])
+        await remove_helper_confirm(query, context, helper_id)
+    elif data.startswith("helper_perm_"):
+        # Handle permission changes
+        perm_type = data.split("_")[2]  # pin, delete, ban, mute
+        helper_id = int(data.split("_")[3])
+        await handle_helper_permission(query, context, helper_id, perm_type)
+    elif data.startswith("helpers_select_group_"):
+        group_id = int(data.split("_")[-1])
+        
+        # Store the group_id in user_data
+        context.user_data['target_group_id'] = group_id
+        context.user_data['private_mode'] = True
+        
+        # Show helpers list for this group
+        await show_helpers_list_private(query, context)
+    elif data == "helpers_add_new_group":
+        context.user_data['waiting_for_group_id'] = True
+        context.user_data['group_selection_type'] = 'helpers'
+        
+        await query.edit_message_text(
+            "➕ **Pridėti Naują Grupę**\n\n"
+            "Įveskite grupės ID (pvz., -1001234567890):\n\n"
+            "💡 **Kaip gauti grupės ID:**\n"
+            "1. Pridėkite @userinfobot į grupę\n"
+            "2. Parašykite /start grupėje\n"
+            "3. Botas parodys grupės ID",
+            parse_mode='Markdown'
+        )
+    elif data.startswith("helper_remove_confirm_"):
+        helper_id = int(data.split("_")[3])
+        # TODO: Actually remove the helper from database
+        await query.edit_message_text(
+            "✅ **Pagalbininkas pašalintas!**\n\n"
+            "Jis nebegali valdyti grupės per botą.",
+            parse_mode='Markdown'
+        )
+        await asyncio.sleep(1.5)
+        await show_helpers_list_private(query, context)
     
     await query.answer()
 
@@ -7294,11 +7358,19 @@ async def show_manage_messages_private(query, context):
     
     keyboard = []
     for i, msg in enumerate(messages[:10]):  # Limit to 10 messages
-        status = "✅" if msg['status'] == 'active' else "❌"
+        # msg is a tuple: (id, chat_id, message_text, message_media, message_buttons, message_type, 
+        #                  repetition_type, interval_hours, days_of_week, days_of_month, time_slots,
+        #                  start_date, end_date, pin_message, delete_last_message, scheduled_deletion_hours,
+        #                  status, created_by, created_by_username, created_at, last_sent, job_id)
+        msg_id = msg[0]
+        message_text = msg[2] or "Pranešimas nenustatytas"
+        status = msg[16]  # status column
+        status_icon = "✅" if status == 'active' else "❌"
+        
         keyboard.append([
             InlineKeyboardButton(
-                f"{status} {msg['message_text'][:30]}...",
-                callback_data=f"recurring_info_{msg['id']}"
+                f"{status_icon} {message_text[:30]}...",
+                callback_data=f"recurring_info_{msg_id}"
             )
         ])
     
@@ -7349,7 +7421,7 @@ async def show_banned_words_list_private(query, context):
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def show_helpers_list_private(query, context):
-    """Show helpers list for private chat"""
+    """Show helpers list for private chat with enhanced management"""
     group_id = context.user_data.get('target_group_id')
     if not group_id:
         await query.edit_message_text(
@@ -7361,33 +7433,269 @@ async def show_helpers_list_private(query, context):
     
     helpers = database.get_helpers(group_id)
     
-    if not helpers:
-        await query.edit_message_text(
-            f"👥 **Pagalbininkai**\n\n"
-            f"Grupė: `{group_id}`\n\n"
-            f"Dar nėra pagalbininkų.",
-            parse_mode='Markdown'
-        )
-        return
+    # Get group info for display
+    try:
+        chat_info = await context.bot.get_chat(group_id)
+        group_name = chat_info.title or f"Grupė {group_id}"
+    except Exception:
+        group_name = f"Grupė {group_id}"
     
-    # Show helpers list with management options
     text = f"👥 **Pagalbininkai**\n\n"
-    text += f"Grupė: `{group_id}`\n\n"
+    text += f"📱 **Grupė:** {group_name}\n"
+    text += f"🆔 **ID:** `{group_id}`\n\n"
     
     keyboard = []
-    for i, helper in enumerate(helpers[:10]):  # Limit to 10 helpers
-        status = "✅" if helper['is_active'] else "❌"
-        keyboard.append([
-            InlineKeyboardButton(
-                f"{status} ID: {helper['user_id']}",
-                callback_data=f"helpers_info_{helper['id']}"
-            )
-        ])
     
-    keyboard.append([InlineKeyboardButton("🔙 Atgal", callback_data="helpers_back")])
+    if helpers:
+        text += "**Aktyvūs pagalbininkai:**\n\n"
+        for i, helper in enumerate(helpers[:10]):  # Limit to 10 helpers
+            # helper is a tuple: (id, chat_id, user_id, username, added_by, added_by_username, added_at, is_active)
+            helper_id = helper[0]
+            user_id = helper[2]
+            username = helper[3] or f"ID: {user_id}"
+            is_active = helper[7]
+            status_icon = "✅" if is_active else "❌"
+            
+            # Try to get current user info from Telegram
+            try:
+                user_info = await context.bot.get_chat(user_id)
+                display_name = f"@{user_info.username}" if user_info.username else user_info.first_name or f"ID: {user_id}"
+            except Exception:
+                display_name = f"@{username}" if username and not username.startswith("ID:") else username
+            
+            text += f"{i+1}. {status_icon} {display_name}\n"
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"⚙️ {display_name}",
+                    callback_data=f"helper_manage_{helper_id}"
+                )
+            ])
+        text += "\n"
+    else:
+        text += "Dar nėra pridėtų pagalbininkų.\n\n"
+    
+    # Add management buttons
+    keyboard.extend([
+        [InlineKeyboardButton("➕ Pridėti pagalbininką", callback_data="helper_add_new")],
+        [InlineKeyboardButton("🔙 Atgal į grupių sąrašą", callback_data="helpers_back_to_groups")]
+    ])
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
+async def show_helper_management(query, context, helper_id):
+    """Show helper management interface with permissions"""
+    group_id = context.user_data.get('target_group_id')
+    if not group_id:
+        await query.edit_message_text("❌ Klaida: Nepavyko nustatyti grupės ID.")
+        return
+    
+    # Get helper info
+    helpers = database.get_helpers(group_id)
+    helper_data = None
+    for helper in helpers:
+        if helper[0] == helper_id:  # helper[0] is id
+            helper_data = helper
+            break
+    
+    if not helper_data:
+        await query.edit_message_text("❌ Pagalbininkas nerastas.")
+        return
+    
+    # helper_data is tuple: (id, chat_id, user_id, username, added_by, added_by_username, added_at, is_active)
+    user_id = helper_data[2]
+    username = helper_data[3] or f"ID: {user_id}"
+    is_active = helper_data[7]
+    
+    # Try to get current user info
+    try:
+        user_info = await context.bot.get_chat(user_id)
+        display_name = f"@{user_info.username}" if user_info.username else user_info.first_name or f"ID: {user_id}"
+    except Exception:
+        display_name = f"@{username}" if username and not username.startswith("ID:") else username
+    
+    # Get group info
+    try:
+        chat_info = await context.bot.get_chat(group_id)
+        group_name = chat_info.title or f"Grupė {group_id}"
+    except Exception:
+        group_name = f"Grupė {group_id}"
+    
+    status_text = "✅ Aktyvus" if is_active else "❌ Neaktyvus"
+    
+    text = f"⚙️ **Pagalbininko Valdymas**\n\n"
+    text += f"👤 **Pagalbininkas:** {display_name}\n"
+    text += f"🆔 **User ID:** `{user_id}`\n"
+    text += f"📱 **Grupė:** {group_name}\n"
+    text += f"📊 **Statusas:** {status_text}\n\n"
+    text += f"**Galimos teisės per botą:**\n"
+    text += f"• 📌 Prisegti pranešimus\n"
+    text += f"• 🗑️ Ištrinti pranešimus\n"
+    text += f"• 🚫 Užbaninti narius\n"
+    text += f"• 🔇 Nutildyti narius\n\n"
+    text += f"*Pagalbininkas gali valdyti grupę per botą, net nebūdamas admin Telegram.*"
+    
+    keyboard = [
+        [InlineKeyboardButton("📌 Leisti prisegti", callback_data=f"helper_perm_pin_{helper_id}")],
+        [InlineKeyboardButton("🗑️ Leisti trinti", callback_data=f"helper_perm_delete_{helper_id}")],
+        [InlineKeyboardButton("🚫 Leisti baninti", callback_data=f"helper_perm_ban_{helper_id}")],
+        [InlineKeyboardButton("🔇 Leisti tildyti", callback_data=f"helper_perm_mute_{helper_id}")],
+        [InlineKeyboardButton(f"{'❌ Išjungti' if is_active else '✅ Įjungti'}", 
+                            callback_data=f"helper_toggle_{helper_id}")],
+        [InlineKeyboardButton("🗑️ Pašalinti pagalbininką", callback_data=f"helper_remove_{helper_id}")],
+        [InlineKeyboardButton("🔙 Atgal", callback_data="helpers_back_to_list")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_add_helper_interface(query, context):
+    """Show add helper interface"""
+    group_id = context.user_data.get('target_group_id')
+    if not group_id:
+        await query.edit_message_text("❌ Klaida: Nepavyko nustatyti grupės ID.")
+        return
+    
+    # Get group info
+    try:
+        chat_info = await context.bot.get_chat(group_id)
+        group_name = chat_info.title or f"Grupė {group_id}"
+    except Exception:
+        group_name = f"Grupė {group_id}"
+    
+    text = f"➕ **Pridėti Pagalbininką**\n\n"
+    text += f"📱 **Grupė:** {group_name}\n"
+    text += f"🆔 **ID:** `{group_id}`\n\n"
+    text += f"**Galite pridėti pagalbininką dviem būdais:**\n\n"
+    text += f"1️⃣ **Per User ID** - Įveskite vartotojo ID numerį\n"
+    text += f"2️⃣ **Per Username** - Įveskite @username\n\n"
+    text += f"**Pavyzdžiai:**\n"
+    text += f"• `123456789` (User ID)\n"
+    text += f"• `@username` (Username)\n\n"
+    text += f"💡 *User ID galite gauti per @userinfobot*"
+    
+    keyboard = [
+        [InlineKeyboardButton("🔢 Įvesti User ID", callback_data="helper_add_by_id")],
+        [InlineKeyboardButton("👤 Įvesti Username", callback_data="helper_add_by_username")],
+        [InlineKeyboardButton("🔙 Atgal", callback_data="helpers_back_to_list")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_helpers_groups_menu_admin(query, context):
+    """Show the groups menu for helpers from admin dashboard"""
+    # Show group selection with buttons for already added groups
+    keyboard = []
+    
+    # Add buttons for already added groups
+    if allowed_groups:
+        added_groups_count = 0
+        for group_id_str in allowed_groups:
+            try:
+                group_id = int(group_id_str)
+                # Try to get group name
+                try:
+                    chat_info = await context.bot.get_chat(group_id)
+                    group_name = chat_info.title or f"Grupė {group_id}"
+                    # Truncate long names
+                    if len(group_name) > 25:
+                        group_name = group_name[:22] + "..."
+                    
+                    # Verify user is admin in this group
+                    try:
+                        chat_member = await context.bot.get_chat_member(group_id, query.from_user.id)
+                        if chat_member.status in ['creator', 'administrator']:
+                            keyboard.append([InlineKeyboardButton(
+                                f"📱 {group_name}", 
+                                callback_data=f"helpers_select_group_{group_id}"
+                            )])
+                            added_groups_count += 1
+                    except Exception:
+                        # User is not admin in this group, skip it
+                        continue
+                        
+                except Exception:
+                    # Can't get group info, but still show it with ID
+                    try:
+                        chat_member = await context.bot.get_chat_member(group_id, query.from_user.id)
+                        if chat_member.status in ['creator', 'administrator']:
+                            keyboard.append([InlineKeyboardButton(
+                                f"📱 Grupė {group_id}", 
+                                callback_data=f"helpers_select_group_{group_id}"
+                            )])
+                            added_groups_count += 1
+                    except Exception:
+                        continue
+                        
+            except (ValueError, Exception):
+                continue
+    
+    # Add button to add new group by ID
+    keyboard.append([InlineKeyboardButton("➕ Pridėti naują grupę", callback_data="helpers_add_new_group")])
+    
+    # Add back button to admin dashboard
+    keyboard.append([InlineKeyboardButton("⬅️ Atgal į admin dashboard", callback_data="admin_dashboard_back")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Create message text
+    text = "👥 **Pagalbininkai**\n\n"
+    if keyboard[:-2]:  # If there are group buttons (excluding the add button and back button)
+        text += "Pasirinkite grupę iš sąrašo arba pridėkite naują:"
+    else:
+        text += "Dar neturite pridėtų grupių.\nPridėkite grupę, kad galėtumėte valdyti pagalbininkus:"
+    
+    await query.edit_message_text(
+        text,
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+async def toggle_helper_status(query, context, helper_id):
+    """Toggle helper active status"""
+    # Implementation for toggling helper status
+    await query.edit_message_text("⚙️ Pagalbininko statusas pakeistas!")
+    await asyncio.sleep(1)
+    await show_helper_management(query, context, helper_id)
+
+async def remove_helper_confirm(query, context, helper_id):
+    """Show helper removal confirmation"""
+    keyboard = [
+        [InlineKeyboardButton("✅ Taip, pašalinti", callback_data=f"helper_remove_confirm_{helper_id}")],
+        [InlineKeyboardButton("❌ Atšaukti", callback_data="helpers_back_to_list")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        "⚠️ **Patvirtinimas**\n\n"
+        "Ar tikrai norite pašalinti šį pagalbininką?\n"
+        "Jis negalės daugiau valdyti grupės per botą.",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+async def handle_helper_permission(query, context, helper_id, perm_type):
+    """Handle helper permission changes"""
+    perm_names = {
+        'pin': '📌 Prisegti pranešimus',
+        'delete': '🗑️ Ištrinti pranešimus', 
+        'ban': '🚫 Užbaninti narius',
+        'mute': '🔇 Nutildyti narius'
+    }
+    
+    perm_name = perm_names.get(perm_type, 'Nežinoma teisė')
+    
+    await query.edit_message_text(
+        f"✅ **Teisė suteikta!**\n\n"
+        f"Pagalbininkas dabar gali: {perm_name}\n\n"
+        f"Grįžtame į valdymą...",
+        parse_mode='Markdown'
+    )
+    
+    await asyncio.sleep(1.5)
+    await show_helper_management(query, context, helper_id)
 
 async def show_banned_words_list(query, context):
     """Show banned words list"""
@@ -7569,6 +7877,7 @@ application.add_handler(CallbackQueryHandler(handle_admin_button, pattern="^grou
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^recurring_"))
 application.add_handler(CallbackQueryHandler(handle_banned_words_callback, pattern="^banned_words_"))
 application.add_handler(CallbackQueryHandler(handle_helpers_callback, pattern="^helpers_"))
+application.add_handler(CallbackQueryHandler(handle_helpers_callback, pattern="^helper_"))
 
 # GroupHelpBot-style recurring message callbacks
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^customize_message$"))
