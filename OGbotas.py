@@ -7477,11 +7477,11 @@ async def show_message_config(query, context, private_mode=False, edit_mode=Fals
         text = "✏️ **Redaguoti Kartojamą Pranešimą**\n\n"
     else:
         text = "🔄 **Recurring messages**\n\n"
-    text += f"📊 **Status:** ❌ {message_config['status']}\n"
-    text += f"⏰ **Time:** {message_config['time']}\n"
-    text += f"🔄 **Repetition:** {message_config['repetition']}\n"
-    text += f"📌 **Pin message:** {'✅' if message_config['pin_message'] else '❌'}\n"
-    text += f"🗑️ **Delete last message:** {'✅' if message_config['delete_last'] else '❌'}"
+    text += f"📊 **Status:** ❌ {message_config.get('status', 'Off')}\n"
+    text += f"⏰ **Time:** {message_config.get('time', current_time)}\n"
+    text += f"🔄 **Repetition:** {message_config.get('repetition', 'Every 24 hours')}\n"
+    text += f"📌 **Pin message:** {'✅' if message_config.get('pin_message', False) else '❌'}\n"
+    text += f"🗑️ **Delete last message:** {'✅' if message_config.get('delete_last', False) else '❌'}"
     
     # Create keyboard exactly like GroupHelpBot
     keyboard = [
@@ -7493,9 +7493,9 @@ async def show_message_config(query, context, private_mode=False, edit_mode=Fals
         [InlineKeyboardButton("🕐 Set time slot", callback_data="set_time_slot")],
         [InlineKeyboardButton("📅 Start date", callback_data="set_start_date"), 
          InlineKeyboardButton("📅 End date", callback_data="set_end_date")],
-        [InlineKeyboardButton(f"📌 Pin message {'✅' if message_config['pin_message'] else '❌'}", 
+        [InlineKeyboardButton(f"📌 Pin message {'✅' if message_config.get('pin_message', False) else '❌'}", 
                             callback_data="toggle_pin_message")],
-        [InlineKeyboardButton(f"🗑️ Delete last message {'✅' if message_config['delete_last'] else '❌'}", 
+        [InlineKeyboardButton(f"🗑️ Delete last message {'✅' if message_config.get('delete_last', False) else '❌'}", 
                             callback_data="toggle_delete_last")],
         [InlineKeyboardButton("⏱️ Scheduled deletion", callback_data="scheduled_deletion")],
         [InlineKeyboardButton("🔙 Back", callback_data="back_to_main")]
