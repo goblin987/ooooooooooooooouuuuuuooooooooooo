@@ -7079,18 +7079,10 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
     elif data == "help_media":
         await show_media_help(query, context)
     elif data.startswith("edit_"):
+        # For edit mode, we now use the same interface as add message
+        # Only keep the toggle functions for backwards compatibility
         edit_type = data.split("_", 1)[1]
-        if edit_type == "text":
-            await edit_message_text(query, context)
-        elif edit_type == "media":
-            await edit_message_media(query, context)
-        elif edit_type == "repetition":
-            await edit_message_repetition(query, context)
-        elif edit_type == "settings":
-            await edit_message_settings(query, context)
-        elif edit_type == "back":
-            await edit_back(query, context)
-        elif edit_type == "toggle_pin":
+        if edit_type == "toggle_pin":
             await edit_toggle_pin(query, context)
         elif edit_type == "toggle_delete":
             await edit_toggle_delete(query, context)
@@ -7322,24 +7314,7 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
     
     # Handle save message callback
     elif data == "save_message":
-        config = context.user_data.get('current_message_config', {})
-        
-        if not config.get('text') and not config.get('has_media'):
-            await query.answer("❌ Please set message text or media first!")
-            return
-        
-        # TODO: Save the message to database and schedule it
-        await query.edit_message_text(
-            "✅ **Message Saved!**\n\n"
-            "Your recurring message has been configured and will start sending according to your schedule.\n\n"
-            f"⏰ **Schedule:** {config.get('repetition', 'Every 24 hours')}\n"
-            f"📌 **Pin:** {'Yes' if config.get('pin_message') else 'No'}\n"
-            f"🗑️ **Delete last:** {'Yes' if config.get('delete_last') else 'No'}",
-            parse_mode='Markdown'
-        )
-        
-        # Clear the configuration
-        context.user_data.pop('current_message_config', None)
+        await save_recurring_message(query, context)
     
     # Handle topic selection callbacks
     elif data.startswith("topic_"):
@@ -7424,7 +7399,7 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
     await query.answer()
 
 # GroupHelpBot-style recurring messages functions
-async def show_message_config(query, context, private_mode=False):
+async def show_message_config(query, context, private_mode=False, edit_mode=False):
     """Show message configuration screen - GroupHelpBot style"""
     chat_id = query.message.chat.id if not private_mode else context.user_data.get('target_group_id', query.message.chat.id)
     current_time = datetime.now().strftime("%H:%M")
@@ -7442,7 +7417,10 @@ async def show_message_config(query, context, private_mode=False):
     })
     
     # Build the configuration screen exactly like GroupHelpBot
-    text = "🔄 **Recurring messages**\n\n"
+    if edit_mode:
+        text = "✏️ **Redaguoti Kartojamą Pranešimą**\n\n"
+    else:
+        text = "🔄 **Recurring messages**\n\n"
     text += f"📊 **Status:** ❌ {message_config['status']}\n"
     text += f"⏰ **Time:** {message_config['time']}\n"
     text += f"🔄 **Repetition:** {message_config['repetition']}\n"
@@ -7724,8 +7702,12 @@ async def show_full_preview(query, context):
     text += f"📌 **Pin:** {'Yes' if config.get('pin_message') else 'No'}\n"
     text += f"🗑️ **Delete last:** {'Yes' if config.get('delete_last') else 'No'}"
     
+    # Check if we're in edit mode
+    editing_message_id = context.user_data.get('editing_message_id')
+    save_button_text = "✅ Atnaujinti Pranešimą" if editing_message_id else "✅ Save Message"
+    
     keyboard = [
-        [InlineKeyboardButton("✅ Save Message", callback_data="save_message")],
+        [InlineKeyboardButton(save_button_text, callback_data="save_message")],
         [InlineKeyboardButton("🔙 Back", callback_data="customize_message")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -8830,102 +8812,14 @@ async def edit_recurring_message(query, context, message_id):
         
         context.user_data['current_message_config'] = config
         
-        # Show edit options
-        text = "✏️ **Redaguoti Kartojamą Pranešimą**\n\n"
-        text += "Pasirinkite, ką norite redaguoti:\n\n"
-        text += f"📝 **Tekstas:** {config.get('text', 'Nenustatyta')[:50]}...\n"
-        text += f"📷 **Media:** {'Pridėta' if config.get('has_media') else 'Nenustatyta'}\n"
-        text += f"🔄 **Kartojimas:** {config.get('repetition', 'Nenustatyta')}\n"
-        text += f"📌 **Pin:** {'Taip' if config.get('pin_message') else 'Ne'}\n"
-        text += f"🗑️ **Ištrinti paskutinį:** {'Taip' if config.get('delete_last') else 'Ne'}"
-        
-        keyboard = [
-            [InlineKeyboardButton("📝 Redaguoti tekstą", callback_data="edit_text")],
-            [InlineKeyboardButton("📷 Redaguoti media", callback_data="edit_media")],
-            [InlineKeyboardButton("🔄 Redaguoti kartojimą", callback_data="edit_repetition")],
-            [InlineKeyboardButton("⚙️ Redaguoti nustatymus", callback_data="edit_settings")],
-            [InlineKeyboardButton("🔙 Atgal", callback_data=f"recurring_info_{message_id}")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+        # Show edit using the same interface as add message
+        await show_message_config(query, context, private_mode=True, edit_mode=True)
         
     except Exception as e:
         logger.error(f"Error editing message: {e}")
         await query.answer("❌ Klaida redaguojant pranešimą!")
 
-async def edit_message_text(query, context):
-    """Edit message text"""
-    context.user_data['waiting_for_text'] = True
-    context.user_data['editing_mode'] = True
-    
-    keyboard = [[InlineKeyboardButton("🔙 Atgal", callback_data="edit_back")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(
-        "📝 **Redaguoti Pranešimo Tekstą**\n\n"
-        "Atsiųskite naują tekstą:",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
-
-async def edit_message_media(query, context):
-    """Edit message media"""
-    context.user_data['waiting_for_media'] = True
-    context.user_data['editing_mode'] = True
-    
-    keyboard = [[InlineKeyboardButton("🔙 Atgal", callback_data="edit_back")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(
-        "📷 **Redaguoti Pranešimo Media**\n\n"
-        "Atsiųskite naują nuotrauką, video ar GIF:",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
-
-async def edit_message_repetition(query, context):
-    """Edit message repetition settings"""
-    text = "🔄 **Redaguoti Kartojimą**\n\n"
-    text += "Pasirinkite naują kartojimo tipą:"
-    
-    keyboard = [
-        [InlineKeyboardButton("24h", callback_data="edit_repeat_24h")],
-        [InlineKeyboardButton("12h", callback_data="edit_repeat_12h")],
-        [InlineKeyboardButton("6h", callback_data="edit_repeat_6h")],
-        [InlineKeyboardButton("3h", callback_data="edit_repeat_3h")],
-        [InlineKeyboardButton("1h", callback_data="edit_repeat_1h")],
-        [InlineKeyboardButton("🔙 Atgal", callback_data="edit_back")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def edit_message_settings(query, context):
-    """Edit message settings (pin, delete last)"""
-    config = context.user_data.get('current_message_config', {})
-    
-    text = "⚙️ **Redaguoti Nustatymus**\n\n"
-    text += f"📌 **Pin pranešimą:** {'Taip' if config.get('pin_message') else 'Ne'}\n"
-    text += f"🗑️ **Ištrinti paskutinį:** {'Taip' if config.get('delete_last') else 'Ne'}\n\n"
-    text += "Pasirinkite, ką norite pakeisti:"
-    
-    keyboard = [
-        [InlineKeyboardButton("📌 Pakeisti pin", callback_data="edit_toggle_pin")],
-        [InlineKeyboardButton("🗑️ Pakeisti ištrinimą", callback_data="edit_toggle_delete")],
-        [InlineKeyboardButton("🔙 Atgal", callback_data="edit_back")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def edit_back(query, context):
-    """Go back from edit mode"""
-    editing_message_id = context.user_data.get('editing_message_id')
-    if editing_message_id:
-        await show_message_info(query, context, editing_message_id)
-    else:
-        await show_manage_messages_private(query, context)
+# Edit functions removed - now using the same interface as add message
 
 async def edit_toggle_pin(query, context):
     """Toggle pin message setting"""
@@ -8964,6 +8858,140 @@ async def edit_set_repetition(query, context, repeat_value):
     
     await query.answer(f"🔄 Kartojimas nustatytas: {config['repetition']}")
     await edit_message_repetition(query, context)
+
+async def save_recurring_message(query, context):
+    """Save a recurring message to database and schedule it"""
+    try:
+        config = context.user_data.get('current_message_config', {})
+        group_id = context.user_data.get('target_group_id')
+        editing_message_id = context.user_data.get('editing_message_id')
+        
+        if not group_id:
+            await query.answer("❌ Nepavyko nustatyti grupės ID!")
+            return
+        
+        if not config.get('text') and not config.get('has_media'):
+            await query.answer("❌ Prašome nustatyti pranešimo tekstą arba media!")
+            return
+        
+        # Prepare message data
+        message_text = config.get('text', '')
+        message_media = None
+        message_buttons = None
+        
+        # Handle media
+        if config.get('has_media'):
+            media_info = {
+                'type': config.get('media_type'),
+                'file_id': config.get('media_file_id'),
+                'caption': config.get('media_caption', '')
+            }
+            message_media = str(media_info)  # Store as JSON string
+        
+        # Handle buttons
+        if config.get('has_buttons') and config.get('buttons'):
+            message_buttons = str(config['buttons'])  # Store as JSON string
+        
+        # Parse repetition settings
+        repetition_type = config.get('repetition', 'Every 24 hours')
+        interval_hours = 24  # Default
+        
+        if 'Every' in repetition_type:
+            if '12 hours' in repetition_type:
+                interval_hours = 12
+            elif '6 hours' in repetition_type:
+                interval_hours = 6
+            elif '3 hours' in repetition_type:
+                interval_hours = 3
+            elif 'hour' in repetition_type and '24' not in repetition_type:
+                interval_hours = 1
+        
+        # Get user info
+        user_id = query.from_user.id
+        username = query.from_user.username or query.from_user.first_name
+        
+        if editing_message_id:
+            # Update existing message
+            try:
+                # Update the message in database
+                with database.get_connection() as conn:
+                    conn.execute('''
+                        UPDATE scheduled_messages 
+                        SET message_text = ?, message_media = ?, message_buttons = ?, 
+                            repetition_type = ?, interval_hours = ?, 
+                            pin_message = ?, delete_last_message = ?
+                        WHERE id = ?
+                    ''', (
+                        message_text, message_media, message_buttons,
+                        repetition_type, interval_hours,
+                        bool(config.get('pin_message')), bool(config.get('delete_last')),
+                        editing_message_id
+                    ))
+                    conn.commit()
+                
+                success_text = "✅ **Pranešimas Atnaujintas!**\n\n"
+                success_text += "Jūsų kartojamas pranešimas buvo sėkmingai atnaujintas.\n\n"
+                
+            except Exception as e:
+                logger.error(f"Error updating message: {e}")
+                await query.answer("❌ Klaida atnaujinant pranešimą!")
+                return
+        else:
+            # Create new message
+            try:
+                message_id = database.add_scheduled_message(
+                    chat_id=group_id,
+                    message_text=message_text,
+                    message_media=message_media,
+                    message_buttons=message_buttons,
+                    message_type='text',
+                    repetition_type=repetition_type,
+                    interval_hours=interval_hours,
+                    days_of_week=None,
+                    days_of_month=None,
+                    time_slots=None,
+                    start_date=None,
+                    end_date=None,
+                    pin_message=bool(config.get('pin_message')),
+                    delete_last_message=bool(config.get('delete_last')),
+                    scheduled_deletion_hours=None,
+                    created_by=user_id,
+                    created_by_username=username
+                )
+                
+                success_text = "✅ **Pranešimas Išsaugotas!**\n\n"
+                success_text += "Jūsų kartojamas pranešimas buvo sukonfigūruotas ir pradės siųsti pagal nustatytą grafiką.\n\n"
+                
+            except Exception as e:
+                logger.error(f"Error saving message: {e}")
+                await query.answer("❌ Klaida išsaugant pranešimą!")
+                return
+        
+        # Display success message
+        success_text += f"⏰ **Grafikas:** {repetition_type}\n"
+        success_text += f"📌 **Pin:** {'Taip' if config.get('pin_message') else 'Ne'}\n"
+        success_text += f"🗑️ **Ištrinti paskutinį:** {'Taip' if config.get('delete_last') else 'Ne'}"
+        
+        keyboard = [
+            [InlineKeyboardButton("📋 Valdyti pranešimus", callback_data="recurring_manage_private")],
+            [InlineKeyboardButton("➕ Pridėti dar vieną", callback_data="recurring_add_private")],
+            [InlineKeyboardButton("🔙 Grįžti į meniu", callback_data="back_to_main")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            success_text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+        # Clear the configuration
+        context.user_data.pop('current_message_config', None)
+        context.user_data.pop('editing_message_id', None)
+        
+    except Exception as e:
+        logger.error(f"Error in save_recurring_message: {e}")
+        await query.answer("❌ Klaida išsaugant pranešimą!")
 
 async def show_word_info(query, context, word_id):
     """Show detailed information about a banned word"""
