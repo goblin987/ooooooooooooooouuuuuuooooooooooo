@@ -6909,29 +6909,74 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
     
     elif context.user_data.get('waiting_for_media'):
         # User is setting message media
-        if update.message.photo or update.message.video or update.message.animation:
+        if update.message.photo or update.message.video or update.message.animation or update.message.document:
             config = context.user_data.get('current_message_config', {})
             config['has_media'] = True
+            
+            # Handle different media types
             if update.message.photo:
                 config['media_type'] = 'photo'
                 config['media_file_id'] = update.message.photo[-1].file_id
+                config['media_caption'] = update.message.caption or ""
+                logger.info(f"Photo media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
             elif update.message.video:
                 config['media_type'] = 'video'
                 config['media_file_id'] = update.message.video.file_id
+                config['media_caption'] = update.message.caption or ""
+                logger.info(f"Video media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
             elif update.message.animation:
                 config['media_type'] = 'animation'
                 config['media_file_id'] = update.message.animation.file_id
+                config['media_caption'] = update.message.caption or ""
+                logger.info(f"GIF media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
+            elif update.message.document:
+                config['media_type'] = 'document'
+                config['media_file_id'] = update.message.document.file_id
+                config['media_caption'] = update.message.caption or ""
+                logger.info(f"Document media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
             
             context.user_data['current_message_config'] = config
+            
+            # Create inline keyboard to return to customization
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            
+            keyboard = [
+                [InlineKeyboardButton("🔙 Grįžti į konfigūraciją", callback_data="customize_message")],
+                [InlineKeyboardButton("👁️ Peržiūrėti pranešimą", callback_data="full_preview")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
                 "✅ Media nustatytas!\n\n"
                 f"**Tipas:** {config['media_type'].title()}\n\n"
-                "Grįžtame į konfigūraciją...",
+                "Pasirinkite ką daryti toliau:",
+                reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
         else:
-            await update.message.reply_text("❌ Prašome atsiųsti nuotrauką, video ar GIF!")
+            # Create inline keyboard to help user
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            
+            keyboard = [
+                [InlineKeyboardButton("🔙 Grįžti į konfigūraciją", callback_data="customize_message")],
+                [InlineKeyboardButton("❓ Pagalba", callback_data="help_media")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                "❌ **Neteisingas media tipas!**\n\n"
+                "**Palaikomi tipai:**\n"
+                "• 📷 Nuotraukos (JPG, PNG)\n"
+                "• 🎥 Video (MP4, MOV)\n"
+                "• 🎬 GIF animacijos\n"
+                "• 📄 Dokumentai (PDF, DOC)\n\n"
+                "**Kaip naudoti:**\n"
+                "1. Pasirinkite media failą\n"
+                "2. Galite pridėti tekstą (caption)\n"
+                "3. Atsiųskite botui",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
             return
         
         # Clear waiting state
@@ -7031,6 +7076,8 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         await show_content_preview(query, context, data.split("_")[1])
     elif data == "full_preview":
         await show_full_preview(query, context)
+    elif data == "help_media":
+        await show_media_help(query, context)
     elif data == "select_topic":
         await show_topic_selection(query, context)
     elif data == "back_to_config":
@@ -7604,7 +7651,18 @@ async def show_full_preview(query, context):
         text += f"📝 **Text:**\n{config['text']}\n\n"
     
     if config.get('has_media'):
-        text += "📷 **Media:** Attached\n\n"
+        media_type = config.get('media_type', 'unknown')
+        media_emoji = {
+            'photo': '📷',
+            'video': '🎥', 
+            'animation': '🎬',
+            'document': '📄'
+        }.get(media_type, '📎')
+        
+        text += f"{media_emoji} **Media:** {media_type.title()}\n"
+        if config.get('media_caption'):
+            text += f"**Caption:** {config['media_caption'][:100]}{'...' if len(config['media_caption']) > 100 else ''}\n"
+        text += "\n"
     
     if config.get('has_buttons'):
         text += "🔗 **URL Buttons:** Configured\n\n"
@@ -7616,6 +7674,36 @@ async def show_full_preview(query, context):
     keyboard = [
         [InlineKeyboardButton("✅ Save Message", callback_data="save_message")],
         [InlineKeyboardButton("🔙 Back", callback_data="customize_message")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_media_help(query, context):
+    """Show media help information"""
+    text = "📷 **Media Pagalba**\n\n"
+    text += "**Kaip pridėti media į kartojamą pranešimą:**\n\n"
+    text += "1️⃣ **Pasirinkite media tipą:**\n"
+    text += "• 📷 **Nuotraukos** - JPG, PNG, WEBP\n"
+    text += "• 🎥 **Video** - MP4, MOV, AVI (iki 50MB)\n"
+    text += "• 🎬 **GIF** - Animuotos GIF failai\n"
+    text += "• 📄 **Dokumentai** - PDF, DOC, TXT\n\n"
+    text += "2️⃣ **Kaip atsiųsti:**\n"
+    text += "• Pasirinkite failą iš galerijos\n"
+    text += "• Galite pridėti tekstą (caption)\n"
+    text += "• Atsiųskite botui\n\n"
+    text += "3️⃣ **Patarimai:**\n"
+    text += "• Video turi būti ne ilgesni nei 60s\n"
+    text += "• GIF failai turi būti ne didesni nei 8MB\n"
+    text += "• Dokumentai turi būti ne didesni nei 20MB\n\n"
+    text += "4️⃣ **Ką daryti toliau:**\n"
+    text += "• Po media pridėjimo grįžkite į konfigūraciją\n"
+    text += "• Nustatykite laiką ir kartojimą\n"
+    text += "• Išsaugokite pranešimą"
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Grįžti į konfigūraciją", callback_data="customize_message")],
+        [InlineKeyboardButton("📷 Bandyti pridėti media", callback_data="set_media")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
