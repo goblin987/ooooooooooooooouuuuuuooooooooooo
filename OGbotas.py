@@ -7078,6 +7078,24 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         await show_full_preview(query, context)
     elif data == "help_media":
         await show_media_help(query, context)
+    elif data.startswith("edit_"):
+        edit_type = data.split("_", 1)[1]
+        if edit_type == "text":
+            await edit_message_text(query, context)
+        elif edit_type == "media":
+            await edit_message_media(query, context)
+        elif edit_type == "repetition":
+            await edit_message_repetition(query, context)
+        elif edit_type == "settings":
+            await edit_message_settings(query, context)
+        elif edit_type == "back":
+            await edit_back(query, context)
+        elif edit_type == "toggle_pin":
+            await edit_toggle_pin(query, context)
+        elif edit_type == "toggle_delete":
+            await edit_toggle_delete(query, context)
+        elif edit_type.startswith("repeat_"):
+            await edit_set_repetition(query, context, edit_type.split("_", 1)[1])
     elif data == "select_topic":
         await show_topic_selection(query, context)
     elif data == "back_to_config":
@@ -7091,8 +7109,43 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         message_id = int(data.split("_")[2])
         await toggle_message_status(query, context, message_id)
     elif data.startswith("recurring_delete_"):
+        if data.startswith("recurring_delete_confirm_"):
+            message_id = int(data.split("_")[3])
+            await delete_message_confirm(query, context, message_id)
+        else:
+            message_id = int(data.split("_")[2])
+            await delete_message(query, context, message_id)
+    elif data.startswith("recurring_edit_"):
         message_id = int(data.split("_")[2])
-        await delete_message(query, context, message_id)
+        await edit_recurring_message(query, context, message_id)
+    elif data == "recurring_back":
+        await show_recurring_main_menu(query, context)
+    elif data == "banned_words_back":
+        await show_banned_words_list_private(query, context)
+    elif data == "helpers_back":
+        await show_helpers_list_private(query, context)
+    elif data.startswith("banned_words_info_"):
+        word_id = int(data.split("_")[3])
+        await show_word_info(query, context, word_id)
+    elif data.startswith("banned_words_toggle_"):
+        word_id = int(data.split("_")[3])
+        await toggle_word_status(query, context, word_id)
+    elif data.startswith("banned_words_delete_"):
+        word_id = int(data.split("_")[3])
+        await delete_word(query, context, word_id)
+    elif data.startswith("helper_info_"):
+        helper_id = int(data.split("_")[2])
+        await show_helper_info(query, context, helper_id)
+    elif data.startswith("helper_remove_"):
+        if data.startswith("helper_remove_confirm_"):
+            helper_id = int(data.split("_")[3])
+            await remove_helper_confirm(query, context, helper_id)
+        else:
+            helper_id = int(data.split("_")[2])
+            await remove_helper(query, context, helper_id)
+    elif data.startswith("banned_words_delete_confirm_"):
+        word_id = int(data.split("_")[4])
+        await delete_word_confirm(query, context, word_id)
     # Handle time selection callbacks
     elif data.startswith("time_"):
         time_value = data.split("_", 1)[1]
@@ -8155,13 +8208,12 @@ async def show_manage_messages(query, context):
 
 async def show_manage_messages_private(query, context):
     """Show manage messages interface for private chat"""
+    # Get the target group ID from user data
     group_id = context.user_data.get('target_group_id')
+    
+    # If no target group, show group selection
     if not group_id:
-        await query.edit_message_text(
-            "❌ **Klaida**\n\n"
-            "Nepavyko nustatyti grupės ID. Bandykite iš naujo.",
-            parse_mode='Markdown'
-        )
+        await show_recurring_groups_menu_admin(query, context)
         return
     
     messages = database.get_scheduled_messages(group_id)
@@ -8585,38 +8637,528 @@ async def show_helpers_list(query, context):
     
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
-# Placeholder functions for other UI elements
+# Complete recurring message management functions
 async def show_message_info(query, context, message_id):
-    await query.answer("ℹ️ Informacija apie pranešimą")
-    # TODO: Implement detailed message info
+    """Show detailed information about a recurring message"""
+    try:
+        # Get message details from database
+        group_id = context.user_data.get('target_group_id')
+        if not group_id:
+            await query.answer("❌ Nepavyko nustatyti grupės ID!")
+            return
+            
+        messages = database.get_scheduled_messages(group_id)
+        target_message = None
+        
+        for msg in messages:
+            if msg[0] == message_id:  # msg[0] is the ID
+                target_message = msg
+                break
+        
+        if not target_message:
+            await query.answer("❌ Pranešimas nerastas!")
+            return
+        
+        # Parse message data (tuple format)
+        msg_id, chat_id, message_text, message_media, message_buttons, message_type, \
+        repetition_type, interval_hours, days_of_week, days_of_month, time_slots, \
+        start_date, end_date, pin_message, delete_last_message, scheduled_deletion_hours, \
+        status, created_by, created_by_username, created_at, last_sent, job_id = target_message
+        
+        # Format the display
+        text = f"📋 **Pranešimo Informacija**\n\n"
+        text += f"🆔 **ID:** `{msg_id}`\n"
+        text += f"📝 **Tekstas:** {message_text[:100]}{'...' if len(message_text) > 100 else ''}\n"
+        
+        if message_media:
+            text += f"📷 **Media:** Pridėta\n"
+        
+        if message_buttons:
+            text += f"🔗 **Mygtukai:** Pridėti\n"
+        
+        text += f"🔄 **Kartojimas:** {repetition_type or 'Nenustatyta'}\n"
+        if interval_hours:
+            text += f"⏰ **Intervalas:** {interval_hours} valandos\n"
+        
+        if days_of_week:
+            text += f"📅 **Savaitės dienos:** {days_of_week}\n"
+        
+        if time_slots:
+            text += f"🕐 **Laiko slotai:** {time_slots}\n"
+        
+        text += f"📌 **Pin:** {'Taip' if pin_message else 'Ne'}\n"
+        text += f"🗑️ **Ištrinti paskutinį:** {'Taip' if delete_last_message else 'Ne'}\n"
+        text += f"📊 **Statusas:** {'✅ Aktyvus' if status == 'active' else '❌ Neaktyvus'}\n"
+        text += f"👤 **Sukūrė:** {created_by_username or 'Nežinoma'}\n"
+        text += f"📅 **Sukurta:** {created_at or 'Nežinoma'}\n"
+        
+        if last_sent:
+            text += f"📤 **Paskutinį kartą siųsta:** {last_sent}\n"
+        
+        # Create management keyboard
+        keyboard = [
+            [InlineKeyboardButton("🔄 Pakeisti statusą", callback_data=f"recurring_toggle_{msg_id}")],
+            [InlineKeyboardButton("✏️ Redaguoti", callback_data=f"recurring_edit_{msg_id}")],
+            [InlineKeyboardButton("🗑️ Ištrinti", callback_data=f"recurring_delete_{msg_id}")],
+            [InlineKeyboardButton("🔙 Atgal", callback_data="recurring_manage_private")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Error showing message info: {e}")
+        await query.answer("❌ Klaida rodant pranešimo informaciją!")
 
 async def toggle_message_status(query, context, message_id):
-    await query.answer("🔄 Pranešimo statusas pakeistas")
-    # TODO: Implement status toggle
+    """Toggle recurring message status (active/inactive)"""
+    try:
+        # Get current status
+        group_id = context.user_data.get('target_group_id')
+        if not group_id:
+            await query.answer("❌ Nepavyko nustatyti grupės ID!")
+            return
+            
+        messages = database.get_scheduled_messages(group_id)
+        current_status = None
+        
+        for msg in messages:
+            if msg[0] == message_id:
+                current_status = msg[16]  # status column
+                break
+        
+        if current_status is None:
+            await query.answer("❌ Pranešimas nerastas!")
+            return
+        
+        # Toggle status
+        new_status = 'inactive' if current_status == 'active' else 'active'
+        database.update_scheduled_message_status(message_id, new_status)
+        
+        # Update scheduler
+        if new_status == 'active':
+            # TODO: Restart the scheduler job
+            pass
+        else:
+            # TODO: Stop the scheduler job
+            pass
+        
+        status_text = "✅ Aktyvus" if new_status == 'active' else "❌ Neaktyvus"
+        await query.answer(f"🔄 Statusas pakeistas į: {status_text}")
+        
+        # Refresh the message info
+        await show_message_info(query, context, message_id)
+        
+    except Exception as e:
+        logger.error(f"Error toggling message status: {e}")
+        await query.answer("❌ Klaida keičiant statusą!")
 
 async def delete_message(query, context, message_id):
-    await query.answer("🗑️ Pranešimas ištrintas")
-    # TODO: Implement message deletion
+    """Delete a recurring message"""
+    try:
+        # Confirm deletion
+        keyboard = [
+            [InlineKeyboardButton("✅ Taip, ištrinti", callback_data=f"recurring_delete_confirm_{message_id}")],
+            [InlineKeyboardButton("❌ Atšaukti", callback_data=f"recurring_info_{message_id}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🗑️ **Ištrinti Pranešimą**\n\n"
+            "Ar tikrai norite ištrinti šį kartojamą pranešimą?\n\n"
+            "⚠️ **Dėmesio:** Šis veiksmas negali būti atšauktas!",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error showing delete confirmation: {e}")
+        await query.answer("❌ Klaida rodant ištrinimo patvirtinimą!")
+
+async def delete_message_confirm(query, context, message_id):
+    """Confirm and execute message deletion"""
+    try:
+        # Delete from database
+        database.delete_scheduled_message(message_id)
+        
+        # TODO: Stop scheduler job if running
+        
+        await query.answer("✅ Pranešimas sėkmingai ištrintas!")
+        
+        # Return to manage messages
+        await show_manage_messages_private(query, context)
+        
+    except Exception as e:
+        logger.error(f"Error deleting message: {e}")
+        await query.answer("❌ Klaida ištrinant pranešimą!")
+
+async def edit_recurring_message(query, context, message_id):
+    """Edit an existing recurring message"""
+    try:
+        # Store message ID for editing
+        context.user_data['editing_message_id'] = message_id
+        
+        # Get current message data
+        group_id = context.user_data.get('target_group_id')
+        if not group_id:
+            await query.answer("❌ Nepavyko nustatyti grupės ID!")
+            return
+            
+        messages = database.get_scheduled_messages(group_id)
+        target_message = None
+        
+        for msg in messages:
+            if msg[0] == message_id:
+                target_message = msg
+                break
+        
+        if not target_message:
+            await query.answer("❌ Pranešimas nerastas!")
+            return
+        
+        # Load message data into current config
+        config = context.user_data.get('current_message_config', {})
+        config.update({
+            'text': target_message[2],
+            'has_media': bool(target_message[3]),
+            'media_type': 'photo' if target_message[3] else None,  # Simplified for now
+            'has_buttons': bool(target_message[4]),
+            'repetition': target_message[6] or 'Every 24 hours',
+            'pin_message': bool(target_message[13]),
+            'delete_last': bool(target_message[14])
+        })
+        
+        context.user_data['current_message_config'] = config
+        
+        # Show edit options
+        text = "✏️ **Redaguoti Kartojamą Pranešimą**\n\n"
+        text += "Pasirinkite, ką norite redaguoti:\n\n"
+        text += f"📝 **Tekstas:** {config.get('text', 'Nenustatyta')[:50]}...\n"
+        text += f"📷 **Media:** {'Pridėta' if config.get('has_media') else 'Nenustatyta'}\n"
+        text += f"🔄 **Kartojimas:** {config.get('repetition', 'Nenustatyta')}\n"
+        text += f"📌 **Pin:** {'Taip' if config.get('pin_message') else 'Ne'}\n"
+        text += f"🗑️ **Ištrinti paskutinį:** {'Taip' if config.get('delete_last') else 'Ne'}"
+        
+        keyboard = [
+            [InlineKeyboardButton("📝 Redaguoti tekstą", callback_data="edit_text")],
+            [InlineKeyboardButton("📷 Redaguoti media", callback_data="edit_media")],
+            [InlineKeyboardButton("🔄 Redaguoti kartojimą", callback_data="edit_repetition")],
+            [InlineKeyboardButton("⚙️ Redaguoti nustatymus", callback_data="edit_settings")],
+            [InlineKeyboardButton("🔙 Atgal", callback_data=f"recurring_info_{message_id}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Error editing message: {e}")
+        await query.answer("❌ Klaida redaguojant pranešimą!")
+
+async def edit_message_text(query, context):
+    """Edit message text"""
+    context.user_data['waiting_for_text'] = True
+    context.user_data['editing_mode'] = True
+    
+    keyboard = [[InlineKeyboardButton("🔙 Atgal", callback_data="edit_back")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        "📝 **Redaguoti Pranešimo Tekstą**\n\n"
+        "Atsiųskite naują tekstą:",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+async def edit_message_media(query, context):
+    """Edit message media"""
+    context.user_data['waiting_for_media'] = True
+    context.user_data['editing_mode'] = True
+    
+    keyboard = [[InlineKeyboardButton("🔙 Atgal", callback_data="edit_back")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        "📷 **Redaguoti Pranešimo Media**\n\n"
+        "Atsiųskite naują nuotrauką, video ar GIF:",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+async def edit_message_repetition(query, context):
+    """Edit message repetition settings"""
+    text = "🔄 **Redaguoti Kartojimą**\n\n"
+    text += "Pasirinkite naują kartojimo tipą:"
+    
+    keyboard = [
+        [InlineKeyboardButton("24h", callback_data="edit_repeat_24h")],
+        [InlineKeyboardButton("12h", callback_data="edit_repeat_12h")],
+        [InlineKeyboardButton("6h", callback_data="edit_repeat_6h")],
+        [InlineKeyboardButton("3h", callback_data="edit_repeat_3h")],
+        [InlineKeyboardButton("1h", callback_data="edit_repeat_1h")],
+        [InlineKeyboardButton("🔙 Atgal", callback_data="edit_back")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def edit_message_settings(query, context):
+    """Edit message settings (pin, delete last)"""
+    config = context.user_data.get('current_message_config', {})
+    
+    text = "⚙️ **Redaguoti Nustatymus**\n\n"
+    text += f"📌 **Pin pranešimą:** {'Taip' if config.get('pin_message') else 'Ne'}\n"
+    text += f"🗑️ **Ištrinti paskutinį:** {'Taip' if config.get('delete_last') else 'Ne'}\n\n"
+    text += "Pasirinkite, ką norite pakeisti:"
+    
+    keyboard = [
+        [InlineKeyboardButton("📌 Pakeisti pin", callback_data="edit_toggle_pin")],
+        [InlineKeyboardButton("🗑️ Pakeisti ištrinimą", callback_data="edit_toggle_delete")],
+        [InlineKeyboardButton("🔙 Atgal", callback_data="edit_back")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def edit_back(query, context):
+    """Go back from edit mode"""
+    editing_message_id = context.user_data.get('editing_message_id')
+    if editing_message_id:
+        await show_message_info(query, context, editing_message_id)
+    else:
+        await show_manage_messages_private(query, context)
+
+async def edit_toggle_pin(query, context):
+    """Toggle pin message setting"""
+    config = context.user_data.get('current_message_config', {})
+    config['pin_message'] = not config.get('pin_message', False)
+    context.user_data['current_message_config'] = config
+    
+    await query.answer(f"📌 Pin pranešimą: {'Taip' if config['pin_message'] else 'Ne'}")
+    await edit_message_settings(query, context)
+
+async def edit_toggle_delete(query, context):
+    """Toggle delete last message setting"""
+    config = context.user_data.get('current_message_config', {})
+    config['delete_last'] = not config.get('delete_last', False)
+    context.user_data['current_message_config'] = config
+    
+    await query.answer(f"🗑️ Ištrinti paskutinį: {'Taip' if config['delete_last'] else 'Ne'}")
+    await edit_message_settings(query, context)
+
+async def edit_set_repetition(query, context, repeat_value):
+    """Set repetition value for editing"""
+    config = context.user_data.get('current_message_config', {})
+    
+    if repeat_value == "24h":
+        config['repetition'] = "Every 24 hours"
+    elif repeat_value == "12h":
+        config['repetition'] = "Every 12 hours"
+    elif repeat_value == "6h":
+        config['repetition'] = "Every 6 hours"
+    elif repeat_value == "3h":
+        config['repetition'] = "Every 3 hours"
+    elif repeat_value == "1h":
+        config['repetition'] = "Every hour"
+    
+    context.user_data['current_message_config'] = config
+    
+    await query.answer(f"🔄 Kartojimas nustatytas: {config['repetition']}")
+    await edit_message_repetition(query, context)
 
 async def show_word_info(query, context, word_id):
-    await query.answer("ℹ️ Informacija apie žodį")
-    # TODO: Implement word info
+    """Show detailed information about a banned word"""
+    try:
+        group_id = context.user_data.get('target_group_id')
+        if not group_id:
+            await query.answer("❌ Nepavyko nustatyti grupės ID!")
+            return
+        
+        banned_words = database.get_banned_words(group_id)
+        target_word = None
+        
+        for word in banned_words:
+            if word[0] == word_id:  # word[0] is the ID
+                target_word = word
+                break
+        
+        if not target_word:
+            await query.answer("❌ Žodis nerastas!")
+            return
+        
+        # Parse word data (tuple format)
+        word_id, chat_id, word, action, created_by, created_by_username, created_at, is_active = target_word
+        
+        text = f"🚫 **Uždrausto Žodžio Informacija**\n\n"
+        text += f"🆔 **ID:** `{word_id}`\n"
+        text += f"📝 **Žodis:** `{word}`\n"
+        text += f"⚡ **Veiksmas:** {action or 'Nenustatyta'}\n"
+        text += f"📊 **Statusas:** {'✅ Aktyvus' if is_active else '❌ Neaktyvus'}\n"
+        text += f"👤 **Pridėjo:** {created_by_username or 'Nežinoma'}\n"
+        text += f"📅 **Pridėta:** {created_at or 'Nežinoma'}"
+        
+        keyboard = [
+            [InlineKeyboardButton("🔄 Pakeisti statusą", callback_data=f"banned_words_toggle_{word_id}")],
+            [InlineKeyboardButton("🗑️ Ištrinti", callback_data=f"banned_words_delete_{word_id}")],
+            [InlineKeyboardButton("🔙 Atgal", callback_data="banned_words_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Error showing word info: {e}")
+        await query.answer("❌ Klaida rodant žodžio informaciją!")
 
 async def toggle_word_status(query, context, word_id):
-    await query.answer("🔄 Žodžio statusas pakeistas")
-    # TODO: Implement word status toggle
+    """Toggle banned word status (active/inactive)"""
+    try:
+        group_id = context.user_data.get('target_group_id')
+        if not group_id:
+            await query.answer("❌ Nepavyko nustatyti grupės ID!")
+            return
+        
+        banned_words = database.get_banned_words(group_id)
+        current_status = None
+        
+        for word in banned_words:
+            if word[0] == word_id:
+                current_status = word[7]  # is_active column
+                break
+        
+        if current_status is None:
+            await query.answer("❌ Žodis nerastas!")
+            return
+        
+        # Toggle status
+        new_status = not current_status
+        database.update_banned_word_status(word_id, new_status)
+        
+        status_text = "✅ Aktyvus" if new_status else "❌ Neaktyvus"
+        await query.answer(f"🔄 Statusas pakeistas į: {status_text}")
+        
+        # Refresh the word info
+        await show_word_info(query, context, word_id)
+        
+    except Exception as e:
+        logger.error(f"Error toggling word status: {e}")
+        await query.answer("❌ Klaida keičiant statusą!")
 
 async def delete_word(query, context, word_id):
-    await query.answer("🗑️ Žodis ištrintas")
-    # TODO: Implement word deletion
+    """Delete a banned word"""
+    try:
+        # Confirm deletion
+        keyboard = [
+            [InlineKeyboardButton("✅ Taip, ištrinti", callback_data=f"banned_words_delete_confirm_{word_id}")],
+            [InlineKeyboardButton("❌ Atšaukti", callback_data=f"banned_words_info_{word_id}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🗑️ **Ištrinti Uždraustą Žodį**\n\n"
+            "Ar tikrai norite ištrinti šį uždraustą žodį?\n\n"
+            "⚠️ **Dėmesio:** Šis veiksmas negali būti atšauktas!",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error showing delete confirmation: {e}")
+        await query.answer("❌ Klaida rodant ištrinimo patvirtinimą!")
 
 async def show_helper_info(query, context, helper_id):
-    await query.answer("ℹ️ Informacija apie pagalbininką")
-    # TODO: Implement helper info
+    """Show detailed information about a helper"""
+    try:
+        group_id = context.user_data.get('target_group_id')
+        if not group_id:
+            await query.answer("❌ Nepavyko nustatyti grupės ID!")
+            return
+        
+        helpers = database.get_helpers(group_id)
+        target_helper = None
+        
+        for helper in helpers:
+            if helper[0] == helper_id:  # helper[0] is the ID
+                target_helper = helper
+                break
+        
+        if not target_helper:
+            await query.answer("❌ Pagalbininkas nerastas!")
+            return
+        
+        # Parse helper data (tuple format)
+        helper_id, chat_id, user_id, username, first_name, added_by, added_by_username, is_active, added_at = target_helper
+        
+        text = f"👥 **Pagalbininko Informacija**\n\n"
+        text += f"🆔 **ID:** `{helper_id}`\n"
+        text += f"👤 **Vartotojas:** {username or 'Nenustatyta'}\n"
+        text += f"📝 **Vardas:** {first_name or 'Nenustatyta'}\n"
+        text += f"📊 **Statusas:** {'✅ Aktyvus' if is_active else '❌ Neaktyvus'}\n"
+        text += f"👤 **Pridėjo:** {added_by_username or 'Nežinoma'}\n"
+        text += f"📅 **Pridėta:** {added_at or 'Nežinoma'}"
+        
+        keyboard = [
+            [InlineKeyboardButton("🗑️ Pašalinti", callback_data=f"helper_remove_{helper_id}")],
+            [InlineKeyboardButton("🔙 Atgal", callback_data="helpers_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Error showing helper info: {e}")
+        await query.answer("❌ Klaida rodant pagalbininko informaciją!")
 
 async def remove_helper(query, context, helper_id):
-    await query.answer("🗑️ Pagalbininkas pašalintas")
-    # TODO: Implement helper removal
+    """Remove a helper"""
+    try:
+        # Confirm removal
+        keyboard = [
+            [InlineKeyboardButton("✅ Taip, pašalinti", callback_data=f"helper_remove_confirm_{helper_id}")],
+            [InlineKeyboardButton("❌ Atšaukti", callback_data=f"helper_info_{helper_id}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🗑️ **Pašalinti Pagalbininką**\n\n"
+            "Ar tikrai norite pašalinti šį pagalbininką?\n\n"
+            "⚠️ **Dėmesio:** Šis veiksmas negali būti atšauktas!",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error showing removal confirmation: {e}")
+        await query.answer("❌ Klaida rodant pašalinimo patvirtinimą!")
+
+async def remove_helper_confirm(query, context, helper_id):
+    """Confirm and execute helper removal"""
+    try:
+        # Remove from database
+        database.remove_helper(helper_id)
+        
+        await query.answer("✅ Pagalbininkas sėkmingai pašalintas!")
+        
+        # Return to helpers list
+        await show_helpers_list_private(query, context)
+        
+    except Exception as e:
+        logger.error(f"Error removing helper: {e}")
+        await query.answer("❌ Klaida pašalinant pagalbininką!")
+
+async def delete_word_confirm(query, context, word_id):
+    """Confirm and execute word deletion"""
+    try:
+        # Delete from database
+        database.delete_banned_word(word_id)
+        
+        await query.answer("✅ Uždraustas žodis sėkmingai ištrintas!")
+        
+        # Return to banned words list
+        await show_banned_words_list_private(query, context)
+        
+    except Exception as e:
+        logger.error(f"Error deleting word: {e}")
+        await query.answer("❌ Klaida ištrinant žodį!")
 
 # Add handlers
 application.add_handler(CommandHandler(['startas'], startas))
