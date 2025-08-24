@@ -6896,12 +6896,42 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
         config['has_text'] = True
         context.user_data['current_message_config'] = config
         
+        # Send success message first
         await update.message.reply_text(
             f"✅ Tekstas nustatytas!\n\n"
             f"**Peržiūra:** {message_text[:100]}{'...' if len(message_text) > 100 else ''}\n\n"
             "Grįžtame į konfigūraciją...",
             parse_mode='Markdown'
         )
+        
+        # Auto-return to configuration after 1 second
+        import asyncio
+        await asyncio.sleep(1)
+        
+        # Check if we're in edit mode
+        editing_message_id = context.user_data.get('editing_message_id')
+        if editing_message_id:
+            # Create a mock query object to show the config
+            class MockQuery:
+                def __init__(self, message):
+                    self.message = message
+                
+                async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                    await self.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+            
+            mock_query = MockQuery(update.message)
+            await show_message_config(mock_query, context, private_mode=True, edit_mode=True)
+        else:
+            # Create a mock query object to show the customization
+            class MockQuery:
+                def __init__(self, message):
+                    self.message = message
+                
+                async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                    await self.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+            
+            mock_query = MockQuery(update.message)
+            await show_message_customization(mock_query, context)
         
         # Clear waiting state
         context.user_data.pop('waiting_for_text', None)
@@ -6937,22 +6967,42 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
             
             context.user_data['current_message_config'] = config
             
-            # Create inline keyboard to return to customization
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            
-            keyboard = [
-                [InlineKeyboardButton("🔙 Grįžti į konfigūraciją", callback_data="customize_message")],
-                [InlineKeyboardButton("👁️ Peržiūrėti pranešimą", callback_data="full_preview")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
+            # Send success message first
             await update.message.reply_text(
                 "✅ Media nustatytas!\n\n"
                 f"**Tipas:** {config['media_type'].title()}\n\n"
-                "Pasirinkite ką daryti toliau:",
-                reply_markup=reply_markup,
+                "Grįžtame į konfigūraciją...",
                 parse_mode='Markdown'
             )
+            
+            # Auto-return to configuration after 1 second
+            import asyncio
+            await asyncio.sleep(1)
+            
+            # Check if we're in edit mode
+            editing_message_id = context.user_data.get('editing_message_id')
+            if editing_message_id:
+                # Create a mock query object to show the config
+                class MockQuery:
+                    def __init__(self, message):
+                        self.message = message
+                    
+                    async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                        await self.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+                
+                mock_query = MockQuery(update.message)
+                await show_message_config(mock_query, context, private_mode=True, edit_mode=True)
+            else:
+                # Create a mock query object to show the customization
+                class MockQuery:
+                    def __init__(self, message):
+                        self.message = message
+                    
+                    async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                        await self.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+                
+                mock_query = MockQuery(update.message)
+                await show_message_customization(mock_query, context)
         else:
             # Create inline keyboard to help user
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -7049,7 +7099,13 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
     elif data == "recurring_manage_private":
         await show_manage_messages_private(query, context)
     elif data == "customize_message":
-        await show_message_customization(query, context)
+        # Check if we're in edit mode
+        editing_message_id = context.user_data.get('editing_message_id')
+        if editing_message_id:
+            # In edit mode, go back to message config instead
+            await show_message_config(query, context, private_mode=True, edit_mode=True)
+        else:
+            await show_message_customization(query, context)
     elif data == "set_time":
         await show_time_selection(query, context)
     elif data == "set_repetition":
