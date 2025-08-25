@@ -7472,6 +7472,8 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         await toggle_delete_last_message(query, context)
     elif data == "scheduled_deletion":
         await show_scheduled_deletion_options(query, context)
+    elif data == "start_recurring_now":
+        await start_recurring_message_immediately(query, context)
     elif data == "set_text":
         await set_message_text(query, context)
     elif data == "set_media":
@@ -7854,6 +7856,7 @@ async def show_message_config(query, context, private_mode=False, edit_mode=Fals
         [InlineKeyboardButton(f"🗑️ Delete last message {'✅' if message_config.get('delete_last', False) else '❌'}", 
                             callback_data="toggle_delete_last")],
         [InlineKeyboardButton("⏱️ Scheduled deletion", callback_data="scheduled_deletion")],
+        [InlineKeyboardButton("🚀 Start sending recurring message", callback_data="start_recurring_now")],
         [InlineKeyboardButton("🔙 Back", callback_data="back_to_main")]
     ]
     
@@ -9365,6 +9368,69 @@ async def start_recurring_message_now(query, context):
     except Exception as e:
         logger.error(f"Error starting recurring message: {e}")
         await query.answer("❌ Klaida paleidžiant pranešimus!")
+
+async def start_recurring_message_immediately(query, context):
+    """Start sending recurring message immediately with current settings"""
+    try:
+        # Get current message configuration
+        message_config = context.user_data.get('current_message_config', {})
+        
+        # Check if we have basic message content
+        has_text = message_config.get('has_text', False)
+        has_media = message_config.get('has_media', False)
+        
+        if not has_text and not has_media:
+            await query.answer("❌ Pridėkite tekstą arba mediją prieš pradedant!")
+            return
+        
+        # Get target group ID
+        group_id = context.user_data.get('target_group_id')
+        if not group_id:
+            await query.answer("❌ Nepasirinkta grupė!")
+            return
+        
+        # Extract message content
+        message_text = message_config.get('text', '')
+        message_media = message_config.get('media', '')
+        message_buttons = message_config.get('buttons', '')
+        
+        # Get repetition settings
+        repetition = message_config.get('repetition', 'Every 24 hours')
+        interval_hours = parse_interval(repetition)
+        
+        # Save to database with active status
+        message_id = database.add_scheduled_message(
+            chat_id=group_id,
+            message_text=message_text,
+            message_media=message_media,
+            message_buttons=message_buttons,
+            repetition_type=repetition,
+            interval_hours=interval_hours,
+            pin_message=message_config.get('pin_message', False),
+            delete_last_message=message_config.get('delete_last', False),
+            created_by=query.from_user.id,
+            created_by_username=query.from_user.username or f"User {query.from_user.id}",
+            is_active=True
+        )
+        
+        # Schedule the job immediately
+        await schedule_recurring_message(message_id, group_id, interval_hours, repetition)
+        
+        # Send the first message immediately
+        await send_recurring_message_now(message_id, group_id)
+        
+        # Update status in user data
+        message_config['status'] = 'active'
+        context.user_data['current_message_config'] = message_config
+        
+        await query.answer("✅ Pranešimas pradėtas siųsti!")
+        
+        # Refresh the configuration screen to show updated status
+        await show_message_config(query, context, edit_mode=True)
+        
+    except Exception as e:
+        logger.error(f"Error starting recurring message immediately: {e}")
+        await query.answer("❌ Klaida pradedant pranešimą!")
 
 async def start_recurring_message_later(query, context):
     """Save the message but don't start it yet"""
