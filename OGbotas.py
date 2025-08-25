@@ -727,12 +727,50 @@ async def get_user_admin_groups(context, user_id):
 
 # Utility functions for scheduling
 def parse_interval(interval_str):
-    """Parse interval string to hours"""
+    """Parse interval string to hours (converts minutes to fractional hours)"""
     try:
         if not interval_str:
             return 24
             
-        # Handle "Every X hours" format
+        # Handle new minute formats
+        if 'minutes' in interval_str:
+            if '1 minutes' in interval_str:
+                return 1/60  # 1 minute = 1/60 hour
+            elif '2 minutes' in interval_str:
+                return 2/60
+            elif '3 minutes' in interval_str:
+                return 3/60
+            elif '5 minutes' in interval_str:
+                return 5/60
+            elif '10 minutes' in interval_str:
+                return 10/60
+            elif '15 minutes' in interval_str:
+                return 15/60
+            elif '20 minutes' in interval_str:
+                return 20/60
+            elif '30 minutes' in interval_str:
+                return 30/60
+                
+        # Handle hour formats
+        if 'hours' in interval_str:
+            if '1 hours' in interval_str:
+                return 1
+            elif '2 hours' in interval_str:
+                return 2
+            elif '3 hours' in interval_str:
+                return 3
+            elif '4 hours' in interval_str:
+                return 4
+            elif '6 hours' in interval_str:
+                return 6
+            elif '8 hours' in interval_str:
+                return 8
+            elif '12 hours' in interval_str:
+                return 12
+            elif '24 hours' in interval_str:
+                return 24
+                
+        # Handle "Every X hours" format (legacy)
         if 'Every' in interval_str:
             if '12 hours' in interval_str:
                 return 12
@@ -7496,6 +7534,28 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         await show_scheduled_deletion_options(query, context)
     elif data == "start_recurring_now":
         await start_recurring_message_immediately(query, context)
+    elif data.startswith("hour_"):
+        hour = int(data.split("_")[1])
+        context.user_data['selected_hour'] = hour
+        await show_time_selection(query, context)
+    elif data.startswith("minute_"):
+        minute = int(data.split("_")[1])
+        selected_hour = context.user_data.get('selected_hour', 0)
+        # Set the time in Lithuanian timezone format
+        time_str = f"{selected_hour:02d}:{minute:02d}"
+        config = context.user_data.get('current_message_config', {})
+        config['time'] = time_str
+        context.user_data['current_message_config'] = config
+        # Clear selected hour
+        context.user_data.pop('selected_hour', None)
+        # Return to main config
+        await show_message_config(query, context)
+        await query.answer(f"⏰ Laikas nustatytas: {time_str}")
+    elif data == "back_to_hour_selection":
+        context.user_data.pop('selected_hour', None)
+        await show_time_selection(query, context)
+    elif data == "toggle_message_status":
+        await toggle_message_status_main(query, context)
     elif data == "set_text":
         await set_message_text(query, context)
     elif data == "set_media":
@@ -7590,16 +7650,43 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
     elif data.startswith("repeat_"):
         repeat_value = data.split("_", 1)[1]
         config = context.user_data.get('current_message_config', {})
-        if repeat_value == "24h":
-            config['repetition'] = "Every 24 hours"
-        elif repeat_value == "12h":
-            config['repetition'] = "Every 12 hours"
-        elif repeat_value == "6h":
-            config['repetition'] = "Every 6 hours"
+        
+        # Handle hours
+        if repeat_value == "1h":
+            config['repetition'] = "1 hours"
+        elif repeat_value == "2h":
+            config['repetition'] = "2 hours"
         elif repeat_value == "3h":
-            config['repetition'] = "Every 3 hours"
-        elif repeat_value == "1h":
-            config['repetition'] = "Every hour"
+            config['repetition'] = "3 hours"
+        elif repeat_value == "4h":
+            config['repetition'] = "4 hours"
+        elif repeat_value == "6h":
+            config['repetition'] = "6 hours"
+        elif repeat_value == "8h":
+            config['repetition'] = "8 hours"
+        elif repeat_value == "12h":
+            config['repetition'] = "12 hours"
+        elif repeat_value == "24h":
+            config['repetition'] = "24 hours"
+        # Handle minutes
+        elif repeat_value == "1m":
+            config['repetition'] = "1 minutes"
+        elif repeat_value == "2m":
+            config['repetition'] = "2 minutes"
+        elif repeat_value == "3m":
+            config['repetition'] = "3 minutes"
+        elif repeat_value == "5m":
+            config['repetition'] = "5 minutes"
+        elif repeat_value == "10m":
+            config['repetition'] = "10 minutes"
+        elif repeat_value == "15m":
+            config['repetition'] = "15 minutes"
+        elif repeat_value == "20m":
+            config['repetition'] = "20 minutes"
+        elif repeat_value == "30m":
+            config['repetition'] = "30 minutes"
+        elif repeat_value == "messages":
+            config['repetition'] = "few messages"
         elif repeat_value == "custom":
             context.user_data['waiting_for_custom_interval'] = True
             keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="set_repetition")]]
@@ -7610,7 +7697,11 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
                 parse_mode='Markdown'
             )
             return
+        else:
+            config['repetition'] = "24 hours"
+            
         context.user_data['current_message_config'] = config
+        await query.answer(f"🔄 Kartojimas nustatytas: Every {config['repetition']}")
         await show_message_config(query, context)
     
     # Handle day selection callbacks
@@ -7838,12 +7929,15 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
 async def show_message_config(query, context, private_mode=False, edit_mode=False):
     """Show message configuration screen - GroupHelpBot style"""
     chat_id = query.message.chat.id if not private_mode else context.user_data.get('target_group_id', query.message.chat.id)
-    current_time = datetime.now().strftime("%H:%M")
+    
+    # Lithuanian timezone
+    lithuanian_tz = pytz.timezone('Europe/Vilnius')
+    current_time = datetime.now(lithuanian_tz).strftime("%d/%m/%y %H:%M")
     
     # Get current message config from user data or defaults
     message_config = context.user_data.get('current_message_config', {
         'status': 'Off',
-        'time': current_time,
+        'time': '20:28',
         'repetition': 'Every 24 hours',
         'pin_message': False,
         'delete_last': False,
@@ -7853,32 +7947,24 @@ async def show_message_config(query, context, private_mode=False, edit_mode=Fals
     })
     
     # Build the configuration screen exactly like GroupHelpBot
-    if edit_mode:
-        text = "✏️ **Redaguoti Kartojamą Pranešimą**\n\n"
-    else:
-        text = "🔄 **Recurring messages**\n\n"
-    text += f"📊 **Status:** ❌ {message_config.get('status', 'Off')}\n"
-    text += f"⏰ **Time:** {message_config.get('time', current_time)}\n"
-    text += f"🔄 **Repetition:** {message_config.get('repetition', 'Every 24 hours')}\n"
-    text += f"📌 **Pin message:** {'✅' if message_config.get('pin_message', False) else '❌'}\n"
-    text += f"🗑️ **Delete last message:** {'✅' if message_config.get('delete_last', False) else '❌'}"
+    text = "🔄 **Recurring messages**\n"
+    text += f"From this menu you can set messages that will be sent repeatedly to the group every few minutes/hours or every few messages.\n\n"
+    text += f"**Current time:** {current_time}\n\n"
     
-    # Create keyboard exactly like GroupHelpBot
+    # Message status with number and status
+    message_number = context.user_data.get('current_message_number', 1)
+    status_icon = "❌" if message_config.get('status', 'Off') == 'Off' else "✅"
+    text += f"💬 **{message_number}** • {status_icon} **{message_config.get('status', 'Off')}**\n"
+    text += f"⏰ Time: {message_config.get('time', '20:28')}\n"
+    text += f"🔄 Every {message_config.get('repetition', '24 hours')}\n"
+    text += f"📝 Message is {'not ' if not message_config.get('has_text') else ''}set."
+    
+    # Create keyboard exactly like GroupHelpBot - clean and simple
     keyboard = [
-        [InlineKeyboardButton("✏️ Customize message", callback_data="customize_message")],
-        [InlineKeyboardButton("⏰ Time", callback_data="set_time"), 
-         InlineKeyboardButton("🔄 Repetition", callback_data="set_repetition")],
-        [InlineKeyboardButton("📅 Days of the week", callback_data="set_days_week")],
-        [InlineKeyboardButton("📅 Days of the month", callback_data="set_days_month")],
-        [InlineKeyboardButton("🕐 Set time slot", callback_data="set_time_slot")],
-        [InlineKeyboardButton("📅 Start date", callback_data="set_start_date"), 
-         InlineKeyboardButton("📅 End date", callback_data="set_end_date")],
-        [InlineKeyboardButton(f"📌 Pin message {'✅' if message_config.get('pin_message', False) else '❌'}", 
-                            callback_data="toggle_pin_message")],
-        [InlineKeyboardButton(f"🗑️ Delete last message {'✅' if message_config.get('delete_last', False) else '❌'}", 
-                            callback_data="toggle_delete_last")],
-        [InlineKeyboardButton("⏱️ Scheduled deletion", callback_data="scheduled_deletion")],
-        [InlineKeyboardButton("🚀 Start sending recurring message", callback_data="start_recurring_now")],
+        [InlineKeyboardButton("➕ Add message", callback_data="customize_message")],
+        [InlineKeyboardButton("📝 T", callback_data="set_text"), 
+         InlineKeyboardButton("❌ Off", callback_data="toggle_message_status"), 
+         InlineKeyboardButton("🗑️", callback_data="delete_message")],
         [InlineKeyboardButton("🔙 Back", callback_data="back_to_main")]
     ]
     
@@ -7923,37 +8009,97 @@ async def show_message_customization(query, context):
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def show_time_selection(query, context):
-    """Show time selection options"""
-    text = "⏰ **Set Time**\n\nChoose when to send the message:"
+    """Show time selection options - GroupHelpBot style"""
+    current_config = context.user_data.get('current_message_config', {})
+    selected_hour = context.user_data.get('selected_hour', None)
+    
+    if selected_hour is None:
+        # Show hour selection first
+        text = "🔄 **Recurring messages**\n\n"
+        text += "👆 Select the start time."
+        
+        keyboard = []
+        # Create hour grid (0-23)
+        for row in range(6):  # 6 rows
+            buttons = []
+            for col in range(4):  # 4 columns
+                hour = row * 4 + col
+                if hour <= 23:
+                    buttons.append(InlineKeyboardButton(str(hour), callback_data=f"hour_{hour}"))
+            if buttons:
+                keyboard.append(buttons)
+        
+        keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="back_to_config")])
+    else:
+        # Show minute selection after hour is selected
+        text = "🔄 **Recurring messages**\n\n"
+        text += f"Selected hour: **{selected_hour}**\n"
+        text += "👆 Now select minutes."
+        
+        keyboard = []
+        # Create minute grid (0, 5, 10, 15, etc.)
+        minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+        for row in range(3):  # 3 rows
+            buttons = []
+            for col in range(4):  # 4 columns
+                idx = row * 4 + col
+                if idx < len(minutes):
+                    minute = minutes[idx]
+                    buttons.append(InlineKeyboardButton(f"{minute:02d}", callback_data=f"minute_{minute}"))
+            keyboard.append(buttons)
+        
+        keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="back_to_hour_selection")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_repetition_options(query, context):
+    """Show repetition options for recurring messages - GroupHelpBot style"""
+    text = "🔄 **Recurring messages**\n\n"
+    text += "🔄 **Repetition: Every 24 hours**\n\n"
+    text += "👆 Select how often the message should be repeated."
     
     keyboard = [
-        [InlineKeyboardButton("🌅 Morning (08:00)", callback_data="time_08:00")],
-        [InlineKeyboardButton("🌞 Midday (12:00)", callback_data="time_12:00")],
-        [InlineKeyboardButton("🌇 Evening (18:00)", callback_data="time_18:00")],
-        [InlineKeyboardButton("🌙 Night (22:00)", callback_data="time_22:00")],
-        [InlineKeyboardButton("⏰ Custom time", callback_data="time_custom")],
+        # Hours section
+        [InlineKeyboardButton("• Hours •", callback_data="ignore")],
+        [InlineKeyboardButton("1", callback_data="repeat_1h"), 
+         InlineKeyboardButton("2", callback_data="repeat_2h"), 
+         InlineKeyboardButton("3", callback_data="repeat_3h"), 
+         InlineKeyboardButton("4", callback_data="repeat_4h")],
+        [InlineKeyboardButton("6", callback_data="repeat_6h"), 
+         InlineKeyboardButton("8", callback_data="repeat_8h"), 
+         InlineKeyboardButton("12", callback_data="repeat_12h"), 
+         InlineKeyboardButton("24 ✅", callback_data="repeat_24h")],
+        
+        # Minutes section  
+        [InlineKeyboardButton("• Minutes •", callback_data="ignore")],
+        [InlineKeyboardButton("⏰ 1", callback_data="repeat_1m"), 
+         InlineKeyboardButton("⏰ 2", callback_data="repeat_2m"), 
+         InlineKeyboardButton("⏰ 3", callback_data="repeat_3m"), 
+         InlineKeyboardButton("⏰ 5", callback_data="repeat_5m")],
+        [InlineKeyboardButton("10", callback_data="repeat_10m"), 
+         InlineKeyboardButton("15", callback_data="repeat_15m"), 
+         InlineKeyboardButton("20", callback_data="repeat_20m"), 
+         InlineKeyboardButton("30", callback_data="repeat_30m")],
+        
+        # Special options
+        [InlineKeyboardButton("🔄 Repeat every few messages", callback_data="repeat_messages")],
         [InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
-async def show_repetition_options(query, context):
-    """Show repetition options"""
-    text = "🔄 **Set Repetition**\n\nChoose how often to repeat:"
+async def toggle_message_status_main(query, context):
+    """Toggle message on/off status"""
+    config = context.user_data.get('current_message_config', {})
+    current_status = config.get('status', 'Off')
+    new_status = 'On' if current_status == 'Off' else 'Off'
+    config['status'] = new_status
+    context.user_data['current_message_config'] = config
     
-    keyboard = [
-        [InlineKeyboardButton("⏰ Every 24 hours", callback_data="repeat_24h")],
-        [InlineKeyboardButton("🔄 Every 12 hours", callback_data="repeat_12h")],
-        [InlineKeyboardButton("🔄 Every 6 hours", callback_data="repeat_6h")],
-        [InlineKeyboardButton("🔄 Every 3 hours", callback_data="repeat_3h")],
-        [InlineKeyboardButton("🔄 Every hour", callback_data="repeat_1h")],
-        [InlineKeyboardButton("⏰ Custom interval", callback_data="repeat_custom")],
-        [InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    await query.answer(f"📊 Statusas pakeistas į: {new_status}")
+    await show_message_config(query, context)
 
 async def toggle_pin_message(query, context):
     """Toggle pin message setting"""
