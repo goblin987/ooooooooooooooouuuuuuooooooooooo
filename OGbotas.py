@@ -9465,8 +9465,9 @@ application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern=
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^recurring_back_to_groups$"))
 application.add_handler(CallbackQueryHandler(handle_recurring_callback, pattern="^admin_dashboard_back$"))
 
-# Enhanced message handler for banned words detection
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+# Enhanced message handler for banned words detection and media handling
+# Accept ALL message types (text, photo, video, animation, document) except commands
+application.add_handler(MessageHandler(~filters.COMMAND, handle_message))
 
 # Schedule jobs
 application.job_queue.run_daily(award_daily_points, time=time(hour=0, minute=0))
