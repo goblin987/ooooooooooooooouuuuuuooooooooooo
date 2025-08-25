@@ -6943,35 +6943,96 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
             config = context.user_data.get('current_message_config', {})
             config['has_media'] = True
             
-            # Handle different media types
-            if update.message.photo:
-                config['media_type'] = 'photo'
-                config['media_file_id'] = update.message.photo[-1].file_id
-                config['media_caption'] = update.message.caption or ""
-                logger.info(f"Photo media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
-            elif update.message.video:
-                config['media_type'] = 'video'
-                config['media_file_id'] = update.message.video.file_id
-                config['media_caption'] = update.message.caption or ""
-                logger.info(f"Video media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
-            elif update.message.animation:
-                config['media_type'] = 'animation'
-                config['media_file_id'] = update.message.animation.file_id
-                config['media_caption'] = update.message.caption or ""
-                logger.info(f"GIF media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
-            elif update.message.document:
-                config['media_type'] = 'document'
-                config['media_file_id'] = update.message.document.file_id
-                config['media_caption'] = update.message.caption or ""
-                logger.info(f"Document media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
+            # Handle different media types with improved error handling
+            try:
+                if update.message.photo:
+                    # Get the highest quality photo
+                    photo = update.message.photo[-1]
+                    config['media_type'] = 'photo'
+                    config['media_file_id'] = photo.file_id
+                    config['media_caption'] = update.message.caption or ""
+                    media_info = f"📷 Photo ({photo.width}x{photo.height})"
+                    logger.info(f"Photo media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
+                    
+                elif update.message.video:
+                    video = update.message.video
+                    # Check video size (Telegram limit is 50MB for bots)
+                    if video.file_size and video.file_size > 50 * 1024 * 1024:  # 50MB
+                        await update.message.reply_text(
+                            "❌ Video per didelis!\n\n"
+                            f"**Dabartinis dydis:** {video.file_size / (1024*1024):.1f} MB\n"
+                            f"**Maksimalus dydis:** 50 MB\n\n"
+                            "Prašome naudoti mažesnį video failą.",
+                            parse_mode='Markdown'
+                        )
+                        return
+                    
+                    config['media_type'] = 'video'
+                    config['media_file_id'] = video.file_id
+                    config['media_caption'] = update.message.caption or ""
+                    duration = f"{video.duration}s" if video.duration else "Unknown"
+                    size = f"{video.file_size / (1024*1024):.1f} MB" if video.file_size else "Unknown size"
+                    media_info = f"🎥 Video ({duration}, {size})"
+                    logger.info(f"Video media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
+                    
+                elif update.message.animation:
+                    animation = update.message.animation
+                    # Check animation size
+                    if animation.file_size and animation.file_size > 50 * 1024 * 1024:  # 50MB
+                        await update.message.reply_text(
+                            "❌ GIF per didelis!\n\n"
+                            f"**Dabartinis dydis:** {animation.file_size / (1024*1024):.1f} MB\n"
+                            f"**Maksimalus dydis:** 50 MB\n\n"
+                            "Prašome naudoti mažesnį GIF failą.",
+                            parse_mode='Markdown'
+                        )
+                        return
+                    
+                    config['media_type'] = 'animation'
+                    config['media_file_id'] = animation.file_id
+                    config['media_caption'] = update.message.caption or ""
+                    duration = f"{animation.duration}s" if animation.duration else "Unknown"
+                    size = f"{animation.file_size / (1024*1024):.1f} MB" if animation.file_size else "Unknown size"
+                    media_info = f"🎬 GIF ({duration}, {size})"
+                    logger.info(f"GIF media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
+                    
+                elif update.message.document:
+                    document = update.message.document
+                    # Check document size
+                    if document.file_size and document.file_size > 50 * 1024 * 1024:  # 50MB
+                        await update.message.reply_text(
+                            "❌ Dokumentas per didelis!\n\n"
+                            f"**Dabartinis dydis:** {document.file_size / (1024*1024):.1f} MB\n"
+                            f"**Maksimalus dydis:** 50 MB\n\n"
+                            "Prašome naudoti mažesnį failą.",
+                            parse_mode='Markdown'
+                        )
+                        return
+                    
+                    config['media_type'] = 'document'
+                    config['media_file_id'] = document.file_id
+                    config['media_caption'] = update.message.caption or ""
+                    file_name = document.file_name or "Unknown file"
+                    size = f"{document.file_size / (1024*1024):.1f} MB" if document.file_size else "Unknown size"
+                    media_info = f"📄 Document ({file_name}, {size})"
+                    logger.info(f"Document media set: {config['media_type']}, file_id: {config['media_file_id'][:20]}...")
+                    
+            except Exception as e:
+                logger.error(f"Error processing media: {e}")
+                await update.message.reply_text(
+                    "❌ Klaida apdorojant media failą!\n\n"
+                    "Prašome bandyti dar kartą su mažesniu failu.",
+                    parse_mode='Markdown'
+                )
+                return
             
             context.user_data['current_message_config'] = config
             
-            # Send success message first
-            await update.message.reply_text(
+            # Send success message and update the same message instead of creating new ones
+            success_msg = await update.message.reply_text(
                 "✅ Media nustatytas!\n\n"
-                f"**Tipas:** {config['media_type'].title()}\n\n"
-                "Grįžtame į konfigūraciją...",
+                f"**{media_info}**\n\n"
+                "Atnaujinama konfigūracija...",
                 parse_mode='Markdown'
             )
             
@@ -6981,27 +7042,24 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
             
             # Check if we're in edit mode
             editing_message_id = context.user_data.get('editing_message_id')
-            if editing_message_id:
-                # Create a mock query object to show the config
-                class MockQuery:
-                    def __init__(self, message):
-                        self.message = message
-                    
-                    async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
-                        await self.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+            
+            # Create a mock query object to update the same message
+            class MockQuery:
+                def __init__(self, message):
+                    self.message = message
                 
-                mock_query = MockQuery(update.message)
+                async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                    try:
+                        await self.message.edit_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+                    except Exception as e:
+                        logger.error(f"Error updating message: {e}")
+                        # If edit fails, send new message
+                        await self.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+            
+            mock_query = MockQuery(success_msg)
+            if editing_message_id:
                 await show_message_config(mock_query, context, private_mode=True, edit_mode=True)
             else:
-                # Create a mock query object to show the customization
-                class MockQuery:
-                    def __init__(self, message):
-                        self.message = message
-                    
-                    async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
-                        await self.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
-                
-                mock_query = MockQuery(update.message)
                 await show_message_customization(mock_query, context)
         else:
             # Create inline keyboard to help user
@@ -7016,14 +7074,15 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
             await update.message.reply_text(
                 "❌ **Neteisingas media tipas!**\n\n"
                 "**Palaikomi tipai:**\n"
-                "• 📷 Nuotraukos (JPG, PNG)\n"
-                "• 🎥 Video (MP4, MOV)\n"
-                "• 🎬 GIF animacijos\n"
-                "• 📄 Dokumentai (PDF, DOC)\n\n"
+                "• 📷 Nuotraukos (iki 10MB)\n"
+                "• 🎥 Video (iki 50MB)\n"
+                "• 🎬 GIF animacijos (iki 50MB)\n"
+                "• 📄 Dokumentai (iki 50MB)\n\n"
                 "**Kaip naudoti:**\n"
                 "1. Pasirinkite media failą\n"
                 "2. Galite pridėti tekstą (caption)\n"
-                "3. Atsiųskite botui",
+                "3. Atsiųskite botui\n\n"
+                "**Patarimas:** Jei failas per didelis, sumažinkite kokybę arba naudokite mažesnį failą.",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
@@ -8854,16 +8913,26 @@ async def edit_recurring_message(query, context, message_id):
             await query.answer("❌ Pranešimas nerastas!")
             return
         
-        # Load message data into current config
+        # Load ALL message data into current config for full editing capability
         config = context.user_data.get('current_message_config', {})
         config.update({
             'text': target_message[2],
             'has_media': bool(target_message[3]),
-            'media_type': 'photo' if target_message[3] else None,  # Simplified for now
+            'media_type': target_message[15] if target_message[3] else None,  # Get actual media type from DB
+            'media_file_id': target_message[3] if target_message[3] else None,
             'has_buttons': bool(target_message[4]),
-            'repetition': target_message[6] or 'Every 24 hours',
-            'pin_message': bool(target_message[13]),
-            'delete_last': bool(target_message[14])
+            'buttons': target_message[4] if target_message[4] else [],
+            'time': target_message[5] or datetime.now().strftime("%H:%M"),  # Time
+            'repetition': target_message[6] or 'Every 24 hours',  # Repetition type
+            'days_of_week': target_message[7] if target_message[7] else [],  # Days of week
+            'days_of_month': target_message[8] if target_message[8] else [],  # Days of month  
+            'time_slot': target_message[9] if target_message[9] else None,  # Time slot
+            'start_date': target_message[10] if target_message[10] else None,  # Start date
+            'end_date': target_message[11] if target_message[11] else None,  # End date
+            'scheduled_deletion': target_message[12] if target_message[12] else None,  # Scheduled deletion
+            'pin_message': bool(target_message[13]),  # Pin message
+            'delete_last': bool(target_message[14]),  # Delete last message
+            'status': 'active' if target_message[16] else 'inactive'  # Message status
         })
         
         context.user_data['current_message_config'] = config
