@@ -3056,6 +3056,16 @@ async def handle_message(update: telegram.Update, context: telegram.ext.ContextT
         
         # Handle private chat messages for admin features
         if update.message.chat.type == 'private':
+            # Debug: Log message type and content
+            message_info = {
+                'has_text': bool(update.message.text),
+                'has_photo': bool(update.message.photo),
+                'has_video': bool(update.message.video),
+                'has_animation': bool(update.message.animation),
+                'has_document': bool(update.message.document)
+            }
+            logger.info(f"Private message received: {message_info}")
+            
             # Check if user is waiting for input
             if (context.user_data.get('waiting_for_group_id') or 
                 context.user_data.get('waiting_for_word') or 
@@ -3069,10 +3079,12 @@ async def handle_message(update: telegram.Update, context: telegram.ext.ContextT
                 context.user_data.get('waiting_for_media') or
                 context.user_data.get('waiting_for_buttons')):
                 
+                logger.info("User is waiting for input, processing private chat input")
                 # Process private chat input
                 await process_private_chat_input(update, context)
                 return
             
+            logger.info("User not waiting for input, ignoring private chat message")
             # If not waiting for input, ignore private chat messages
             return
         
@@ -7576,7 +7588,19 @@ async def show_message_config(query, context, private_mode=False, edit_mode=Fals
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    try:
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    except telegram.error.BadRequest as e:
+        if "Message is not modified" in str(e):
+            # Message content is the same, just acknowledge the callback
+            logger.info("Message content unchanged in show_message_config, skipping edit")
+            return
+        else:
+            logger.error(f"BadRequest error in show_message_config: {e}")
+            await query.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    except Exception as e:
+        logger.error(f"Error in show_message_config: {e}")
+        await query.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def show_message_customization(query, context):
     """Show message customization screen - GroupHelpBot style"""
