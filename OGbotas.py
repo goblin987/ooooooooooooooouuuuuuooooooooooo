@@ -7800,7 +7800,10 @@ async def set_message_text(query, context):
 
 async def set_message_media(query, context):
     """Set message media"""
+    logger.info("set_message_media function called - setting waiting_for_media = True")
     context.user_data['waiting_for_media'] = True
+    logger.info(f"waiting_for_media state set. Current user_data keys: {list(context.user_data.keys())}")
+    
     keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="customize_message")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(
