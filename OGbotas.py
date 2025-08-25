@@ -3080,7 +3080,7 @@ async def handle_message(update: telegram.Update, context: telegram.ext.ContextT
         if not is_allowed_group(chat_id):
             return
         
-        # Check message validity
+        # Check message validity - ONLY for group messages (not private chat)
         if not update.message.text or update.message.text.startswith('/'):
             return
         
@@ -6507,6 +6507,19 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
     user_id = update.message.from_user.id
     username = update.message.from_user.username
     
+    # Debug logging
+    waiting_states = {
+        'waiting_for_group_id': context.user_data.get('waiting_for_group_id'),
+        'waiting_for_word': context.user_data.get('waiting_for_word'),
+        'waiting_for_helper_id': context.user_data.get('waiting_for_helper_id'),
+        'waiting_for_message': context.user_data.get('waiting_for_message'),
+        'waiting_for_text': context.user_data.get('waiting_for_text'),
+        'waiting_for_media': context.user_data.get('waiting_for_media'),
+        'waiting_for_buttons': context.user_data.get('waiting_for_buttons')
+    }
+    active_states = {k: v for k, v in waiting_states.items() if v}
+    logger.info(f"Private chat input processing. Active waiting states: {active_states}")
+    
     if context.user_data.get('waiting_for_group_id'):
         # User is entering a group ID for private chat management
         try:
@@ -6939,6 +6952,8 @@ async def process_private_chat_input(update: telegram.Update, context: telegram.
     
     elif context.user_data.get('waiting_for_media'):
         # User is setting message media
+        logger.info(f"Media handler triggered. Message has: photo={bool(update.message.photo)}, video={bool(update.message.video)}, animation={bool(update.message.animation)}, document={bool(update.message.document)}")
+        
         if update.message.photo or update.message.video or update.message.animation or update.message.document:
             config = context.user_data.get('current_message_config', {})
             config['has_media'] = True
