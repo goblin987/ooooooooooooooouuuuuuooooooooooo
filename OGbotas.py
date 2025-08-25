@@ -270,7 +270,9 @@ class Database:
                     created_by_username TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_sent TIMESTAMP,
-                    job_id TEXT
+                    job_id TEXT,
+                    is_active BOOLEAN DEFAULT 0,
+                    last_message_id INTEGER
                 )
             ''')
             
@@ -7457,6 +7459,12 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
     # Handle save message callback
     elif data == "save_message":
         await save_recurring_message(query, context)
+    elif data == "start_recurring_now":
+        await start_recurring_message_now(query, context)
+    elif data == "start_recurring_later":
+        await start_recurring_message_later(query, context)
+    elif data == "back_to_edit":
+        await back_to_message_edit(query, context)
     
     # Handle topic selection callbacks
     elif data.startswith("topic_"):
@@ -9026,6 +9034,315 @@ async def edit_set_repetition(query, context, repeat_value):
     await query.answer(f"🔄 Kartojimas nustatytas: {config['repetition']}")
     await edit_message_repetition(query, context)
 
+async def start_recurring_message_now(query, context):
+    """Start the recurring message immediately"""
+    try:
+        pending = context.user_data.get('pending_schedule')
+        if not pending:
+            await query.answer("❌ Nėra laukiančio pranešimo!")
+            return
+        
+        message_id = pending['message_id']
+        group_id = pending['group_id']
+        repetition_type = pending['repetition_type']
+        interval_hours = pending['interval_hours']
+        
+        # Activate the message in database
+        with database.get_connection() as conn:
+            conn.execute('''
+                UPDATE scheduled_messages 
+                SET is_active = 1, last_sent = datetime('now')
+                WHERE id = ?
+            ''', (message_id,))
+            conn.commit()
+        
+        # Schedule the recurring message
+        await schedule_recurring_message(message_id, group_id, interval_hours, repetition_type)
+        
+        # Send first message immediately
+        await send_recurring_message_now(message_id, group_id)
+        
+        # Show success message
+        success_text = "🚀 **Kartojami Pranešimai Pradėti!**\n\n"
+        success_text += "✅ Pirmasis pranešimas išsiųstas\n"
+        success_text += f"⏰ Kitas pranešimas bus išsiųstas po {repetition_type.lower().replace('every ', '')}\n"
+        success_text += f"📊 Pranešimas #{message_id} aktyvus"
+        
+        keyboard = [
+            [InlineKeyboardButton("📋 Valdyti pranešimus", callback_data="recurring_manage_private")],
+            [InlineKeyboardButton("➕ Pridėti dar vieną", callback_data="recurring_add_private")],
+            [InlineKeyboardButton("🔙 Grįžti į meniu", callback_data="back_to_main")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            success_text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+        # Clear the configuration
+        context.user_data.pop('current_message_config', None)
+        context.user_data.pop('editing_message_id', None)
+        context.user_data.pop('pending_schedule', None)
+        
+    except Exception as e:
+        logger.error(f"Error starting recurring message: {e}")
+        await query.answer("❌ Klaida paleidžiant pranešimus!")
+
+async def start_recurring_message_later(query, context):
+    """Save the message but don't start it yet"""
+    try:
+        pending = context.user_data.get('pending_schedule')
+        if not pending:
+            await query.answer("❌ Nėra laukiančio pranešimo!")
+            return
+        
+        message_id = pending['message_id']
+        repetition_type = pending['repetition_type']
+        
+        # Keep message inactive in database (is_active = 0)
+        
+        # Show success message
+        success_text = "💾 **Pranešimas Išsaugotas!**\n\n"
+        success_text += "✅ Pranešimas sukonfigūruotas bet dar nepradėtas\n"
+        success_text += f"⏰ Grafikas: {repetition_type}\n"
+        success_text += f"📊 Pranešimas #{message_id} neaktyvus\n\n"
+        success_text += "💡 Galite jį pradėti vėliau per 'Valdyti pranešimus'"
+        
+        keyboard = [
+            [InlineKeyboardButton("📋 Valdyti pranešimus", callback_data="recurring_manage_private")],
+            [InlineKeyboardButton("➕ Pridėti dar vieną", callback_data="recurring_add_private")],
+            [InlineKeyboardButton("🔙 Grįžti į meniu", callback_data="back_to_main")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            success_text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+        # Clear the configuration
+        context.user_data.pop('current_message_config', None)
+        context.user_data.pop('editing_message_id', None)
+        context.user_data.pop('pending_schedule', None)
+        
+    except Exception as e:
+        logger.error(f"Error saving recurring message: {e}")
+        await query.answer("❌ Klaida išsaugant pranešimą!")
+
+async def back_to_message_edit(query, context):
+    """Go back to message editing"""
+    try:
+        # Restore the editing state
+        pending = context.user_data.get('pending_schedule')
+        if pending and pending.get('is_edit'):
+            context.user_data['editing_message_id'] = pending['message_id']
+        
+        # Show the message config screen
+        await show_message_config(query, context, private_mode=True, edit_mode=pending.get('is_edit', False))
+        
+    except Exception as e:
+        logger.error(f"Error going back to edit: {e}")
+        await query.answer("❌ Klaida grįžtant į redagavimą!")
+
+async def schedule_recurring_message(message_id, group_id, interval_hours, repetition_type):
+    """Schedule a recurring message using APScheduler"""
+    try:
+        # Remove existing job if it exists
+        job_id = f"recurring_message_{message_id}"
+        try:
+            scheduler.remove_job(job_id)
+        except:
+            pass  # Job doesn't exist, that's fine
+        
+        # Add new recurring job
+        scheduler.add_job(
+            send_scheduled_recurring_message,
+            'interval',
+            hours=interval_hours,
+            args=[message_id, group_id],
+            id=job_id,
+            replace_existing=True,
+            max_instances=1
+        )
+        
+        logger.info(f"Scheduled recurring message {message_id} for group {group_id} every {interval_hours} hours")
+        
+    except Exception as e:
+        logger.error(f"Error scheduling recurring message: {e}")
+
+async def send_recurring_message_now(message_id, group_id):
+    """Send a recurring message immediately"""
+    try:
+        # Get message details from database
+        with database.get_connection() as conn:
+            cursor = conn.execute('''
+                SELECT message_text, message_media, message_buttons, pin_message, delete_last_message
+                FROM scheduled_messages 
+                WHERE id = ? AND is_active = 1
+            ''', (message_id,))
+            message_data = cursor.fetchone()
+        
+        if not message_data:
+            logger.error(f"Message {message_id} not found or inactive")
+            return
+        
+        message_text, message_media, message_buttons, pin_message, delete_last = message_data
+        
+        # Send the message
+        await send_scheduled_recurring_message(message_id, group_id)
+        
+    except Exception as e:
+        logger.error(f"Error sending recurring message now: {e}")
+
+async def send_scheduled_recurring_message(message_id, group_id):
+    """Send a scheduled recurring message (called by scheduler)"""
+    try:
+        # Get message details from database
+        with database.get_connection() as conn:
+            cursor = conn.execute('''
+                SELECT message_text, message_media, message_buttons, pin_message, delete_last_message
+                FROM scheduled_messages 
+                WHERE id = ? AND is_active = 1
+            ''', (message_id,))
+            message_data = cursor.fetchone()
+        
+        if not message_data:
+            logger.info(f"Message {message_id} not found or inactive, stopping scheduler")
+            # Remove the job if message is inactive
+            try:
+                scheduler.remove_job(f"recurring_message_{message_id}")
+            except:
+                pass
+            return
+        
+        message_text, message_media, message_buttons, pin_message, delete_last = message_data
+        
+        # Delete last message if enabled
+        if delete_last:
+            # Get and delete the last message sent by this recurring message
+            with database.get_connection() as conn:
+                cursor = conn.execute('''
+                    SELECT last_message_id FROM scheduled_messages WHERE id = ?
+                ''', (message_id,))
+                result = cursor.fetchone()
+                if result and result[0]:
+                    try:
+                        await application.bot.delete_message(chat_id=group_id, message_id=result[0])
+                    except Exception as e:
+                        logger.warning(f"Could not delete last message: {e}")
+        
+        # Parse and send the message
+        sent_message = None
+        
+        if message_media:
+            # Parse media info
+            import ast
+            try:
+                media_info = ast.literal_eval(message_media)
+                media_type = media_info.get('type')
+                file_id = media_info.get('file_id')
+                caption = message_text or media_info.get('caption', '')
+                
+                # Create reply markup if buttons exist
+                reply_markup = None
+                if message_buttons:
+                    buttons_data = ast.literal_eval(message_buttons)
+                    keyboard = []
+                    for button in buttons_data:
+                        keyboard.append([InlineKeyboardButton(button['text'], url=button['url'])])
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                # Send media message
+                if media_type == 'photo':
+                    sent_message = await application.bot.send_photo(
+                        chat_id=group_id, 
+                        photo=file_id, 
+                        caption=caption,
+                        reply_markup=reply_markup,
+                        parse_mode='Markdown'
+                    )
+                elif media_type == 'video':
+                    sent_message = await application.bot.send_video(
+                        chat_id=group_id, 
+                        video=file_id, 
+                        caption=caption,
+                        reply_markup=reply_markup,
+                        parse_mode='Markdown'
+                    )
+                elif media_type == 'animation':
+                    sent_message = await application.bot.send_animation(
+                        chat_id=group_id, 
+                        animation=file_id, 
+                        caption=caption,
+                        reply_markup=reply_markup,
+                        parse_mode='Markdown'
+                    )
+                elif media_type == 'document':
+                    sent_message = await application.bot.send_document(
+                        chat_id=group_id, 
+                        document=file_id, 
+                        caption=caption,
+                        reply_markup=reply_markup,
+                        parse_mode='Markdown'
+                    )
+                    
+            except Exception as e:
+                logger.error(f"Error parsing media info: {e}")
+                # Fallback to text message
+                sent_message = await application.bot.send_message(
+                    chat_id=group_id, 
+                    text=message_text or "Recurring message",
+                    parse_mode='Markdown'
+                )
+        else:
+            # Send text message
+            reply_markup = None
+            if message_buttons:
+                try:
+                    buttons_data = ast.literal_eval(message_buttons)
+                    keyboard = []
+                    for button in buttons_data:
+                        keyboard.append([InlineKeyboardButton(button['text'], url=button['url'])])
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                except:
+                    pass
+            
+            sent_message = await application.bot.send_message(
+                chat_id=group_id, 
+                text=message_text or "Recurring message",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        
+        # Pin message if enabled
+        if pin_message and sent_message:
+            try:
+                await application.bot.pin_chat_message(
+                    chat_id=group_id, 
+                    message_id=sent_message.message_id,
+                    disable_notification=True
+                )
+            except Exception as e:
+                logger.warning(f"Could not pin message: {e}")
+        
+        # Update last sent time and message ID in database
+        if sent_message:
+            with database.get_connection() as conn:
+                conn.execute('''
+                    UPDATE scheduled_messages 
+                    SET last_sent = datetime('now'), last_message_id = ?
+                    WHERE id = ?
+                ''', (sent_message.message_id, message_id))
+                conn.commit()
+        
+        logger.info(f"Sent recurring message {message_id} to group {group_id}")
+        
+    except Exception as e:
+        logger.error(f"Error sending scheduled recurring message: {e}")
+
 async def save_recurring_message(query, context):
     """Save a recurring message to database and schedule it"""
     try:
@@ -9134,27 +9451,35 @@ async def save_recurring_message(query, context):
                 await query.answer("❌ Klaida išsaugant pranešimą!")
                 return
         
-        # Display success message
-        success_text += f"⏰ **Grafikas:** {repetition_type}\n"
-        success_text += f"📌 **Pin:** {'Taip' if config.get('pin_message') else 'Ne'}\n"
-        success_text += f"🗑️ **Ištrinti paskutinį:** {'Taip' if config.get('delete_last') else 'Ne'}"
+        # Store message info for scheduling confirmation
+        context.user_data['pending_schedule'] = {
+            'message_id': editing_message_id if editing_message_id else message_id,
+            'group_id': group_id,
+            'repetition_type': repetition_type,
+            'interval_hours': interval_hours,
+            'is_edit': bool(editing_message_id)
+        }
+        
+        # Ask if user wants to start sending now
+        confirm_text = success_text
+        confirm_text += f"⏰ **Grafikas:** {repetition_type}\n"
+        confirm_text += f"📌 **Pin:** {'Taip' if config.get('pin_message') else 'Ne'}\n"
+        confirm_text += f"🗑️ **Ištrinti paskutinį:** {'Taip' if config.get('delete_last') else 'Ne'}\n\n"
+        confirm_text += "🚀 **Ar norite pradėti siųsti pranešimus dabar?**\n\n"
+        confirm_text += f"Pranešimai bus siunčiami kas {repetition_type.lower().replace('every ', '')}."
         
         keyboard = [
-            [InlineKeyboardButton("📋 Valdyti pranešimus", callback_data="recurring_manage_private")],
-            [InlineKeyboardButton("➕ Pridėti dar vieną", callback_data="recurring_add_private")],
-            [InlineKeyboardButton("🔙 Grįžti į meniu", callback_data="back_to_main")]
+            [InlineKeyboardButton("✅ Taip, pradėti dabar", callback_data="start_recurring_now")],
+            [InlineKeyboardButton("⏸️ Ne, pradėsiu vėliau", callback_data="start_recurring_later")],
+            [InlineKeyboardButton("🔙 Grįžti į redagavimą", callback_data="back_to_edit")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
-            success_text,
+            confirm_text,
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
-        
-        # Clear the configuration
-        context.user_data.pop('current_message_config', None)
-        context.user_data.pop('editing_message_id', None)
         
     except Exception as e:
         logger.error(f"Error in save_recurring_message: {e}")
