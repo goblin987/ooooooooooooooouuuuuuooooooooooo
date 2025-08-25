@@ -433,15 +433,15 @@ class Database:
                 (chat_id, message_text, message_media, message_buttons, message_type, 
                  repetition_type, interval_hours, days_of_week, days_of_month, time_slots,
                  start_date, end_date, pin_message, delete_last_message, scheduled_deletion_hours,
-                 status, created_by, created_by_username)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 status, created_by, created_by_username, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (chat_id, message_text, kwargs.get('message_media'), kwargs.get('message_buttons'),
                   kwargs.get('message_type', 'text'), kwargs.get('repetition_type', '24h'),
                   kwargs.get('interval_hours', 24), kwargs.get('days_of_week'), kwargs.get('days_of_month'),
                   kwargs.get('time_slots'), kwargs.get('start_date'), kwargs.get('end_date'),
                   kwargs.get('pin_message', 0), kwargs.get('delete_last_message', 0),
                   kwargs.get('scheduled_deletion_hours', 0), kwargs.get('status', 'active'),
-                  created_by, created_by_username))
+                  created_by, created_by_username, kwargs.get('is_active', 0)))
             conn.commit()
             return cursor.lastrowid
     
@@ -729,6 +729,25 @@ async def get_user_admin_groups(context, user_id):
 def parse_interval(interval_str):
     """Parse interval string to hours"""
     try:
+        if not interval_str:
+            return 24
+            
+        # Handle "Every X hours" format
+        if 'Every' in interval_str:
+            if '12 hours' in interval_str:
+                return 12
+            elif '6 hours' in interval_str:
+                return 6
+            elif '3 hours' in interval_str:
+                return 3
+            elif '1 hour' in interval_str:
+                return 1
+            elif '24 hours' in interval_str:
+                return 24
+            elif 'hour' in interval_str and '24' not in interval_str:
+                return 1
+                
+        # Handle simple formats
         if 'h' in interval_str:
             return int(interval_str.replace('h', ''))
         elif 'd' in interval_str:
@@ -3157,7 +3176,8 @@ def store_user_info(user):
     """Store user information in database for future username resolution"""
     if user and user.username:
         try:
-            with database.get_connection() as conn:
+            conn = database.get_sync_connection()
+            try:
                 conn.execute('''
                     INSERT OR REPLACE INTO user_cache 
                     (user_id, username, first_name, last_name, last_seen)
@@ -3165,6 +3185,8 @@ def store_user_info(user):
                 ''', (user.id, user.username, user.first_name, user.last_name))
                 conn.commit()
                 logger.debug(f"Stored user info: {user.username} (ID: {user.id})")
+            finally:
+                conn.close()
         except Exception as e:
             logger.warning(f"Error storing user info for {user.username}: {e}")
 
@@ -3181,7 +3203,7 @@ async def resolve_username_to_id(context, username_without_at, chat_id=None):
     
     # Method 1: Check our databases first (fastest)
     try:
-        with database.get_connection() as conn:
+        with database.get_sync_connection() as conn:
             # Check ban history first (most reliable for moderation)
             if chat_id:
                 cursor = conn.execute('''
@@ -5795,7 +5817,7 @@ async def ban_user(update: telegram.Update, context: telegram.ext.ContextTypes.D
         
         # Store ban information in database for future username resolution
         try:
-            with database.get_connection() as conn:
+            with database.get_sync_connection() as conn:
                 conn.execute('''
                     INSERT INTO ban_history 
                     (chat_id, user_id, username, first_name, banned_by, banned_by_username, reason)
@@ -5895,7 +5917,7 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
                 
                 # Method 1: Check ban history first - this is the most reliable for unban
                 try:
-                    with database.get_connection() as conn:
+                    with database.get_sync_connection() as conn:
                         cursor = conn.execute('''
                             SELECT user_id, username, first_name FROM ban_history 
                             WHERE chat_id = ? AND LOWER(username) = LOWER(?) AND is_active = 1
@@ -5921,7 +5943,7 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
                 # Method 2: If not in ban history, check general user cache
                 if target_id is None:
                     try:
-                        with database.get_connection() as conn:
+                        with database.get_sync_connection() as conn:
                             cursor = conn.execute('''
                                 SELECT user_id, username, first_name FROM user_cache 
                                 WHERE LOWER(username) = LOWER(?) 
@@ -6112,7 +6134,7 @@ async def unban_user(update: telegram.Update, context: telegram.ext.ContextTypes
         
         # Update ban history to mark as inactive
         try:
-            with database.get_connection() as conn:
+            with database.get_sync_connection() as conn:
                 conn.execute('''
                     UPDATE ban_history 
                     SET is_active = 0, unban_date = datetime('now'), unbanned_by = ?
@@ -9327,7 +9349,7 @@ async def start_recurring_message_now(query, context):
         interval_hours = pending['interval_hours']
         
         # Activate the message in database
-        with database.get_connection() as conn:
+        with database.get_sync_connection() as conn:
             conn.execute('''
                 UPDATE scheduled_messages 
                 SET is_active = 1, last_sent = datetime('now')
@@ -9519,7 +9541,7 @@ async def send_recurring_message_now(message_id, group_id):
     """Send a recurring message immediately"""
     try:
         # Get message details from database
-        with database.get_connection() as conn:
+        with database.get_sync_connection() as conn:
             cursor = conn.execute('''
                 SELECT message_text, message_media, message_buttons, pin_message, delete_last_message
                 FROM scheduled_messages 
@@ -9592,7 +9614,7 @@ async def send_scheduled_recurring_message(message_id, group_id):
     """Send a scheduled recurring message (called by scheduler)"""
     try:
         # Get message details from database
-        with database.get_connection() as conn:
+        with database.get_sync_connection() as conn:
             cursor = conn.execute('''
                 SELECT message_text, message_media, message_buttons, pin_message, delete_last_message
                 FROM scheduled_messages 
@@ -9614,7 +9636,7 @@ async def send_scheduled_recurring_message(message_id, group_id):
         # Delete last message if enabled
         if delete_last:
             # Get and delete the last message sent by this recurring message
-            with database.get_connection() as conn:
+            with database.get_sync_connection() as conn:
                 cursor = conn.execute('''
                     SELECT last_message_id FROM scheduled_messages WHERE id = ?
                 ''', (message_id,))
@@ -9721,7 +9743,7 @@ async def send_scheduled_recurring_message(message_id, group_id):
         
         # Update last sent time and message ID in database
         if sent_message:
-            with database.get_connection() as conn:
+            with database.get_sync_connection() as conn:
                 conn.execute('''
                     UPDATE scheduled_messages 
                     SET last_sent = datetime('now'), last_message_id = ?
@@ -9789,7 +9811,8 @@ async def save_recurring_message(query, context):
             # Update existing message
             try:
                 # Update the message in database
-                with database.get_connection() as conn:
+                conn = database.get_sync_connection()
+                try:
                     conn.execute('''
                         UPDATE scheduled_messages 
                         SET message_text = ?, message_media = ?, message_buttons = ?, 
@@ -9803,6 +9826,8 @@ async def save_recurring_message(query, context):
                         editing_message_id
                     ))
                     conn.commit()
+                finally:
+                    conn.close()
                 
                 success_text = "✅ **Pranešimas Atnaujintas!**\n\n"
                 success_text += "Jūsų kartojamas pranešimas buvo sėkmingai atnaujintas.\n\n"
