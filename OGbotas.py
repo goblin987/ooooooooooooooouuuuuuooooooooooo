@@ -7556,6 +7556,8 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         await show_time_selection(query, context)
     elif data == "toggle_message_status":
         await toggle_message_status_main(query, context)
+    elif data == "show_full_customize":
+        await show_full_customize_interface(query, context)
     elif data == "set_text":
         await set_message_text(query, context)
     elif data == "set_media":
@@ -7953,17 +7955,25 @@ async def show_message_config(query, context, private_mode=False, edit_mode=Fals
     
     # Message status with number and status
     message_number = context.user_data.get('current_message_number', 1)
-    status_icon = "❌" if message_config.get('status', 'Off') == 'Off' else "✅"
-    text += f"💬 **{message_number}** • {status_icon} **{message_config.get('status', 'Off')}**\n"
+    status = message_config.get('status', 'Off')
+    if status == 'On':
+        status_icon = "🟢"  # Green circle for On
+        text += f"💬 **{message_number}** • {status_icon} **{status}**\n"
+    else:
+        status_icon = "❌"  # Red X for Off
+        text += f"💬 **{message_number}** • {status_icon} **{status}**\n"
     text += f"⏰ Time: {message_config.get('time', '20:28')}\n"
     text += f"🔄 Every {message_config.get('repetition', '24 hours')}\n"
     text += f"📝 Message is {'not ' if not message_config.get('has_text') else ''}set."
     
     # Create keyboard exactly like GroupHelpBot - clean and simple
+    # Dynamic button text based on status
+    status_button_text = "❌ Off" if status == 'Off' else "🟢 On"
+    
     keyboard = [
         [InlineKeyboardButton("➕ Add message", callback_data="customize_message")],
-        [InlineKeyboardButton("📝 T", callback_data="set_text"), 
-         InlineKeyboardButton("❌ Off", callback_data="toggle_message_status"), 
+        [InlineKeyboardButton("📝 T", callback_data="show_full_customize"), 
+         InlineKeyboardButton(status_button_text, callback_data="toggle_message_status"), 
          InlineKeyboardButton("🗑️", callback_data="delete_message")],
         [InlineKeyboardButton("🔙 Back", callback_data="back_to_main")]
     ]
@@ -8084,6 +8094,37 @@ async def show_repetition_options(query, context):
         
         # Special options
         [InlineKeyboardButton("🔄 Repeat every few messages", callback_data="repeat_messages")],
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_full_customize_interface(query, context):
+    """Show full customize message interface - like second screenshot"""
+    config = context.user_data.get('current_message_config', {})
+    
+    text = "🔄 **Recurring messages**\n\n"
+    text += f"**Status:** {config.get('status', 'Off')}\n"
+    text += f"⏰ **Time:** {config.get('time', '20:28')}\n"
+    text += f"🔄 **Repetition:** Every {config.get('repetition', '24 hours')}\n"
+    text += f"📌 **Pin message:** {'✅' if config.get('pin_message', False) else '❌'}\n"
+    text += f"🗑️ **Delete last message:** {'✅' if config.get('delete_last', False) else '❌'}"
+    
+    keyboard = [
+        [InlineKeyboardButton("✏️ Customize message", callback_data="customize_message")],
+        [InlineKeyboardButton("⏰ Time", callback_data="set_time"), 
+         InlineKeyboardButton("🔄 Repetition", callback_data="set_repetition")],
+        [InlineKeyboardButton("📅 Days of the week", callback_data="set_days_week")],
+        [InlineKeyboardButton("📅 Days of the month", callback_data="set_days_month")],
+        [InlineKeyboardButton("🕐 Set time slot", callback_data="set_time_slot")],
+        [InlineKeyboardButton("📅 Start date", callback_data="set_start_date"), 
+         InlineKeyboardButton("📅 End date", callback_data="set_end_date")],
+        [InlineKeyboardButton(f"📌 Pin message {'✅' if config.get('pin_message', False) else '❌'}", 
+                            callback_data="toggle_pin_message")],
+        [InlineKeyboardButton(f"🗑️ Delete last message {'✅' if config.get('delete_last', False) else '❌'}", 
+                            callback_data="toggle_delete_last")],
+        [InlineKeyboardButton("⏱️ Scheduled deletion", callback_data="scheduled_deletion")],
         [InlineKeyboardButton("🔙 Back", callback_data="back_to_config")]
     ]
     
