@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Configuration and constants for OGbotas
+"""
+
+import os
+import pytz
+from pathlib import Path
+
+# Bot Configuration
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+ADMIN_CHAT_ID = int(os.getenv('ADMIN_CHAT_ID', '0'))
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+PORT = int(os.getenv('PORT', 8000))
+
+# Data Directory
+DATA_DIR = os.getenv('DATA_DIR', '/opt/render/data')
+
+# Timezone
+TIMEZONE = pytz.timezone('Europe/Vilnius')
+
+# Database Configuration
+DATABASE_PATH = Path(DATA_DIR) / 'bot_database.db'
+
+# File paths for pickle data
+PICKLE_FILES = {
+    'user_points': 'user_points.pkl',
+    'trusted_sellers': 'trusted_sellers.pkl',
+    'confirmed_scammers': 'confirmed_scammers.pkl',
+    'username_to_id': 'username_to_id.pkl',
+    'user_id_to_scammer': 'user_id_to_scammer.pkl',
+    'pending_scammer_reports': 'pending_scammer_reports.pkl',
+    'scammer_report_id': 'scammer_report_id.pkl',
+    'coinflip_challenges': 'coinflip_challenges.pkl',
+    'allowed_groups': 'allowed_groups.pkl'
+}
+
+# Rate limiting configuration
+RATE_LIMITS = {
+    'default': 5,  # 5 requests per minute
+    'admin': 20,   # 20 requests per minute for admins
+    'moderation': 10  # 10 moderation actions per minute
+}
+
+# Message deletion timeouts (in seconds)
+DELETE_TIMEOUTS = {
+    'short': 30,
+    'medium': 45,
+    'long': 90
+}
+
+# Points system configuration
+POINTS_CONFIG = {
+    'daily_award': 10,
+    'scammer_report': 3,
+    'coinflip_min': 1,
+    'coinflip_max': 10000
+}
+
+# Logging configuration
+LOG_CONFIG = {
+    'max_bytes': 10 * 1024 * 1024,  # 10MB
+    'backup_count': 5,
+    'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+}
