@@ -7558,6 +7558,8 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         await toggle_message_status_main(query, context)
     elif data == "show_full_customize":
         await show_full_customize_interface(query, context)
+    elif data == "delete_message":
+        await delete_current_message(query, context)
     elif data == "set_text":
         await set_message_text(query, context)
     elif data == "set_media":
@@ -7865,7 +7867,7 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         
         await show_message_customization(query, context)
     
-    # Handle group selection for recurring messages
+    # Handle group selection for recurring messages - go directly to config
     elif data.startswith("recurring_select_group_"):
         group_id = int(data.split("_")[-1])
         
@@ -7873,28 +7875,29 @@ async def handle_recurring_callback(update: telegram.Update, context: telegram.e
         context.user_data['target_group_id'] = group_id
         context.user_data['private_mode'] = True
         
-        # Get group info for display
+        # Get group info for display and store it
         try:
             chat_info = await context.bot.get_chat(group_id)
             group_name = chat_info.title or f"Grupė {group_id}"
+            context.user_data['target_group_name'] = group_name
         except Exception:
             group_name = f"Grupė {group_id}"
+            context.user_data['target_group_name'] = group_name
         
-        keyboard = [
-            [InlineKeyboardButton("➕ Pridėti pranešimą", callback_data="recurring_add_private")],
-            [InlineKeyboardButton("📋 Valdyti pranešimus", callback_data="recurring_manage_private")],
-            [InlineKeyboardButton("🔙 Atgal į grupių sąrašą", callback_data="recurring_back_to_groups")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        # Initialize or reset message config for this group
+        context.user_data['current_message_config'] = {
+            'status': 'Off',
+            'time': '20:28',
+            'repetition': 'Every 24 hours',
+            'pin_message': False,
+            'delete_last': False,
+            'has_text': False,
+            'has_media': False,
+            'has_buttons': False
+        }
         
-        await query.edit_message_text(
-            f"🔄 **Kartojami Pranešimai**\n\n"
-            f"📱 **Grupė:** {group_name}\n"
-            f"🆔 **ID:** `{group_id}`\n\n"
-            f"Pasirinkite veiksmą:",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
+        # Go directly to the recurring messages interface
+        await show_message_config(query, context, private_mode=True)
     
     # Handle add new group button
     elif data == "recurring_add_new_group":
@@ -7936,6 +7939,27 @@ async def show_message_config(query, context, private_mode=False, edit_mode=Fals
     lithuanian_tz = pytz.timezone('Europe/Vilnius')
     current_time = datetime.now(lithuanian_tz).strftime("%d/%m/%y %H:%M")
     
+    # Get group name
+    group_name = "Unknown Group"
+    try:
+        if private_mode:
+            # In private mode, try to get group name from stored info
+            stored_group_name = context.user_data.get('target_group_name')
+            if stored_group_name:
+                group_name = stored_group_name
+            else:
+                # Try to get group info
+                target_chat = await context.bot.get_chat(chat_id)
+                group_name = target_chat.title or f"Group {chat_id}"
+                context.user_data['target_group_name'] = group_name
+        else:
+            # Get current chat info
+            chat = await context.bot.get_chat(chat_id)
+            group_name = chat.title or f"Group {chat_id}"
+    except Exception as e:
+        logger.warning(f"Could not get group name for {chat_id}: {e}")
+        group_name = f"Group {chat_id}"
+    
     # Get current message config from user data or defaults
     message_config = context.user_data.get('current_message_config', {
         'status': 'Off',
@@ -7953,15 +7977,14 @@ async def show_message_config(query, context, private_mode=False, edit_mode=Fals
     text += f"From this menu you can set messages that will be sent repeatedly to the group every few minutes/hours or every few messages.\n\n"
     text += f"**Current time:** {current_time}\n\n"
     
-    # Message status with number and status
-    message_number = context.user_data.get('current_message_number', 1)
+    # Show group name and message status
     status = message_config.get('status', 'Off')
     if status == 'On':
         status_icon = "🟢"  # Green circle for On
-        text += f"💬 **{message_number}** • {status_icon} **{status}**\n"
+        text += f"💬 **{group_name}** • {status_icon} **{status}**\n"
     else:
         status_icon = "❌"  # Red X for Off
-        text += f"💬 **{message_number}** • {status_icon} **{status}**\n"
+        text += f"💬 **{group_name}** • {status_icon} **{status}**\n"
     text += f"⏰ Time: {message_config.get('time', '20:28')}\n"
     text += f"🔄 Every {message_config.get('repetition', '24 hours')}\n"
     text += f"📝 Message is {'not ' if not message_config.get('has_text') else ''}set."
@@ -8130,6 +8153,23 @@ async def show_full_customize_interface(query, context):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def delete_current_message(query, context):
+    """Delete/reset current message configuration"""
+    # Reset the message config to defaults
+    context.user_data['current_message_config'] = {
+        'status': 'Off',
+        'time': '20:28',
+        'repetition': 'Every 24 hours',
+        'pin_message': False,
+        'delete_last': False,
+        'has_text': False,
+        'has_media': False,
+        'has_buttons': False
+    }
+    
+    await query.answer("🗑️ Pranešimo konfigūracija ištrinta")
+    await show_message_config(query, context)
 
 async def toggle_message_status_main(query, context):
     """Toggle message on/off status"""
