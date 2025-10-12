@@ -372,6 +372,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             update.effective_user.last_name
         )
     
+    # Check game challenge handlers FIRST (work in both private and group chats)
+    if await games.handle_game_challenge(update, context):
+        return
+    
+    if await points_games.handle_dice2_challenge(update, context):
+        return
+    
     # Handle private chat input
     if update.effective_chat.type == 'private':
         # Check if it's admin panel input
@@ -387,14 +394,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Check if awaiting input for masked users
         if context.user_data.get('mask_action'):
             await masked_users.handle_text_input(update, context)
-            return
-        
-        # Check if awaiting game challenge (crypto games)
-        if await games.handle_game_challenge(update, context):
-            return
-        
-        # Check if awaiting dice2 challenge (points game)
-        if await points_games.handle_dice2_challenge(update, context):
             return
         
         # Check if awaiting withdrawal details

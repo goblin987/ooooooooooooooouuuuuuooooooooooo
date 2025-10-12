@@ -110,18 +110,18 @@ async def dice2_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['dice2_setup'] = setup
 
         keyboard = [
-            [InlineKeyboardButton("🎲 Normal Mode", callback_data="dice2_mode_normal")],
-            [InlineKeyboardButton("🎲 Double Roll", callback_data="dice2_mode_double")],
-            [InlineKeyboardButton("🎲 Crazy Mode", callback_data="dice2_mode_crazy")],
-            [InlineKeyboardButton("ℹ️ Mode Guide", callback_data="dice2_mode_guide"),
-             InlineKeyboardButton("❌ Cancel", callback_data="dice2_cancel")]
+            [InlineKeyboardButton("🎲 Normalus", callback_data="dice2_mode_normal")],
+            [InlineKeyboardButton("🎲 Dvigubas", callback_data="dice2_mode_double")],
+            [InlineKeyboardButton("🎲 Beprotiškas", callback_data="dice2_mode_crazy")],
+            [InlineKeyboardButton("ℹ️ Režimų gidas", callback_data="dice2_mode_guide"),
+             InlineKeyboardButton("❌ Atšaukti", callback_data="dice2_cancel")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        message = await update.message.reply_text("🎲 Choose the game mode:", reply_markup=reply_markup)
+        message = await update.message.reply_text("🎲 **Pasirinkite žaidimo režimą:**", reply_markup=reply_markup, parse_mode='Markdown')
         setup['message_id'] = message.message_id
 
     except ValueError as e:
-        await update.message.reply_text(f"Invalid bet amount: {str(e)}. Use a positive number.")
+        await update.message.reply_text(f"❌ Neteisingas statymas: {str(e)}. Naudokite teigiamą skaičių.")
 
 
 # ============================================================================
@@ -136,16 +136,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     points = get_user_points(user_id)
     
     text = (
-        f"💎 **Points Balance**\n\n"
-        f"👤 User: @{username}\n"
-        f"💰 Points: {points}\n\n"
-        f"_These are reward points, separate from crypto balance._\n\n"
-        f"**Play with Points:**\n"
-        f"• `/dice2 <points>` - Dice PvP game\n\n"
-        f"**Earn Points:**\n"
-        f"• Be active in the group\n"
-        f"• Complete tasks\n"
-        f"• Admin rewards"
+        f"💎 **Jūsų Taškai**\n\n"
+        f"👤 Vartotojas: @{username}\n"
+        f"💰 Taškai: {points}\n\n"
+        f"_Tai atlygio taškai, atskirti nuo kripto balanso._\n\n"
+        f"**Žaisti su taškais:**\n"
+        f"• `/dice2 <taškai>` - Kauliukų PvP žaidimas\n\n"
+        f"**Užsidirbti taškų:**\n"
+        f"• Būti aktyviam grupėje\n"
+        f"• Balsuoti už pardavėjus\n"
+        f"• Administratorių atlygis"
     )
     
     await update.message.reply_text(text, parse_mode='Markdown')
@@ -178,30 +178,33 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         # Mode guide
         if data == "dice2_mode_guide":
             guide_text = (
-                "🎲 **Normal Mode**: Roll one die, highest number wins the round.\n\n"
-                "🎲 **Double Roll**: Roll two dice, highest sum wins the round.\n\n"
-                "🎲 **Crazy Mode**: Roll one die, lowest number (inverted: 6=1, 1=6) wins the round."
+                "🎲 **Normalus režimas**\n"
+                "Metami 1 kauliukas, didžiausias skaičius laimi raundą.\n\n"
+                "🎲 **Dvigubas režimas**\n"
+                "Metami 2 kauliukai, didžiausia suma laimi raundą.\n\n"
+                "🎲 **Beprotiškas režimas**\n"
+                "Metamas 1 kauliukas, mažiausias skaičius laimi (invertuota: 6=1, 1=6)."
             )
-            keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="dice2_back")]]
+            keyboard = [[InlineKeyboardButton("🔙 Atgal", callback_data="dice2_back")]]
             await query.edit_message_text(guide_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
             return True
 
         # Back button
         elif data == "dice2_back":
             keyboard = [
-                [InlineKeyboardButton("🎲 Normal Mode", callback_data="dice2_mode_normal")],
-                [InlineKeyboardButton("🎲 Double Roll", callback_data="dice2_mode_double")],
-                [InlineKeyboardButton("🎲 Crazy Mode", callback_data="dice2_mode_crazy")],
-                [InlineKeyboardButton("ℹ️ Mode Guide", callback_data="dice2_mode_guide"),
-                 InlineKeyboardButton("❌ Cancel", callback_data="dice2_cancel")]
+                [InlineKeyboardButton("🎲 Normalus", callback_data="dice2_mode_normal")],
+                [InlineKeyboardButton("🎲 Dvigubas", callback_data="dice2_mode_double")],
+                [InlineKeyboardButton("🎲 Beprotiškas", callback_data="dice2_mode_crazy")],
+                [InlineKeyboardButton("ℹ️ Režimų gidas", callback_data="dice2_mode_guide"),
+                 InlineKeyboardButton("❌ Atšaukti", callback_data="dice2_cancel")]
             ]
-            await query.edit_message_text("🎲 Choose the game mode:", reply_markup=InlineKeyboardMarkup(keyboard))
+            await query.edit_message_text("🎲 **Pasirinkite žaidimo režimą:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
             return True
 
         # Cancel
         elif data == "dice2_cancel":
             del context.user_data[setup_key]
-            await query.edit_message_text("❌ Game setup cancelled.")
+            await query.edit_message_text("❌ Žaidimo nustatymas atšauktas.")
             return True
 
         # Mode selection
@@ -209,12 +212,12 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             mode = data.split('_')[2]
             context.user_data['dice2_mode'] = mode
             keyboard = [
-                [InlineKeyboardButton("🏆 First to 1 point", callback_data="dice2_points_1")],
-                [InlineKeyboardButton("🏅 First to 2 points", callback_data="dice2_points_2")],
-                [InlineKeyboardButton("🥇 First to 3 points", callback_data="dice2_points_3")],
-                [InlineKeyboardButton("❌ Cancel", callback_data="dice2_cancel")]
+                [InlineKeyboardButton("🏆 Pirmas iki 1 tšk", callback_data="dice2_points_1")],
+                [InlineKeyboardButton("🏅 Pirmas iki 2 tšk", callback_data="dice2_points_2")],
+                [InlineKeyboardButton("🥇 Pirmas iki 3 tšk", callback_data="dice2_points_3")],
+                [InlineKeyboardButton("❌ Atšaukti", callback_data="dice2_cancel")]
             ]
-            await query.edit_message_text("🎲 Choose points to win:", reply_markup=InlineKeyboardMarkup(keyboard))
+            await query.edit_message_text("🎲 **Iki kiek taškų žaisti?**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
             return True
 
         # Points selection
@@ -222,18 +225,17 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             points = int(data.split('_')[2])
             context.user_data['dice2_points'] = points
             bet = setup['bet']
-            mode = context.user_data['dice2_mode'].capitalize()
+            mode_lt = {'normal': 'Normalus', 'double': 'Dvigubas', 'crazy': 'Beprotiškas'}.get(context.user_data['dice2_mode'], 'Normalus')
             text = (
-                f"🎲 **Game confirmation**\n"
-                f"Game: Dice (Points) 🎲\n"
-                f"First to {points} points\n"
-                f"Mode: {mode} Mode\n"
-                f"Your bet: {bet} points\n"
-                f"Win multiplier: 1.92x"
+                f"🎲 **Patvirtinkite žaidimą**\n\n"
+                f"💰 Statymas: {bet} tšk\n"
+                f"🎯 Pirmas iki: {points} tšk\n"
+                f"⚙️ Režimas: {mode_lt}\n"
+                f"📈 Laimėjimo koeficientas: 1.92x"
             )
             keyboard = [
-                [InlineKeyboardButton("✅ Confirm", callback_data="dice2_confirm_setup"),
-                 InlineKeyboardButton("❌ Cancel", callback_data="dice2_cancel")]
+                [InlineKeyboardButton("✅ Patvirtinti", callback_data="dice2_confirm_setup"),
+                 InlineKeyboardButton("❌ Atšaukti", callback_data="dice2_cancel")]
             ]
             await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
             return True
@@ -241,27 +243,27 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         # Confirm setup
         elif data == "dice2_confirm_setup":
             bet = setup['bet']
-            mode = context.user_data['dice2_mode'].capitalize()
+            mode_lt = {'normal': 'Normalus', 'double': 'Dvigubas', 'crazy': 'Beprotiškas'}.get(context.user_data['dice2_mode'], 'Normalus')
             points = context.user_data['dice2_points']
-            username = query.from_user.username or "Someone"
+            username = query.from_user.username or "Žaidėjas"
             
             mode_description = {
-                'normal': "Roll one die, highest number wins the round.",
-                'double': "Roll two dice, highest sum wins the round.",
-                'crazy': "Roll one die, lowest number (inverted: 6=1, 1=6) wins the round."
+                'normal': "Metamas 1 kauliukas, didžiausias skaičius laimi.",
+                'double': "Metami 2 kauliukai, didžiausia suma laimi.",
+                'crazy': "Metamas 1 kauliukas, mažiausias skaičius laimi (6→1, 1→6)."
             }
             
             text = (
-                f"🎲 {username} wants to play Dice (Points)!\n\n"
-                f"Bet: {bet} points\n"
-                f"Win multiplier: 1.92x\n"
-                f"Mode: First to {points} points\n\n"
-                f"{mode} Mode: {mode_description[context.user_data['dice2_mode']]}"
+                f"🎲 **{username}** nori žaisti kauliukus!\n\n"
+                f"💰 Statymas: **{bet} tšk**\n"
+                f"🎯 Pirmas iki: **{points} tšk**\n"
+                f"⚙️ Režimas: {mode_lt}\n\n"
+                f"_{mode_description[context.user_data['dice2_mode']]}_"
             )
             keyboard = [
-                [InlineKeyboardButton("🤝 Challenge a Player", callback_data="dice2_challenge")]
+                [InlineKeyboardButton("🤝 Mesti iššūkį", callback_data="dice2_challenge")]
             ]
-            await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard))
+            await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
             return True
 
         # Challenge button
@@ -269,7 +271,9 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             context.user_data['expecting_username'] = 'dice2'
             await context.bot.send_message(
                 chat_id=chat_id,
-                text="Enter the username of the player you want to challenge (e.g., @username):"
+                text="👤 **Įveskite žaidėjo vardą:**\n"
+                     "Pavyzdžiui: `@username`",
+                parse_mode='Markdown'
             )
             return True
 
@@ -624,13 +628,13 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
         challenged_id = chat_member.id
         
         if challenged_id == user_id:
-            await update.message.reply_text("❌ You can't challenge yourself!")
+            await update.message.reply_text("❌ Negalite mesti iššūkio sau!")
             del context.user_data['expecting_username']
             return True
         
         # Check if challenged user has points
         if not user_has_points(challenged_id):
-            await update.message.reply_text("❌ This user hasn't earned any points yet!")
+            await update.message.reply_text("❌ Šis vartotojas dar neturi taškų!")
             del context.user_data['expecting_username']
             return True
         
@@ -643,7 +647,7 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
         
         challenged_balance = get_user_points(challenged_id)
         if setup['bet'] > challenged_balance:
-            await update.message.reply_text(f"❌ @{username} doesn't have enough points! They have {challenged_balance} points.")
+            await update.message.reply_text(f"❌ @{username} neturi pakankamai taškų!\nTuri: {challenged_balance} tšk.")
             del context.user_data['expecting_username']
             return True
         
@@ -657,30 +661,29 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
             'bet': setup['bet']
         }
         
-        initiator_username = update.effective_user.username or "Someone"
-        mode = context.user_data['dice2_mode'].capitalize()
+        initiator_username = update.effective_user.username or "Žaidėjas"
+        mode_lt = {'normal': 'Normalus', 'double': 'Dvigubas', 'crazy': 'Beprotiškas'}.get(context.user_data['dice2_mode'], 'Normalus')
         points = context.user_data['dice2_points']
         
         text = (
-            f"🎲 {initiator_username} challenges @{username} to Dice (Points)!\n\n"
-            f"Bet: {setup['bet']} points\n"
-            f"Win multiplier: 1.92x\n"
-            f"Mode: {mode} Mode\n"
-            f"First to {points} points\n\n"
-            f"@{username}, do you accept?"
+            f"🎲 **{initiator_username}** meta iššūkį **@{username}!**\n\n"
+            f"💰 Statymas: {setup['bet']} tšk\n"
+            f"🎯 Pirmas iki: {points} tšk\n"
+            f"⚙️ Režimas: {mode_lt}\n\n"
+            f"@{username}, ar priimi iššūkį?"
         )
         keyboard = [
-            [InlineKeyboardButton("Accept", callback_data=f"dice2_accept_{game_id}"),
-             InlineKeyboardButton("Cancel", callback_data=f"dice2_cancel_challenge_{game_id}")]
+            [InlineKeyboardButton("✅ Priimti", callback_data=f"dice2_accept_{game_id}"),
+             InlineKeyboardButton("❌ Atsisakyti", callback_data=f"dice2_cancel_challenge_{game_id}")]
         ]
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
         
         del context.user_data['expecting_username']
         return True
         
     except Exception as e:
         logger.error(f"Error in dice2 challenge: {e}")
-        await update.message.reply_text("❌ User not found! Make sure they're in this chat.")
+        await update.message.reply_text("❌ Vartotojas nerastas! Įsitikinkite, kad jis yra šiame pokalbyje.")
         del context.user_data['expecting_username']
         return True
 
