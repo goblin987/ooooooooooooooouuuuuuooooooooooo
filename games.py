@@ -337,7 +337,7 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
                 f"First to {points} points\n"
                 f"Mode: {mode} Mode\n"
                 f"Your bet: ${bet:.2f}\n"
-                f"Win multiplier: 1.92x"
+                f"Win multiplier: 1.824x (after 5% house fee)"
             )
             keyboard = [
                 [InlineKeyboardButton("✅ Confirm", callback_data=f"{game_type}_confirm_setup"),
@@ -378,7 +378,7 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
             text = (
                 f"{emoji} {username} wants to play {game_type.capitalize()}!\n\n"
                 f"Bet: ${bet:.2f}\n"
-                f"Win multiplier: 1.92x\n"
+                f"Win multiplier: 1.824x (after 5% house fee)\n"
                 f"Mode: First to {points} points\n\n"
                 f"{mode} Mode: {mode_descriptions[game_type][context.user_data[f'{game_type}_mode']]}"
             )
@@ -706,9 +706,13 @@ async def evaluate_round(game, chat_id, game_key, context, game_type):
     if max(game['scores'].values()) >= game['points_to_win']:
         winner = 'player1' if game['scores']['player1'] > game['scores']['player2'] else 'player2'
         winner_id = game[winner]
-        prize = game['bet'] * 1.92
         
-        update_user_balance(winner_id, get_user_balance(winner_id) + prize + game['bet'])
+        # Calculate winnings with 5% house edge
+        gross_prize = game['bet'] * 1.92
+        house_cut = gross_prize * 0.05  # 5% house edge
+        net_prize = gross_prize - house_cut
+        
+        update_user_balance(winner_id, get_user_balance(winner_id) + net_prize + game['bet'])
         winner_username = player1_username if winner == 'player1' else player2_username
         
         text = (
@@ -720,7 +724,8 @@ async def evaluate_round(game, chat_id, game_key, context, game_type):
             f"@{player1_username}: {game['scores']['player1']}\n"
             f"@{player2_username}: {game['scores']['player2']}\n\n"
             f"🏆 Game over!\n"
-            f"🎉 @{winner_username} wins ${prize:.2f}!"
+            f"🎉 @{winner_username} wins ${net_prize:.2f}!\n"
+            f"_House fee (5%): ${house_cut:.2f}_"
         )
         
         player1_balance = get_user_balance(game['player1'])

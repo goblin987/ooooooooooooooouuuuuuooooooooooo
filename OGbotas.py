@@ -115,9 +115,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/basketball <points>` - 🏀 Basketball\n"
         "• `/football <points>` - ⚽ Football\n"
         "• `/bowling <points>` - 🎳 Bowling\n\n"
-        "**Points Games (Saved Points Only):**\n"
-        "• `/dice2 <points> <prediction>` - 🎲 Dice betting\n"
-        "• `/coinflip <points> heads/tails` - 🪙 Coinflip\n"
+        "**Points Games (Saved Points, PvP):**\n"
+        "• `/dice2 <points>` - 🎲 Dice PvP (no crypto)\n"
         "• `/points` - Check your points balance\n\n"
         "**Balance & Payments:**\n"
         "• `/balance` - Check balance, deposit/withdraw\n\n"
@@ -428,7 +427,6 @@ def main() -> None:
     
     # Points games commands (saved points only, NO crypto)
     application.add_handler(CommandHandler("dice2", points_games.dice2_command))
-    application.add_handler(CommandHandler("coinflip", points_games.coinflip_command))
     application.add_handler(CommandHandler("points", points_games.points_command))
     
     # Payment commands (balance, deposit, withdraw)
