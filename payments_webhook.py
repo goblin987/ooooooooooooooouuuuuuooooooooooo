@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+NOWPayments Webhook Handler
+This module handles payment status updates from NOWPayments
+"""
+
+import logging
+from database import database
+
+logger = logging.getLogger(__name__)
+
+
+async def handle_nowpayments_webhook(data: dict) -> bool:
+    """
+    Handle NOWPayments webhook callback
+    
+    Webhook structure:
+    {
+        "payment_id": "123456",
+        "payment_status": "finished",
+        "pay_amount": 0.001,
+        "pay_currency": "ltc",
+        "price_amount": 10.00,
+        "price_currency": "usd",
+        "order_id": "user_12345",
+        ...
+    }
+    """
+    try:
+        payment_status = data.get('payment_status')
+        order_id = data.get('order_id')
+        pay_amount = float(data.get('pay_amount', 0))
+        price_amount = float(data.get('price_amount', 0))
+        pay_currency = data.get('pay_currency', 'unknown')
+        
+        logger.info(f"📥 Webhook: order_id={order_id}, status={payment_status}, amount=${price_amount}")
+        
+        # Extract user_id from order_id (format: "user_12345")
+        if not order_id or not order_id.startswith('user_'):
+            logger.warning(f"Invalid order_id format: {order_id}")
+            return False
+        
+        user_id = int(order_id.split('_')[1])
+        
+        # Handle payment status
+        if payment_status == 'finished':
+            # Payment successful - add balance
+            logger.info(f"✅ Payment finished for user {user_id}: ${price_amount}")
+            
+            conn = database.get_sync_connection()
+            
+            # Get current balance
+            cursor = conn.execute(
+                "SELECT balance FROM users WHERE user_id = ?",
+                (user_id,)
+            )
+            result = cursor.fetchone()
+            current_balance = result[0] if result else 0.0
+            
+            # Add payment amount
+            new_balance = current_balance + price_amount
+            
+            # Update balance
+            conn.execute(
+                "INSERT OR REPLACE INTO users (user_id, balance) VALUES (?, ?)",
+                (user_id, new_balance)
+            )
+            conn.commit()
+            conn.close()
+            
+            logger.info(f"✅ Balance updated: user {user_id} → ${new_balance}")
+            
+            # TODO: Send notification to user
+            # await context.bot.send_message(
+            #     chat_id=user_id,
+            #     text=f"✅ Deposit successful!\n\n"
+            #          f"Amount: ${price_amount}\n"
+            #          f"New balance: ${new_balance}"
+            # )
+            
+            return True
+            
+        elif payment_status == 'partially_paid':
+            logger.warning(f"⚠️ Partial payment for user {user_id}")
+            return True
+            
+        elif payment_status in ['failed', 'expired', 'refunded']:
+            logger.warning(f"❌ Payment {payment_status} for user {user_id}")
+            return True
+            
+        else:
+            # Waiting, confirming, sending, etc.
+            logger.info(f"⏳ Payment status: {payment_status} for user {user_id}")
+            return True
+            
+    except Exception as e:
+        logger.error(f"❌ Webhook processing error: {e}", exc_info=True)
+        return False
+
+
+__all__ = ['handle_nowpayments_webhook']
+

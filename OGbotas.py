@@ -62,6 +62,7 @@ import telegram
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from telegram import Update
 from telegram.ext import ContextTypes
+from aiohttp import web
 
 # Initialize scheduler
 recurring_messages.init_scheduler()
@@ -512,20 +513,102 @@ def main() -> None:
     # Message handler (for private chat input and group messages)
     application.add_handler(MessageHandler(~filters.COMMAND, handle_message))
     
-    # Start the bot
-    if WEBHOOK_URL:
-        # Sanitize URL for logging (hide token)
-        safe_webhook = f"{WEBHOOK_URL}/webhook/***TOKEN***"
-        logger.info(f"🌐 Starting webhook mode on {safe_webhook}")
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            webhook_url=f"{WEBHOOK_URL}/webhook/{BOT_TOKEN}",
-            url_path=f"/webhook/{BOT_TOKEN}"
-        )
-    else:
-        logger.info("🔄 Starting polling mode...")
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Return configured application
+    return application
+
+
+# ============================================================================
+# HTTP SERVER FOR WEBHOOKS (NOWPayments)
+# ============================================================================
+
+async def webhook_handler(request):
+    """Handle NOWPayments webhook callbacks"""
+    try:
+        data = await request.json()
+        payment_status = data.get('payment_status', 'unknown')
+        logger.info(f"📥 NOWPayments webhook: status={payment_status}")
+        
+        # Process payment webhook
+        import payments_webhook
+        result = await payments_webhook.handle_nowpayments_webhook(data)
+        
+        if result:
+            return web.Response(text="OK", status=200)
+        else:
+            return web.Response(text="Invalid webhook", status=400)
+            
+    except Exception as e:
+        logger.error(f"❌ Webhook error: {e}")
+        return web.Response(text="Error", status=500)
+
+
+async def health_check(request):
+    """Health check endpoint for Render"""
+    return web.Response(text="✅ Bot is running!", status=200)
+
+
+async def start_http_server():
+    """Start HTTP server for webhooks and health checks"""
+    app = web.Application()
+    
+    # Health check endpoints
+    app.router.add_get('/', health_check)
+    app.router.add_get('/health', health_check)
+    
+    # NOWPayments webhook endpoint
+    app.router.add_post('/webhook/nowpayments', webhook_handler)
+    
+    # Start server
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    port = PORT or 8080
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    
+    logger.info(f"🌐 HTTP Server started on port {port}")
+    logger.info(f"   Health: https://your-app.onrender.com/health")
+    logger.info(f"   NOWPayments Webhook: https://your-app.onrender.com/webhook/nowpayments")
+    
+    return runner
+
+
+async def main():
+    """Run the bot with polling + HTTP server for webhooks"""
+    logger.info("🚀 Starting OGbotas...")
+    
+    # Create and configure application
+    application = create_application()
+    
+    # Start HTTP server for NOWPayments webhooks
+    logger.info("🌐 Starting HTTP server for webhooks...")
+    web_runner = await start_http_server()
+    
+    try:
+        # Start bot in polling mode
+        logger.info("🤖 Starting bot in POLLING mode...")
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+        
+        logger.info("✅ Bot is fully operational!")
+        logger.info("   - Polling: Receiving Telegram updates")
+        logger.info("   - HTTP Server: Ready for payment webhooks")
+        
+        # Keep running forever
+        import asyncio
+        await asyncio.Event().wait()
+        
+    except KeyboardInterrupt:
+        logger.info("🛑 Stopping bot...")
+    finally:
+        # Cleanup
+        if application.updater.running:
+            await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
+        await web_runner.cleanup()
+        logger.info("👋 Bot stopped.")
 
 if __name__ == '__main__':
     main()
