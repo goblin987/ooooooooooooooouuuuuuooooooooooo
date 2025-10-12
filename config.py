@@ -9,11 +9,12 @@ import pytz
 from pathlib import Path
 
 # Bot Configuration
-BOT_TOKEN = os.getenv('BOT_TOKEN')
+# Support both BOT_TOKEN and TELEGRAM_TOKEN for compatibility
+BOT_TOKEN = os.getenv('BOT_TOKEN') or os.getenv('TELEGRAM_TOKEN')
 
 # Validate critical configuration
 if not BOT_TOKEN:
-    raise ValueError("❌ ERROR: BOT_TOKEN environment variable not set!")
+    raise ValueError("❌ ERROR: BOT_TOKEN or TELEGRAM_TOKEN environment variable not set!")
 
 if len(BOT_TOKEN) < 40 or ':' not in BOT_TOKEN:
     raise ValueError("❌ ERROR: BOT_TOKEN appears to be invalid! Should be format: 123456789:ABCdefGHI...")
