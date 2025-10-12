@@ -18,6 +18,38 @@ from moderation_grouphelp import is_admin
 
 logger = logging.getLogger(__name__)
 
+# Helper functions for points (USE DATABASE, not pickle!)
+def get_user_points(user_id: int) -> int:
+    """Get user points from database"""
+    try:
+        conn = database.get_sync_connection()
+        cursor = conn.execute(
+            "SELECT points FROM users WHERE user_id = ?",
+            (user_id,)
+        )
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result else 0
+    except Exception as e:
+        logger.error(f"Error getting points: {e}")
+        return 0
+
+
+def update_user_points(user_id: int, points: int) -> bool:
+    """Update user points in database"""
+    try:
+        conn = database.get_sync_connection()
+        conn.execute(
+            "INSERT OR REPLACE INTO users (user_id, points) VALUES (?, ?)",
+            (user_id, points)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Error updating points: {e}")
+        return False
+
 # Load global data
 user_points = data_manager.load_data('user_points.pkl', {})
 trusted_sellers = data_manager.load_data('trusted_sellers.pkl', {})

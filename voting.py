@@ -14,6 +14,7 @@ from telegram.ext import ContextTypes
 import telegram
 from utils import data_manager
 from config import TIMEZONE, ADMIN_CHAT_ID
+from database import database
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,38 @@ voting_message_id = data_manager.load_data('voting_message_id.pkl', None)
 
 # Trusted sellers list
 trusted_sellers = data_manager.load_data('trusted_sellers.pkl', [])
-user_points = data_manager.load_data('user_points.pkl', {})
+
+# Helper functions for points (USE DATABASE, not pickle!)
+def get_user_points(user_id: int) -> int:
+    """Get user points from database"""
+    try:
+        conn = database.get_sync_connection()
+        cursor = conn.execute(
+            "SELECT points FROM users WHERE user_id = ?",
+            (user_id,)
+        )
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result else 0
+    except Exception as e:
+        logger.error(f"Error getting points: {e}")
+        return 0
+
+
+def update_user_points(user_id: int, points: int) -> bool:
+    """Update user points in database"""
+    try:
+        conn = database.get_sync_connection()
+        conn.execute(
+            "INSERT OR REPLACE INTO users (user_id, points) VALUES (?, ?)",
+            (user_id, points)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Error updating points: {e}")
+        return False
 
 logger.info(f"📊 Voting data loaded:")
 logger.info(f"  - Weekly votes: {sum(votes_weekly.values())} total")
@@ -135,16 +167,19 @@ async def handle_vote_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     votes_alltime[seller] += 1
     voters.add(user_id)
     vote_history[seller].append((user_id, "up", "Button vote", now))
-    user_points[user_id] = user_points.get(user_id, 0) + 15
+    
+    # Add points to DATABASE (not pickle!)
+    current_points = get_user_points(user_id)
+    update_user_points(user_id, current_points + 15)
+    
     last_vote_attempt[user_id] = now
     
-    # Save data
+    # Save voting data
     data_manager.save_data(votes_weekly, 'votes_weekly.pkl')
     data_manager.save_data(votes_monthly, 'votes_monthly.pkl')
     data_manager.save_data(votes_alltime, 'votes_alltime.pkl')
     data_manager.save_data(vote_history, 'vote_history.pkl')
     data_manager.save_data(last_vote_attempt, 'last_vote_attempt.pkl')
-    data_manager.save_data(user_points, 'user_points.pkl')
     data_manager.save_data(voters, 'voters.pkl')
     
     await query.answer("Ačiū už jūsų balsą, 15 taškų buvo pridėti prie jūsų sąskaitos.")
