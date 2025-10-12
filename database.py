@@ -161,6 +161,21 @@ class Database:
                 last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        
+        # Pending bans table - for users to be banned when they join
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS pending_bans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                username TEXT,
+                chat_id INTEGER NOT NULL,
+                banned_by INTEGER NOT NULL,
+                banned_by_username TEXT,
+                reason TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, chat_id)
+            )
+        ''')
     
     def _create_indexes(self, conn):
         """Create database indexes for performance"""
@@ -177,7 +192,9 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_helpers_user_id ON helpers(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_scammer_reports_status ON scammer_reports(status)",
             "CREATE INDEX IF NOT EXISTS idx_users_points ON users(points)",
-            "CREATE INDEX IF NOT EXISTS idx_users_balance ON users(balance)"
+            "CREATE INDEX IF NOT EXISTS idx_users_balance ON users(balance)",
+            "CREATE INDEX IF NOT EXISTS idx_pending_bans_user_id ON pending_bans(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_pending_bans_chat_id ON pending_bans(chat_id)"
         ]
         
         for index_sql in indexes:
@@ -266,6 +283,75 @@ class Database:
         except Exception as e:
             logger.error(f"Error getting user by ID {user_id}: {e}")
             return None
+    
+    # Pending bans methods
+    def add_pending_ban(self, user_id: int, username: str, chat_id: int, banned_by: int, 
+                       banned_by_username: str, reason: str = None):
+        """Add user to pending ban list"""
+        try:
+            conn = self.get_sync_connection()
+            try:
+                conn.execute('''
+                    INSERT OR REPLACE INTO pending_bans 
+                    (user_id, username, chat_id, banned_by, banned_by_username, reason)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (user_id, username, chat_id, banned_by, banned_by_username, reason))
+                conn.commit()
+                logger.info(f"Added pending ban for {username} (ID: {user_id}) in chat {chat_id}")
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f"Error adding pending ban: {e}")
+    
+    def is_pending_ban(self, user_id: int, chat_id: int) -> bool:
+        """Check if user is in pending ban list"""
+        try:
+            conn = self.get_sync_connection()
+            try:
+                cursor = conn.execute(
+                    "SELECT COUNT(*) FROM pending_bans WHERE user_id = ? AND chat_id = ?",
+                    (user_id, chat_id)
+                )
+                count = cursor.fetchone()[0]
+                return count > 0
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f"Error checking pending ban: {e}")
+            return False
+    
+    def get_pending_ban(self, user_id: int, chat_id: int):
+        """Get pending ban details"""
+        try:
+            conn = self.get_sync_connection()
+            try:
+                cursor = conn.execute(
+                    "SELECT * FROM pending_bans WHERE user_id = ? AND chat_id = ?",
+                    (user_id, chat_id)
+                )
+                row = cursor.fetchone()
+                return dict(row) if row else None
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f"Error getting pending ban: {e}")
+            return None
+    
+    def remove_pending_ban(self, user_id: int, chat_id: int):
+        """Remove user from pending ban list (after successful ban)"""
+        try:
+            conn = self.get_sync_connection()
+            try:
+                conn.execute(
+                    "DELETE FROM pending_bans WHERE user_id = ? AND chat_id = ?",
+                    (user_id, chat_id)
+                )
+                conn.commit()
+                logger.info(f"Removed pending ban for user {user_id} in chat {chat_id}")
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f"Error removing pending ban: {e}")
     
     # Ban history methods
     def add_ban_record(self, user_id: int, username: str, chat_id: int, banned_by: int, 

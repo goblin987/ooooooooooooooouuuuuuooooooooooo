@@ -423,13 +423,17 @@ def create_application():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("admin", admin_command))
     
-    # Moderation commands
-    application.add_handler(CommandHandler("ban", moderation.ban_user))
-    application.add_handler(CommandHandler("unban", moderation.unban_user))
-    application.add_handler(CommandHandler("mute", moderation.mute_user))
-    application.add_handler(CommandHandler("unmute", moderation.unmute_user))
-    application.add_handler(CommandHandler("lookup", moderation.lookup_user))
+    # Moderation commands (GroupHelpBot style with pending bans)
+    application.add_handler(CommandHandler("ban", moderation_grouphelp.ban_user))
+    application.add_handler(CommandHandler("unban", moderation_grouphelp.unban_user))
+    application.add_handler(CommandHandler("mute", moderation_grouphelp.mute_user))
+    application.add_handler(CommandHandler("unmute", moderation_grouphelp.unmute_user))
+    application.add_handler(CommandHandler("lookup", moderation_grouphelp.lookup_user))
     application.add_handler(CommandHandler("patikra", patikra_command))
+    
+    # Chat member handler for auto-ban on join (pending bans)
+    from telegram.ext import ChatMemberHandler
+    application.add_handler(ChatMemberHandler(moderation_grouphelp.handle_new_chat_member, ChatMemberHandler.CHAT_MEMBER))
     
     # Casino games commands (with real crypto)
     application.add_handler(CommandHandler("dice", games.dice_command))

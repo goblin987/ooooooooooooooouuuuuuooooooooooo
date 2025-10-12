@@ -45,13 +45,22 @@ Purpose: Track bugs, todos, and progress to prevent regressions
     - Status: COMPLETED - Testing Required
     - Priority: CRITICAL | Date: 2025-10-12 23:30
 
+[✅] TODO-011: Implement pending bans system (Feature #25)
+    - Added pending_bans database table
+    - Modified ban command to handle "user not found" → add to pending list
+    - Added ChatMemberHandler for auto-ban on join
+    - Users banned instantly when they join (~50ms)
+    - Matches GroupHelpBot behavior exactly
+    - Status: COMPLETED - Testing Required
+    - Priority: HIGH | Date: 2025-10-12 23:45
+
 [🔄] TODO-008: Implement recurring messages advanced features (Bug #21)
     - Days of week selection → APScheduler cron
     - Days of month selection → APScheduler cron
     - Time slots → Multiple cron jobs
     - Start/end dates → Job scheduling with date limits
     - Message preview → Show formatted preview
-    - Status: IN PROGRESS (PAUSED - Testing Bug #22 first)
+    - Status: IN PROGRESS (PAUSED - Testing pending bans first)
     - Priority: HIGH | Estimated: 2-3 hours
 
 [🟡] TODO-001: Test voting system after users table fix
@@ -120,6 +129,7 @@ Purpose: Track bugs, todos, and progress to prevent regressions
 [✅] Bug #22: /dice2 challenge not working in groups + poor UX - FIXED (2025-10-12 23:20)
 [✅] Bug #23: Username resolution broken (get_chat error) - FIXED (2025-10-12 23:30)
 [✅] Bug #24: Ban/mute broken (record_ban method missing) - FIXED (2025-10-12 23:30)
+[✅] Feature #25: Pending bans system (GroupHelpBot style) - IMPLEMENTED (2025-10-12 23:45)
 
 [HIGH PRIORITY BUGS] - ALL FIXED ✅
 [✅] Bug #4: Grammar error "1 hours" should be "1 hour" - FIXED
@@ -338,11 +348,11 @@ Last Updated: 2025-10-12 22:30:00
 Session Start: 2025-10-12 18:00:00
 
 📈 STATISTICS:
-- Total Bugs Fixed: 22 (Latest: #23 username resolution, #24 ban/mute system)
-- Total Tasks Completed: 8
+- Total Bugs Fixed: 22 + 1 Major Feature (Pending bans system)
+- Total Tasks Completed: 9
 - Total Tasks Pending: 1 (Bug #21 - recurring messages advanced features)
-- Files Modified Today: 17
-- Commits Pushed: 23 (pending)
+- Files Modified Today: 19
+- Commits Pushed: 24 (pending)
 
 🔥 TODAY'S ACHIEVEMENTS:
 ✅ Integrated voting system from old bot (preserves 3 months of data)
@@ -360,6 +370,7 @@ Session Start: 2025-10-12 18:00:00
 ✅ Lithuanianized entire /dice2 UI (clean, aesthetic, simple)
 ✅ Fixed username resolution using user cache (Bug #23)
 ✅ Fixed ban/mute system database method (Bug #24)
+✅ Implemented pending bans system (GroupHelpBot style) (Feature #25)
 
 ⚡ CURRENT STATUS:
 - Bot: ✅ Fully operational (code-level)

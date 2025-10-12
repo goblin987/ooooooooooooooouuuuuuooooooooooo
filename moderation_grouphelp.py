@@ -288,7 +288,31 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
     except telegram.error.BadRequest as e:
         if "user not found" in str(e).lower():
-            await update.message.reply_text(f"❌ User not found: {target_input}")
+            # User not in group - add to pending ban list (GroupHelpBot style!)
+            database.add_pending_ban(
+                user_id=user_id,
+                username=username,
+                chat_id=chat_id,
+                banned_by=admin_user.id,
+                banned_by_username=admin_user.username or str(admin_user.id),
+                reason=reason
+            )
+            
+            # Success message - GroupHelpBot style
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            await update.message.reply_text(
+                "⏳ **VARTOTOJAS PRIDĖTAS Į UŽDRAUDIMO SĄRAŠĄ** ⏳\n\n"
+                f"👤 Vartotojas: {full_name} (@{username})\n"
+                f"🆔 ID: `{user_id}`\n"
+                f"👮 Uždraudė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
+                f"📝 Priežastis: {reason}\n"
+                f"⏰ Data: {timestamp}\n\n"
+                f"✅ **Vartotojas bus automatiškai uždraustas, kai prisijungs prie grupės!**",
+                parse_mode='Markdown'
+            )
+            
+            logger.info(f"Added pending ban for {username} (ID: {user_id}) in chat {chat_id}")
+            
         elif "not enough rights" in str(e).lower():
             await update.message.reply_text("❌ Bot doesn't have permission to ban users!")
         else:
@@ -620,6 +644,55 @@ async def lookup_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
 
+# ============================================================================
+# CHAT MEMBER HANDLER (Auto-ban on join)
+# ============================================================================
+
+async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle new chat members - auto-ban if in pending list"""
+    try:
+        new_member = update.chat_member.new_chat_member.user
+        chat_id = update.effective_chat.id
+        
+        # Check if user is in pending ban list
+        if database.is_pending_ban(new_member.id, chat_id):
+            pending_ban = database.get_pending_ban(new_member.id, chat_id)
+            
+            # Execute the ban immediately
+            try:
+                await context.bot.ban_chat_member(
+                    chat_id=chat_id,
+                    user_id=new_member.id,
+                    revoke_messages=True
+                )
+                
+                # Move from pending to actual ban record
+                database.add_ban_record(
+                    user_id=new_member.id,
+                    username=new_member.username or f"user_{new_member.id}",
+                    chat_id=chat_id,
+                    banned_by=pending_ban['banned_by'],
+                    banned_by_username=pending_ban['banned_by_username'],
+                    reason=pending_ban['reason']
+                )
+                
+                # Remove from pending list
+                database.remove_pending_ban(new_member.id, chat_id)
+                
+                # Log the auto-ban
+                logger.info(f"Auto-banned user {new_member.id} on join (pending ban executed)")
+                
+                # Optional: Send notification to admins (can be disabled)
+                # await notify_admins_auto_ban(context, new_member, pending_ban)
+                
+            except Exception as e:
+                logger.error(f"Failed to auto-ban user {new_member.id}: {e}")
+                # Keep in pending list for retry later
+                
+    except Exception as e:
+        logger.error(f"Error in handle_new_chat_member: {e}")
+
+
 # Export functions
 __all__ = [
     'is_admin',
@@ -628,6 +701,7 @@ __all__ = [
     'unban_user',
     'mute_user',
     'unmute_user',
-    'lookup_user'
+    'lookup_user',
+    'handle_new_chat_member'
 ]
 
