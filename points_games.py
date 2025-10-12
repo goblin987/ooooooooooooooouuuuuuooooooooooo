@@ -273,7 +273,330 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             )
             return True
 
+    # Handle in-game phase (rolling dice)
+    elif data.startswith("dice2_roll_"):
+        game_key = context.bot_data.get('user_games_points', {}).get((chat_id, user_id))
+        if not game_key:
+            await query.answer("No active game found!")
+            return True
+        game = context.bot_data.get('games_points', {}).get(game_key)
+        if not game:
+            await query.answer("Game data missing!")
+            return True
+        if query.message.message_id != game.get('message_id'):
+            await query.answer("This message is not for your game!")
+            return True
+        if max(game['scores'].values()) >= game['points_to_win']:
+            await context.bot.send_message(chat_id, "The game has already ended!")
+            return True
+        
+        player_key = 'player1' if game['player1'] == user_id else 'player2' if game['player2'] == user_id else None
+        if not player_key:
+            return True
+        
+        turn_round = int(data.split('_')[2])
+        if turn_round != game['round_number']:
+            await context.bot.send_message(chat_id, "This button is from a previous round!")
+            return True
+        
+        if player_key != game['current_player']:
+            await context.bot.send_message(chat_id, "It's not your turn!")
+            return True
+        
+        # Send dice
+        dice_msg = await context.bot.send_dice(chat_id=chat_id, emoji='🎲')
+        await asyncio.sleep(4)
+        dice_value = dice_msg.dice.value
+        game['rolls'][player_key].append(dice_value)
+        game['roll_count'][player_key] += 1
+
+        if game['roll_count']['player1'] == game['rolls_needed'] and game['roll_count']['player2'] == game['rolls_needed']:
+            await evaluate_dice2_round(game, chat_id, game_key, context)
+        else:
+            if game['roll_count'][player_key] < game['rolls_needed']:
+                keyboard = [[InlineKeyboardButton(f"🎲 Roll Again (Round {game['round_number']})", callback_data=f"dice2_roll_{game['round_number']}")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await context.bot.send_message(chat_id, f"Round {game['round_number']}: Roll again!", reply_markup=reply_markup)
+            else:
+                other_player = 'player2' if player_key == 'player1' else 'player1'
+                game['current_player'] = other_player
+                other_username = (await context.bot.get_chat_member(chat_id, game[other_player])).user.username or "Player"
+                keyboard = [[InlineKeyboardButton(f"🎲 Roll Dice (Round {game['round_number']})", callback_data=f"dice2_roll_{game['round_number']}")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await context.bot.send_message(
+                    chat_id,
+                    f"Round {game['round_number']}: @{other_username}, your turn! Tap the button to roll the dice.",
+                    reply_markup=reply_markup
+                )
+        return True
+
+    # Handle challenge acceptance
+    elif data.startswith("dice2_accept_"):
+        game_id = int(data.split('_')[2])
+        if game_id not in context.bot_data.get('pending_challenges_points', {}):
+            await query.edit_message_text("❌ Challenge no longer valid.")
+            return True
+        game = context.bot_data['pending_challenges_points'][game_id]
+        if user_id != game['challenged']:
+            return True
+        if (chat_id, game['initiator']) in context.bot_data.get('user_games_points', {}) or (chat_id, user_id) in context.bot_data.get('user_games_points', {}):
+            await context.bot.send_message(chat_id, "One of you is already in a game!")
+            return True
+        
+        game_key = (chat_id, game['initiator'], user_id)
+        game_state = {
+            'player1': game['initiator'],
+            'player2': user_id,
+            'mode': game['mode'],
+            'points_to_win': game['points_to_win'],
+            'bet': game['bet'],
+            'scores': {'player1': 0, 'player2': 0},
+            'current_player': 'player1',
+            'rolls': {'player1': [], 'player2': []},
+            'rolls_needed': 2 if game['mode'] == 'double' else 1,
+            'roll_count': {'player1': 0, 'player2': 0},
+            'round_number': 1,
+            'message_id': None
+        }
+        context.bot_data.setdefault('games_points', {})[game_key] = game_state
+        context.bot_data.setdefault('user_games_points', {})[(chat_id, game['initiator'])] = game_key
+        context.bot_data['user_games_points'][(chat_id, user_id)] = game_key
+        
+        # Deduct bets
+        p1_points = get_user_points(game['initiator'])
+        p2_points = get_user_points(user_id)
+        update_user_points(game['initiator'], p1_points - game['bet'])
+        update_user_points(user_id, p2_points - game['bet'])
+        
+        player1_username = (await context.bot.get_chat_member(chat_id, game['initiator'])).user.username or "Player1"
+        player2_username = (await context.bot.get_chat_member(chat_id, user_id)).user.username or "Player2"
+        
+        text = (
+            f"🎲 Match started!\n"
+            f"Player 1: @{player1_username}\n"
+            f"Player 2: @{player2_username}\n\n"
+            f"Round 1: @{player1_username}, your turn! Tap the button to roll the dice."
+        )
+        keyboard = [[InlineKeyboardButton("🎲 Roll Dice (Round 1)", callback_data="dice2_roll_1")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        message = await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
+        game_state['message_id'] = message.message_id
+        del context.bot_data['pending_challenges_points'][game_id]
+        return True
+
+    # Handle challenge cancellation
+    elif data.startswith("dice2_cancel_challenge_"):
+        game_id = int(data.split('_')[-1])
+        if game_id not in context.bot_data.get('pending_challenges_points', {}):
+            await query.edit_message_text("❌ Challenge no longer valid.")
+            return True
+        game = context.bot_data['pending_challenges_points'][game_id]
+        initiator_username = (await context.bot.get_chat_member(chat_id, game['initiator'])).user.username or "Someone"
+        text = f"❌ {initiator_username}'s challenge was declined."
+        await query.edit_message_text(text=text)
+        del context.bot_data['pending_challenges_points'][game_id]
+        return True
+
+    # Handle Play Again
+    elif data == "dice2_play_again":
+        last_games = context.bot_data.get('last_games_points', {}).get(chat_id, {})
+        last_game = last_games.get(user_id)
+        if not last_game:
+            await context.bot.send_message(chat_id, "No previous game found.")
+            return True
+        
+        opponent_id = last_game['opponent']
+        opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Someone"
+        
+        if (chat_id, opponent_id) in context.bot_data.get('user_games_points', {}):
+            await context.bot.send_message(chat_id, f"@{opponent_username} is already in a game!")
+            return True
+        
+        game_id = len(context.bot_data.get('pending_challenges_points', {})) + 1
+        context.bot_data.setdefault('pending_challenges_points', {})[game_id] = {
+            'initiator': user_id,
+            'challenged': opponent_id,
+            'mode': last_game['mode'],
+            'points_to_win': last_game['points_to_win'],
+            'bet': last_game['bet']
+        }
+        
+        initiator_username = query.from_user.username or "Someone"
+        text = (
+            f"🎲 {initiator_username} wants to play again with the same settings!\n"
+            f"Bet: {last_game['bet']} points\n"
+            f"Mode: {last_game['mode'].capitalize()}\n"
+            f"First to {last_game['points_to_win']} points\n\n"
+            f"@{opponent_username}, do you accept?"
+        )
+        keyboard = [
+            [InlineKeyboardButton("Accept", callback_data=f"dice2_accept_{game_id}"),
+             InlineKeyboardButton("Cancel", callback_data=f"dice2_cancel_challenge_{game_id}")]
+        ]
+        await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
+        return True
+
+    # Handle Double
+    elif data == "dice2_double":
+        last_games = context.bot_data.get('last_games_points', {}).get(chat_id, {})
+        last_game = last_games.get(user_id)
+        if not last_game:
+            await context.bot.send_message(chat_id, "No previous game found.")
+            return True
+        
+        opponent_id = last_game['opponent']
+        new_bet = last_game['bet'] * 2
+        
+        initiator_points = get_user_points(user_id)
+        opponent_points = get_user_points(opponent_id)
+        
+        if new_bet > initiator_points or new_bet > opponent_points:
+            await context.bot.send_message(chat_id, "One of you doesn't have enough points for the doubled bet!")
+            return True
+        
+        if (chat_id, opponent_id) in context.bot_data.get('user_games_points', {}):
+            opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Someone"
+            await context.bot.send_message(chat_id, f"@{opponent_username} is already in a game!")
+            return True
+        
+        game_id = len(context.bot_data.get('pending_challenges_points', {})) + 1
+        context.bot_data.setdefault('pending_challenges_points', {})[game_id] = {
+            'initiator': user_id,
+            'challenged': opponent_id,
+            'mode': last_game['mode'],
+            'points_to_win': last_game['points_to_win'],
+            'bet': new_bet
+        }
+        
+        initiator_username = query.from_user.username or "Someone"
+        opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Someone"
+        text = (
+            f"🎲 {initiator_username} wants to double the bet!\n"
+            f"New bet: {new_bet} points\n"
+            f"Mode: {last_game['mode'].capitalize()}\n"
+            f"First to {last_game['points_to_win']} points\n\n"
+            f"@{opponent_username}, do you accept?"
+        )
+        keyboard = [
+            [InlineKeyboardButton("Accept", callback_data=f"dice2_accept_{game_id}"),
+             InlineKeyboardButton("Cancel", callback_data=f"dice2_cancel_challenge_{game_id}")]
+        ]
+        await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
+        return True
+
     return False
+
+
+# ============================================================================
+# ROUND EVALUATION (Game Logic for dice2)
+# ============================================================================
+
+async def evaluate_dice2_round(game, chat_id, game_key, context):
+    """Evaluate the dice2 round and determine winner"""
+    rolls1, rolls2 = game['rolls']['player1'], game['rolls']['player2']
+    required_rolls = game['rolls_needed']
+    
+    if len(rolls1) < required_rolls or len(rolls2) < required_rolls:
+        await context.bot.send_message(chat_id, "Error: Rolls incomplete. Please start again.")
+        game['rolls'] = {'player1': [], 'player2': []}
+        game['roll_count'] = {'player1': 0, 'player2': 0}
+        game['current_player'] = 'player1'
+        return
+    
+    # Calculate effective scores based on mode
+    mode = game['mode']
+    if mode == 'normal':
+        score1 = rolls1[0]
+        score2 = rolls2[0]
+    elif mode == 'double':
+        score1 = sum(rolls1)
+        score2 = sum(rolls2)
+    elif mode == 'crazy':
+        # Inverted: lower is better
+        score1 = 7 - rolls1[0]
+        score2 = 7 - rolls2[0]
+    
+    # Award points (highest score wins)
+    if score1 > score2:
+        game['scores']['player1'] += 1
+    elif score2 > score1:
+        game['scores']['player2'] += 1
+    
+    player1_username = (await context.bot.get_chat_member(chat_id, game['player1'])).user.username or "Player1"
+    player2_username = (await context.bot.get_chat_member(chat_id, game['player2'])).user.username or "Player2"
+    
+    # Round results
+    text = (
+        f"🎲 Round Results\n"
+        f"Mode: {game['mode']}\n"
+        f"@{player1_username} rolls: {rolls1}, score: {score1}\n"
+        f"@{player2_username} rolls: {rolls2}, score: {score2}\n"
+        f"🎲 Scoreboard\n"
+        f"@{player1_username}: {game['scores']['player1']}\n"
+        f"@{player2_username}: {game['scores']['player2']}"
+    )
+    
+    if score1 > score2:
+        text += f"\nPoint awarded to @{player1_username}!"
+    elif score2 > score1:
+        text += f"\nPoint awarded to @{player2_username}!"
+    else:
+        text += "\nTie - No points awarded."
+    
+    # Check for game end
+    if max(game['scores'].values()) >= game['points_to_win']:
+        winner = 'player1' if game['scores']['player1'] > game['scores']['player2'] else 'player2'
+        winner_id = game[winner]
+        prize = int(game['bet'] * 1.92)
+        
+        winner_points = get_user_points(winner_id)
+        update_user_points(winner_id, winner_points + prize + game['bet'])
+        winner_username = player1_username if winner == 'player1' else player2_username
+        
+        text = (
+            f"🎲 Final Round Results\n"
+            f"Mode: {game['mode']}\n"
+            f"@{player1_username} rolls: {rolls1}, score: {score1}\n"
+            f"@{player2_username} rolls: {rolls2}, score: {score2}\n"
+            f"🎲 Final Scoreboard\n"
+            f"@{player1_username}: {game['scores']['player1']}\n"
+            f"@{player2_username}: {game['scores']['player2']}\n\n"
+            f"🏆 Game over!\n"
+            f"🎉 @{winner_username} wins {prize} points!"
+        )
+        
+        player1_points = get_user_points(game['player1'])
+        player2_points = get_user_points(game['player2'])
+        text += f"\n\n@{player1_username} points: {player1_points}\n@{player2_username} points: {player2_points}"
+        
+        keyboard = [
+            [InlineKeyboardButton("Play Again", callback_data="dice2_play_again"),
+             InlineKeyboardButton("Double", callback_data="dice2_double")]
+        ]
+        await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
+        
+        # Store last game data
+        last_game_p1 = {'opponent': game['player2'], 'mode': game['mode'], 'points_to_win': game['points_to_win'], 'bet': game['bet']}
+        last_game_p2 = {'opponent': game['player1'], 'mode': game['mode'], 'points_to_win': game['points_to_win'], 'bet': game['bet']}
+        context.bot_data.setdefault('last_games_points', {}).setdefault(chat_id, {})[game['player1']] = last_game_p1
+        context.bot_data['last_games_points'][chat_id][game['player2']] = last_game_p2
+        
+        # Clean up
+        del context.bot_data['user_games_points'][(chat_id, game['player2'])]
+        del context.bot_data['user_games_points'][(chat_id, game['player1'])]
+        del context.bot_data['games_points'][game_key]
+    else:
+        # Continue to next round
+        game['rolls'] = {'player1': [], 'player2': []}
+        game['roll_count'] = {'player1': 0, 'player2': 0}
+        game['current_player'] = 'player1'
+        game['round_number'] += 1
+        
+        text += f"\n\nRound {game['round_number']}: @{player1_username}, your turn! Tap the button to roll the dice."
+        keyboard = [[InlineKeyboardButton(f"🎲 Roll Dice (Round {game['round_number']})", callback_data=f"dice2_roll_{game['round_number']}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        message = await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
+        game['message_id'] = message.message_id
 
 
 # ============================================================================
