@@ -21,14 +21,23 @@ logger = logging.getLogger(__name__)
 
 # Global scheduler instance
 scheduler = None
+_scheduler_lock = None
 
 def init_scheduler():
-    """Initialize the global scheduler"""
-    global scheduler
-    if scheduler is None:
-        scheduler = AsyncIOScheduler(timezone=TIMEZONE)
-        scheduler.start()
-        logger.info("Recurring messages scheduler initialized")
+    """Initialize the global scheduler (thread-safe)"""
+    global scheduler, _scheduler_lock
+    
+    # Create lock on first call
+    if _scheduler_lock is None:
+        import threading
+        _scheduler_lock = threading.Lock()
+    
+    # Thread-safe initialization
+    with _scheduler_lock:
+        if scheduler is None:
+            scheduler = AsyncIOScheduler(timezone=TIMEZONE)
+            scheduler.start()
+            logger.info("Recurring messages scheduler initialized")
 
 async def show_message_config(query, context, private_mode=False, edit_mode=False):
     """Show message configuration screen - GroupHelpBot style"""

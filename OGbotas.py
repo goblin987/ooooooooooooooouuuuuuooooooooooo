@@ -44,6 +44,7 @@ from database import database
 from utils import data_manager, message_tracker
 import moderation
 import recurring_messages
+import admin_panel
 
 # Telegram imports
 import telegram
@@ -96,7 +97,42 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "**Utilities:**\n"
         "• `/lookup @user` - Lookup user info\n"
         "• `/patikra @user` - Check if user is scammer\n\n"
-        "**Note:** Admin and helper permissions required for moderation commands.",
+        "**Admin Panel (NEW!):**\n"
+        "• `/admin` - Interactive admin panel with buttons\n"
+        "  - Points, Sellers, Scammers, Claims, Stats\n\n"
+        "**Note:** Admin and helper permissions required for most commands.",
+        parse_mode='Markdown'
+    )
+
+async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show admin panel"""
+    await admin_panel.show_admin_panel(update, context)
+
+
+async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Check if user is scammer command.
+    Currently a placeholder until full scammer database integration.
+    """
+    if not context.args:
+        await update.message.reply_text(
+            "❌ **Usage:** `/patikra @username`\n\n"
+            "Check if a user is in the scammer database.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    username = context.args[0].lstrip('@')
+    
+    # Placeholder response until full integration with readonly_scammer_bot
+    await update.message.reply_text(
+        f"🔍 **Scammer Check: @{username}**\n\n"
+        "⚙️ Scammer database integration is in progress.\n\n"
+        "**Current Status:**\n"
+        "• Database: Ready\n"
+        "• API Sync: In Development\n"
+        "• Full Integration: Coming Soon\n\n"
+        "💡 This feature will be fully functional after integration with the scammer database API.",
         parse_mode='Markdown'
     )
 
@@ -179,7 +215,7 @@ async def handle_recurring_callback(query, context):
             
             # Handle hours
             if repeat_value == "1h":
-                config['repetition'] = "1 hours"
+                config['repetition'] = "1 hour"
             elif repeat_value == "2h":
                 config['repetition'] = "2 hours"
             elif repeat_value == "3h":
@@ -196,7 +232,7 @@ async def handle_recurring_callback(query, context):
                 config['repetition'] = "24 hours"
             # Handle minutes
             elif repeat_value == "1m":
-                config['repetition'] = "1 minutes"
+                config['repetition'] = "1 minute"
             elif repeat_value == "2m":
                 config['repetition'] = "2 minutes"
             elif repeat_value == "3m":
@@ -226,6 +262,77 @@ async def handle_recurring_callback(query, context):
         logger.error(f"Error in handle_recurring_callback: {e}")
         await query.answer("❌ Error processing request")
 
+
+async def handle_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle admin panel callback queries"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    
+    # Main menu
+    if data == "admin_main":
+        await admin_panel.show_admin_panel(update, context)
+    
+    # Points management
+    elif data == "admin_points":
+        await admin_panel.show_points_menu(query, context)
+    elif data == "points_add":
+        await admin_panel.points_add_start(query, context)
+    elif data == "points_remove":
+        await admin_panel.points_remove_start(query, context)
+    elif data == "points_leaderboard":
+        await admin_panel.show_points_leaderboard(query, context)
+    
+    # Sellers management
+    elif data == "admin_sellers":
+        await admin_panel.show_sellers_menu(query, context)
+    elif data == "seller_add":
+        await admin_panel.seller_add_start(query, context)
+    elif data == "seller_remove":
+        await admin_panel.seller_remove_start(query, context)
+    elif data == "seller_list":
+        await admin_panel.show_all_sellers(query, context)
+    
+    # Scammers management
+    elif data == "admin_scammers":
+        await admin_panel.show_scammers_menu(query, context)
+    elif data == "scammer_add":
+        await admin_panel.scammer_add_start(query, context)
+    elif data == "scammer_remove":
+        await admin_panel.scammer_remove_start(query, context)
+    elif data == "scammer_list":
+        await admin_panel.show_all_scammers(query, context)
+    
+    # Claims review
+    elif data == "admin_claims":
+        await admin_panel.show_claims_menu(query, context)
+    elif data.startswith("claim_review_"):
+        report_id = data.replace("claim_review_", "")
+        await admin_panel.show_claim_detail(query, context, report_id)
+    elif data.startswith("claim_confirm_"):
+        report_id = data.replace("claim_confirm_", "")
+        await admin_panel.confirm_claim(query, context, report_id)
+    elif data.startswith("claim_dismiss_"):
+        report_id = data.replace("claim_dismiss_", "")
+        await admin_panel.dismiss_claim(query, context, report_id)
+    
+    # User lookup
+    elif data == "admin_lookup":
+        await admin_panel.show_lookup_menu(query, context)
+    
+    # Statistics
+    elif data == "admin_stats":
+        await admin_panel.show_statistics(query, context)
+    
+    # Close panel
+    elif data == "admin_close":
+        await query.edit_message_text("✅ Admin panel closed.")
+    
+    else:
+        await query.answer("Feature coming soon!")
+
+
 # Message handler for private chat input
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle all messages"""
@@ -239,14 +346,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             update.effective_user.last_name
         )
     
-    # Handle private chat input for recurring messages
+    # Handle private chat input
     if update.effective_chat.type == 'private':
+        # Check if it's admin panel input
+        if context.user_data.get('admin_action'):
+            await admin_panel.handle_admin_input(update, context)
+            return
+        
+        # Otherwise handle recurring messages input
         await recurring_messages.process_private_chat_input(update, context)
         return
     
-    # Handle group messages (banned words, etc.)
-    # This would be implemented in banned_words module
-    pass
+    # Handle group messages
+    # TODO: Future feature - banned words filtering will be implemented here
+    # For now, just log group messages for analytics
+    logger.debug(f"Group message from user {update.effective_user.id} in chat {update.effective_chat.id}")
 
 def main() -> None:
     """Start the bot."""
@@ -262,6 +376,7 @@ def main() -> None:
     # Add command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("admin", admin_command))
     
     # Moderation commands
     application.add_handler(CommandHandler("ban", moderation.ban_user))
@@ -269,11 +384,19 @@ def main() -> None:
     application.add_handler(CommandHandler("mute", moderation.mute_user))
     application.add_handler(CommandHandler("unmute", moderation.unmute_user))
     application.add_handler(CommandHandler("lookup", moderation.lookup_user))
+    application.add_handler(CommandHandler("patikra", patikra_command))
     
     # Recurring messages
     application.add_handler(CommandHandler("recurring", recurring_messages_menu))
     
     # Callback query handlers
+    # Admin panel callbacks (check admin_ prefix first)
+    application.add_handler(CallbackQueryHandler(
+        handle_admin_callback,
+        pattern="^(admin_|points_|seller_|scammer_|claim_)"
+    ))
+    
+    # Recurring messages callbacks (everything else)
     application.add_handler(CallbackQueryHandler(handle_recurring_callback))
     
     # Message handler (for private chat input and group messages)
@@ -281,7 +404,9 @@ def main() -> None:
     
     # Start the bot
     if WEBHOOK_URL:
-        logger.info(f"🌐 Starting webhook mode on {WEBHOOK_URL}")
+        # Sanitize URL for logging (hide token)
+        safe_webhook = f"{WEBHOOK_URL}/webhook/***TOKEN***"
+        logger.info(f"🌐 Starting webhook mode on {safe_webhook}")
         application.run_webhook(
             listen="0.0.0.0",
             port=PORT,

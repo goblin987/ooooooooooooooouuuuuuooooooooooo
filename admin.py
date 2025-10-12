@@ -64,12 +64,13 @@ class ProductMediaManager:
         Handle confirmed product addition with media files
         Fixed version that handles UNIQUE constraint properly
         """
+        conn = None
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
                 
-                # Start transaction
-                conn.execute('BEGIN TRANSACTION')
+            # Start transaction
+            conn.execute('BEGIN TRANSACTION')
                 
                 # Insert product
                 cursor.execute('''
@@ -124,13 +125,18 @@ class ProductMediaManager:
             logger.error(f"Database integrity error: {e}")
             if 'UNIQUE constraint failed: product_media.file_path' in str(e):
                 logger.error("UNIQUE constraint failed on product_media.file_path - this should not happen with the fix")
-            conn.rollback()
+            if conn:
+                conn.rollback()
             return False
             
         except Exception as e:
             logger.error(f"Error saving confirmed drop for user {user_id}: {e}")
-            conn.rollback()
+            if conn:
+                conn.rollback()
             return False
+        finally:
+            if conn:
+                conn.close()
     
     def cleanup_temp_directory(self, temp_dir: str):
         """Clean up temporary directory after processing"""

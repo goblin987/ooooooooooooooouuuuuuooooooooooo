@@ -49,20 +49,21 @@ async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: 
             return False
         
         # Check if user is helper
+        conn = None
         try:
             conn = database.get_sync_connection()
-            try:
-                cursor = conn.execute(
-                    "SELECT COUNT(*) FROM helpers WHERE chat_id = ? AND user_id = ?",
-                    (chat_id, check_user_id)
-                )
-                is_helper = cursor.fetchone()[0] > 0
-                return is_helper
-            finally:
-                conn.close()
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM helpers WHERE chat_id = ? AND user_id = ?",
+                (chat_id, check_user_id)
+            )
+            is_helper = cursor.fetchone()[0] > 0
+            return is_helper
         except Exception as e:
             logger.error(f"Error checking helper status: {e}")
             return False
+        finally:
+            if conn:
+                conn.close()
             
     except Exception as e:
         logger.error(f"Unexpected error in is_admin: {e}")
@@ -263,7 +264,7 @@ async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         if not user_id:
             user_id = await resolve_username_to_id(context, target_input, chat_id)
         
-        if not user_id:
+        if not user_id or user_id is None:
             await update.message.reply_text(f"❌ Negaliu rasti vartotojo ID pagal {target_input}")
             return
         
@@ -344,7 +345,7 @@ async def mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             # Resolve username/ID
             user_id = await resolve_username_to_id(context, target_input, chat_id)
-            if not user_id:
+            if not user_id or user_id is None:
                 await update.message.reply_text(f"❌ Negaliu rasti vartotojo ID pagal {target_input}")
                 return
             username = target_input.lstrip('@')
@@ -418,7 +419,7 @@ async def unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         else:
             # Resolve username/ID
             user_id = await resolve_username_to_id(context, target_input, chat_id)
-            if not user_id:
+            if not user_id or user_id is None:
                 await update.message.reply_text(f"❌ Negaliu rasti vartotojo ID pagal {target_input}")
                 return
             username = target_input.lstrip('@')
@@ -480,7 +481,7 @@ async def lookup_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     try:
         user_id = await resolve_username_to_id(context, target_input, chat_id)
-        if user_id:
+        if user_id and user_id is not None:
             # Try to get additional info
             try:
                 chat = await safe_bot_operation(context.bot.get_chat, user_id)
