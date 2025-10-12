@@ -49,6 +49,7 @@ import admin_panel
 import games
 import payments
 import points_games
+import voting
 
 # Telegram imports
 import telegram
@@ -120,9 +121,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/points` - Check your points balance\n\n"
         "**Balance & Payments:**\n"
         "• `/balance` - Check balance, deposit/withdraw\n\n"
+        "**Voting System:**\n"
+        "• `/balsuoti` - Link to voting group\n"
+        "• `/barygos` - View seller leaderboards\n\n"
         "**Admin Commands:**\n"
         "• `/addbalance @user amount` - Add funds\n"
-        "• `/removebalance @user amount` - Remove funds\n\n"
+        "• `/removebalance @user amount` - Remove funds\n"
+        "• `/updatevoting` - Update voting buttons\n\n"
         "**Note:** Admin permissions required for most commands.",
         parse_mode='Markdown'
     )
@@ -437,6 +442,11 @@ def main() -> None:
     application.add_handler(CommandHandler("addbalance", payments.add_balance_command))
     application.add_handler(CommandHandler("removebalance", payments.remove_balance_command))
     
+    # Voting commands (PRESERVED from old bot - keeps 3 months of data!)
+    application.add_handler(CommandHandler("balsuoti", voting.balsuoti_command))
+    application.add_handler(CommandHandler("barygos", voting.barygos_command))
+    application.add_handler(CommandHandler("updatevoting", voting.updatevoting_command))
+    
     # Recurring messages
     application.add_handler(CommandHandler("recurring", recurring_messages_menu))
     
@@ -476,6 +486,12 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(
         points_games.handle_dice2_buttons,
         pattern="^dice2_"
+    ))
+    
+    # Voting callbacks (PRESERVED from old bot)
+    application.add_handler(CallbackQueryHandler(
+        voting.handle_vote_button,
+        pattern="^vote_"
     ))
     
     # Payment callbacks (deposit/withdraw)

@@ -21,6 +21,10 @@ NOWPAYMENTS_API_KEY = os.getenv('NOWPAYMENTS_API_KEY', '')
 BOT_USERNAME = os.getenv('BOT_USERNAME', 'your_bot')
 OWNER_ID = int(os.getenv('OWNER_ID', '0'))
 
+# Voting system configuration (REQUIRED for voting features - from old bot)
+VOTING_GROUP_CHAT_ID = int(os.getenv('VOTING_GROUP_CHAT_ID', '0'))
+VOTING_GROUP_LINK = os.getenv('VOTING_GROUP_LINK', '')
+
 if len(BOT_TOKEN) < 40 or ':' not in BOT_TOKEN:
     raise ValueError("❌ ERROR: BOT_TOKEN appears to be invalid! Should be format: 123456789:ABCdefGHI...")
 
