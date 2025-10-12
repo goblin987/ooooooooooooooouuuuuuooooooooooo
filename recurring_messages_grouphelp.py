@@ -15,7 +15,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from database import database
-from moderation import is_admin
+from moderation_grouphelp import is_admin
 
 logger = logging.getLogger(__name__)
 

@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any, List
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from database import database
-from moderation import is_admin
+from moderation_grouphelp import is_admin
 from utils import data_manager
 
 logger = logging.getLogger(__name__)

@@ -14,7 +14,7 @@ from telegram.ext import ContextTypes
 
 from database import database
 from utils import data_manager, SecurityValidator
-from moderation import is_admin
+from moderation_grouphelp import is_admin
 
 logger = logging.getLogger(__name__)
 
