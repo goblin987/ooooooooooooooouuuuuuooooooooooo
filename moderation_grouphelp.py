@@ -263,14 +263,13 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         
         # Record in database
-        database.record_ban(
-            chat_id=chat_id,
+        database.add_ban_record(
             user_id=user_id,
-            username=username,
-            first_name=first_name,
-            last_name=last_name,
-            reason=reason,
-            banned_by=admin_user.username or str(admin_user.id)
+            username=username or f"user_{user_id}",
+            chat_id=chat_id,
+            banned_by=admin_user.id,
+            banned_by_username=admin_user.username or str(admin_user.id),
+            reason=reason
         )
         
         # Success message - GroupHelpBot style

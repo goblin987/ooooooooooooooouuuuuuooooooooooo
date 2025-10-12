@@ -623,9 +623,36 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
         username = text
     
     try:
-        # Find user by username
-        chat_member = await context.bot.get_chat(f"@{username}")
-        challenged_id = chat_member.id
+        # Find user by username (check multiple sources)
+        challenged_id = None
+        challenged_username = username
+        
+        # Method 1: Check user cache in database
+        try:
+            user_info = database.get_user_by_username(username)
+            if user_info:
+                challenged_id = user_info['user_id']
+                challenged_username = user_info.get('username', username)
+                logger.info(f"Found {username} in user cache: {challenged_id}")
+        except Exception as e:
+            logger.debug(f"User cache lookup failed: {e}")
+        
+        # Method 2: Try direct user ID lookup if input looks like an ID
+        if not challenged_id and text.strip().isdigit():
+            challenged_id = int(text.strip())
+            logger.info(f"Using direct user ID: {challenged_id}")
+        
+        if not challenged_id:
+            await update.message.reply_text(
+                f"❌ Vartotojas **@{username}** nerastas!\n\n"
+                f"💡 Patarimai:\n"
+                f"• Įsitikinkite, kad vartotojas yra šioje grupėje\n"
+                f"• Patikrinkite vartotojo vardo rašybą\n"
+                f"• Vartotojas turi būti aktyvus grupėje",
+                parse_mode='Markdown'
+            )
+            del context.user_data['expecting_username']
+            return True
         
         if challenged_id == user_id:
             await update.message.reply_text("❌ Negalite mesti iššūkio sau!")
@@ -647,7 +674,7 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
         
         challenged_balance = get_user_points(challenged_id)
         if setup['bet'] > challenged_balance:
-            await update.message.reply_text(f"❌ @{username} neturi pakankamai taškų!\nTuri: {challenged_balance} tšk.")
+            await update.message.reply_text(f"❌ @{challenged_username} neturi pakankamai taškų!\nTuri: {challenged_balance} tšk.")
             del context.user_data['expecting_username']
             return True
         
@@ -666,11 +693,11 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
         points = context.user_data['dice2_points']
         
         text = (
-            f"🎲 **{initiator_username}** meta iššūkį **@{username}!**\n\n"
+            f"🎲 **{initiator_username}** meta iššūkį **@{challenged_username}!**\n\n"
             f"💰 Statymas: {setup['bet']} tšk\n"
             f"🎯 Pirmas iki: {points} tšk\n"
             f"⚙️ Režimas: {mode_lt}\n\n"
-            f"@{username}, ar priimi iššūkį?"
+            f"@{challenged_username}, ar priimi iššūkį?"
         )
         keyboard = [
             [InlineKeyboardButton("✅ Priimti", callback_data=f"dice2_accept_{game_id}"),
