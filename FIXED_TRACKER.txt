@@ -1,12 +1,56 @@
 ================================================================================
-                    🔧 BUG FIX TRACKING LOG 🔧
+                    🔧 BUG FIX & TODO TRACKER 🔧
 ================================================================================
 Project: OGbotas Telegram Bot
 Started: October 12, 2025
-Purpose: Track all bug fixes and working features to prevent regressions
+Last Updated: October 12, 2025 - 22:30 UTC
+Purpose: Track bugs, todos, and progress to prevent regressions
+
+⚡ YOLO MODE: ENABLED
+   To enable: Ctrl+Shift+J → Features → Enable "Auto-apply" & "Auto-run"
+   Status: ✅ Cursor YOLO mode active for rapid development
 
 ================================================================================
-                        BUGS TO FIX (Priority Order)
+                        📋 CURRENT TODO LIST
+================================================================================
+
+🎯 ACTIVE TASKS (In Progress):
+[ ] TODO-001: Test voting system after users table fix
+    - Vote for seller → Check /points command
+    - Verify points save to database
+    - Test /dice2 game with earned points
+    - Priority: HIGH | Status: Testing Required
+
+🔜 PENDING TASKS (Not Started):
+[ ] TODO-002: Configure NOWPayments webhook in dashboard
+    - Set IPN URL: https://your-app.onrender.com/webhook/nowpayments
+    - Test deposit flow end-to-end
+    - Test withdrawal flow
+    - Priority: HIGH | Blocked: Needs Render deployment
+
+[ ] TODO-003: Verify Render deployment performance
+    - Check HTTP server binds to PORT
+    - Verify no "port scan timeout" messages
+    - Check logs are clean (no httpx spam)
+    - Priority: HIGH | Status: Waiting for deployment
+
+✅ COMPLETED TASKS (Recent):
+[✅] TODO-000: Fix voting points not saving (CRITICAL)
+    - Added users table to database
+    - Unified all points systems to use database
+    - Fixed voting.py to save points to DB
+    - Fixed admin_panel.py to use DB for points
+    - Status: COMPLETED | Date: 2025-10-12 22:15
+
+[✅] TODO-000: Add HTTP server for NOWPayments webhooks
+    - Implemented HTTP server with health check
+    - Added /webhook/nowpayments endpoint
+    - Reduced log spam (httpx, apscheduler)
+    - Made Web Service compatible
+    - Status: COMPLETED | Date: 2025-10-12 22:25
+
+================================================================================
+                        🐛 BUGS FIXED (Archive)
 ================================================================================
 
 [CRITICAL BUGS] - ALL FIXED ✅
@@ -15,6 +59,10 @@ Purpose: Track all bug fixes and working features to prevent regressions
 [✅] Bug #3: SQL connection leak in moderation.py - FIXED
 [✅] Bug #5: Bot token exposed in webhook URL logs - FIXED
 [✅] Bug #9: Database rollback error in admin.py - FIXED
+[✅] Bug #13: Missing users table in database - FIXED (2025-10-12)
+[✅] Bug #14: Points system data inconsistency - FIXED (2025-10-12)
+[✅] Bug #15: Log spam from external libraries - FIXED (2025-10-12)
+[✅] Bug #16: Slow Render deployment (10min wait) - FIXED (2025-10-12)
 
 [HIGH PRIORITY BUGS] - ALL FIXED ✅
 [✅] Bug #4: Grammar error "1 hours" should be "1 hour" - FIXED
@@ -28,16 +76,13 @@ Purpose: Track all bug fixes and working features to prevent regressions
 [✅] Bug #11: Empty pass statement in message handler - FIXED
 
 ================================================================================
-                    🎉 ALL 12 BUGS FIXED! 🎉
+                    🎉 16 BUGS FIXED! 🎉
 ================================================================================
 
-[OPTIONAL ENHANCEMENTS] - Not bugs, can implement later
+[OPTIONAL ENHANCEMENTS] - Future features
 [ ] Enhancement #1: Add rate limiting (prevents abuse)
 [ ] Enhancement #2: Add graceful shutdown (saves data on exit)
-[ ] Enhancement #3: Add health check endpoint (monitoring)
-
-Note: These are improvements, not bugs. The bot is fully functional without them.
-      They can be implemented as future features when needed.
+[ ] Enhancement #3: Add user notifications for deposit success
 
 ================================================================================
                         FIXES COMPLETED
@@ -263,6 +308,51 @@ After each fix, test:
 - Don't change callback_data strings (breaks existing buttons)
 
 ================================================================================
-                        END OF TRACKER
+                    📝 HOW TO USE THIS TRACKER
 ================================================================================
+
+🔄 WORKFLOW:
+1. Add new task to TODO list with [ ] checkbox
+2. Mark as in progress when starting: [🔄] or move to ACTIVE TASKS
+3. Update progress notes as you work
+4. Mark complete when done: [✅] and move to COMPLETED TASKS
+5. Update statistics and progress tracking
+6. Commit changes with meaningful message
+
+📋 TODO FORMAT:
+[ ] TODO-XXX: Clear description of task
+    - Sub-task 1
+    - Sub-task 2
+    - Priority: HIGH/MEDIUM/LOW
+    - Status: Not Started/In Progress/Testing/Blocked/Complete
+    - Date: YYYY-MM-DD
+
+🐛 BUG FORMAT:
+[Status] Bug #XX: Description - STATUS
+    Date: YYYY-MM-DD
+    Files: file.py (lines X-Y)
+    Issue: What's wrong
+    Fix: What was done
+    Impact: What changed
+    Testing: How verified
+    
+⚠️ PRIORITY LEVELS:
+- CRITICAL: Bot crashes, data loss, security issues
+- HIGH: Feature broken, user-facing bugs
+- MEDIUM: Minor issues, improvements
+- LOW: Nice-to-have, future enhancements
+
+🎯 STATUS INDICATORS:
+[ ] = Not started
+[🔄] = In progress
+[🟡] = Testing/Blocked
+[✅] = Completed
+[❌] = Cancelled/Wont-fix
+
+================================================================================
+            💡 UPDATE THIS FILE AFTER EVERY FIX/CHANGE! 💡
+================================================================================
+Track progress → Prevent regressions → Stay organized → Ship faster!
+
+Last Updated: 2025-10-12 22:30:00
 
