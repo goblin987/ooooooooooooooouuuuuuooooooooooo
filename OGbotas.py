@@ -98,10 +98,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "**Utilities:**\n"
         "• `/lookup @user` - Lookup user info\n"
         "• `/patikra @user` - Check if user is scammer\n\n"
-        "**Admin Panel (NEW!):**\n"
-        "• `/admin` - Interactive admin panel with buttons\n"
-        "  - Points, Sellers, Scammers, Claims, Stats\n\n"
-        "**Note:** Admin and helper permissions required for most commands.",
+        "**Admin Panel:**\n"
+        "• `/admin` - Interactive admin panel\n"
+        "  - 💰 Points, ⭐ Sellers, 🚨 Scammers\n"
+        "  - 📋 Claims, 🔍 Lookup, 📊 Stats\n"
+        "  - 🔄 Recurring Messages\n"
+        "  - 👤 Masked Users\n\n"
+        "**Group Management:**\n"
+        "• `/recurring` - Recurring messages (GroupHelpBot style)\n"
+        "• `/masked` - Manage masked/anonymous users\n\n"
+        "**Note:** Admin permissions required for most commands.",
         parse_mode='Markdown'
     )
 
