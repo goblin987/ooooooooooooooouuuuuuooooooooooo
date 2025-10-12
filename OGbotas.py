@@ -410,13 +410,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # For now, just log group messages for analytics
     logger.debug(f"Group message from user {update.effective_user.id} in chat {update.effective_chat.id}")
 
-def main() -> None:
-    """Start the bot."""
+def create_application():
+    """Create and configure the Telegram bot application."""
     if not BOT_TOKEN:
         logger.error("❌ ERROR: BOT_TOKEN environment variable not set!")
-        return
-    
-    logger.info("🤖 Starting OGbotas...")
+        return None
     
     # Create the Application
     application = Application.builder().token(BOT_TOKEN).build()
