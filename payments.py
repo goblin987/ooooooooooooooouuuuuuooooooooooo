@@ -37,6 +37,22 @@ FEE_ADJUSTMENT = 0.015  # 1.5% to cover NOWPayments fees
 # DATABASE FUNCTIONS
 # ============================================================================
 
+def user_exists(user_id: int) -> bool:
+    """Check if user exists in database"""
+    try:
+        conn = database.get_sync_connection()
+        cursor = conn.execute(
+            "SELECT user_id FROM users WHERE user_id = ?",
+            (user_id,)
+        )
+        result = cursor.fetchone()
+        conn.close()
+        return result is not None
+    except Exception as e:
+        logger.error(f"Error checking user existence: {e}")
+        return False
+
+
 def get_user_balance(user_id: int) -> Decimal:
     """Get user balance"""
     try:
