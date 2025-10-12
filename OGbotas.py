@@ -451,6 +451,7 @@ def create_application():
     application.add_handler(CommandHandler("balsuoti", voting.balsuoti_command))
     application.add_handler(CommandHandler("barygos", voting.barygos_command))
     application.add_handler(CommandHandler("updatevoting", voting.updatevoting_command))
+    application.add_handler(CommandHandler("resetvotes", voting.reset_voting_cooldowns_command))
     
     # Recurring messages
     application.add_handler(CommandHandler("recurring", recurring_messages_menu))

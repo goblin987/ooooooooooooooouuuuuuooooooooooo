@@ -460,6 +460,31 @@ async def updatevoting_command(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text("✅ Balsavimo mygtukai atnaujinti!")
 
 
+async def reset_voting_cooldowns_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Reset ALL voting cooldowns for testing (admin only)"""
+    user_id = update.message.from_user.id
+    
+    if user_id != ADMIN_CHAT_ID:
+        await update.message.reply_text("❌ Tik adminas gali atstatyti balsavimo laikmatį!")
+        return
+    
+    global last_vote_attempt
+    
+    # Clear all cooldowns
+    old_count = len(last_vote_attempt)
+    last_vote_attempt.clear()
+    data_manager.save_data(last_vote_attempt, 'last_vote_attempt.pkl')
+    
+    await update.message.reply_text(
+        f"✅ **Voting cooldowns reset!**\n\n"
+        f"Cleared {old_count} user cooldowns.\n"
+        f"All users can now vote immediately for testing.",
+        parse_mode='Markdown'
+    )
+    
+    logger.info(f"Admin {user_id} reset {old_count} voting cooldowns for testing")
+
+
 # Export functions
 __all__ = [
     'balsuoti_command',
@@ -467,6 +492,7 @@ __all__ = [
     'handle_vote_button',
     'update_voting_message',
     'updatevoting_command',
+    'reset_voting_cooldowns_command',
     'votes_weekly',
     'votes_monthly',
     'votes_alltime',

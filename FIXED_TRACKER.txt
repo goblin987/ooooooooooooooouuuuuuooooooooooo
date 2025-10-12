@@ -15,11 +15,31 @@ Purpose: Track bugs, todos, and progress to prevent regressions
 ================================================================================
 
 🎯 ACTIVE TASKS (In Progress):
-[🔄] TODO-001: Test voting system after users table fix
+[🔄] TODO-006: Fix recurring messages UI not updating (Bug #19)
+    - FIXED: Show updated customize screen after saving text
+    - Status: COMPLETED - Testing Required
+    - Priority: HIGH | Date: 2025-10-12 23:00
+
+[🔄] TODO-007: Fix voting cooldown blocking testing (Bug #20)
+    - FIXED: Added /resetvotes admin command
+    - Clears all voting cooldowns for testing
+    - Status: COMPLETED - Testing Required
+    - Priority: CRITICAL | Date: 2025-10-12 23:05
+
+[🔄] TODO-008: Implement recurring messages advanced features (Bug #21)
+    - Days of week selection → APScheduler cron
+    - Days of month selection → APScheduler cron
+    - Time slots → Multiple cron jobs
+    - Start/end dates → Job scheduling with date limits
+    - Message preview → Show formatted preview
+    - Status: IN PROGRESS
+    - Priority: HIGH | Estimated: 2-3 hours
+
+[🟡] TODO-001: Test voting system after users table fix
     - Vote for seller → Check /points command
     - Verify points save to database
     - Test /dice2 game with earned points
-    - Priority: HIGH | Status: Waiting for deployment
+    - Priority: HIGH | Status: Use /resetvotes to bypass cooldown
 
 [✅] TODO-004: Fix async main() not being awaited (CRITICAL)
     - Changed main() call to asyncio.run(main())
@@ -75,6 +95,9 @@ Purpose: Track bugs, todos, and progress to prevent regressions
 [✅] Bug #16: Slow Render deployment (10min wait) - FIXED (2025-10-12)
 [✅] Bug #17: Async main() not being awaited - FIXED (2025-10-12 22:35)
 [✅] Bug #18: NameError create_application not defined - FIXED (2025-10-12 22:40)
+[🔄] Bug #19: Recurring messages UI doesn't update after text input - IN PROGRESS (2025-10-12 23:00)
+[🔄] Bug #20: Voting cooldown blocks testing after deployment - IN PROGRESS (2025-10-12 23:05)
+[🔄] Bug #21: Recurring messages advanced features non-functional - IN PROGRESS (2025-10-12 23:10)
 
 [HIGH PRIORITY BUGS] - ALL FIXED ✅
 [✅] Bug #4: Grammar error "1 hours" should be "1 hour" - FIXED
@@ -293,11 +316,11 @@ Last Updated: 2025-10-12 22:30:00
 Session Start: 2025-10-12 18:00:00
 
 📈 STATISTICS:
-- Total Bugs Fixed: 18
+- Total Bugs Fixed: 18 (3 new bugs in progress)
 - Total Tasks Completed: 4
-- Total Tasks Pending: 3
-- Files Modified Today: 10
-- Commits Pushed: 18
+- Total Tasks Pending: 6
+- Files Modified Today: 13
+- Commits Pushed: 21 (pending)
 
 🔥 TODAY'S ACHIEVEMENTS:
 ✅ Integrated voting system from old bot (preserves 3 months of data)
