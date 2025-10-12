@@ -48,6 +48,7 @@ import masked_users
 import admin_panel
 import games
 import payments
+import points_games
 
 # Telegram imports
 import telegram
@@ -109,11 +110,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "**Group Management:**\n"
         "• `/recurring` - Recurring messages (GroupHelpBot style)\n"
         "• `/masked` - Manage masked/anonymous users\n\n"
-        "**Casino Games (Player vs Player):**\n"
+        "**Casino Games (Player vs Player with Crypto):**\n"
         "• `/dice <points>` - 🎲 Dice game\n"
         "• `/basketball <points>` - 🏀 Basketball\n"
         "• `/football <points>` - ⚽ Football\n"
         "• `/bowling <points>` - 🎳 Bowling\n\n"
+        "**Points Games (Saved Points Only):**\n"
+        "• `/dice2 <points> <prediction>` - 🎲 Dice betting\n"
+        "• `/coinflip <points> heads/tails` - 🪙 Coinflip\n"
+        "• `/points` - Check your points balance\n\n"
         "**Balance & Payments:**\n"
         "• `/balance` - Check balance, deposit/withdraw\n\n"
         "**Admin Commands:**\n"
@@ -415,11 +420,16 @@ def main() -> None:
     application.add_handler(CommandHandler("lookup", moderation.lookup_user))
     application.add_handler(CommandHandler("patikra", patikra_command))
     
-    # Casino games commands
+    # Casino games commands (with real crypto)
     application.add_handler(CommandHandler("dice", games.dice_command))
     application.add_handler(CommandHandler("basketball", games.basketball_command))
     application.add_handler(CommandHandler("football", games.football_command))
     application.add_handler(CommandHandler("bowling", games.bowling_command))
+    
+    # Points games commands (saved points only, NO crypto)
+    application.add_handler(CommandHandler("dice2", points_games.dice2_command))
+    application.add_handler(CommandHandler("coinflip", points_games.coinflip_command))
+    application.add_handler(CommandHandler("points", points_games.points_command))
     
     # Payment commands (balance, deposit, withdraw)
     application.add_handler(CommandHandler("balance", payments.balance_command))
