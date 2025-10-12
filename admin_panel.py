@@ -58,6 +58,8 @@ async def show_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         [InlineKeyboardButton("📋 Review Claims", callback_data="admin_claims")],
         [InlineKeyboardButton("🔍 User Lookup", callback_data="admin_lookup")],
         [InlineKeyboardButton("📊 Statistics", callback_data="admin_stats")],
+        [InlineKeyboardButton("🔄 Recurring Messages", callback_data="admin_recurring")],
+        [InlineKeyboardButton("👤 Masked Users", callback_data="admin_masked")],
         [InlineKeyboardButton("⚙️ Settings", callback_data="admin_settings")],
         [InlineKeyboardButton("❌ Close", callback_data="admin_close")]
     ]
