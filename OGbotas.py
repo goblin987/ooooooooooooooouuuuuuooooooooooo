@@ -44,6 +44,7 @@ from database import database
 from utils import data_manager, message_tracker
 import moderation
 import recurring_messages_grouphelp as recurring_messages
+import masked_users
 import admin_panel
 
 # Telegram imports
@@ -308,6 +309,14 @@ async def handle_admin_callback(update: Update, context: ContextTypes.DEFAULT_TY
     elif data == "admin_stats":
         await admin_panel.show_statistics(query, context)
     
+    # Recurring Messages (from admin panel)
+    elif data == "admin_recurring":
+        await recurring_messages.show_main_menu(update, context)
+    
+    # Masked Users (from admin panel)
+    elif data == "admin_masked":
+        await masked_users.show_main_menu(update, context)
+    
     # Close panel
     elif data == "admin_close":
         await query.edit_message_text("✅ Admin panel closed.")
@@ -339,6 +348,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Check if awaiting input for recurring messages (GroupHelpBot style)
         if context.user_data.get('awaiting_input'):
             await recurring_messages.handle_text_input(update, context)
+            return
+        
+        # Check if awaiting input for masked users
+        if context.user_data.get('mask_action'):
+            await masked_users.handle_text_input(update, context)
             return
         
         # Otherwise handle old recurring messages input
@@ -377,6 +391,13 @@ def main() -> None:
     # Recurring messages
     application.add_handler(CommandHandler("recurring", recurring_messages_menu))
     
+    # Masked users command
+    async def masked_users_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Show masked users menu"""
+        await masked_users.show_main_menu(update, context)
+    
+    application.add_handler(CommandHandler("masked", masked_users_menu))
+    
     # Callback query handlers
     # Admin panel callbacks (check admin_ prefix first)
     application.add_handler(CallbackQueryHandler(
@@ -388,6 +409,12 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(
         recurring_messages.handle_callback,
         pattern="^recur_"
+    ))
+    
+    # Masked users callbacks
+    application.add_handler(CallbackQueryHandler(
+        masked_users.handle_callback,
+        pattern="^mask_"
     ))
     
     # Old recurring messages callbacks (fallback)
