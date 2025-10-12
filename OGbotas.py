@@ -46,6 +46,7 @@ import moderation_grouphelp as moderation
 import recurring_messages_grouphelp as recurring_messages
 import masked_users
 import admin_panel
+import games
 
 # Telegram imports
 import telegram
@@ -107,6 +108,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "**Group Management:**\n"
         "• `/recurring` - Recurring messages (GroupHelpBot style)\n"
         "• `/masked` - Manage masked/anonymous users\n\n"
+        "**Casino Games (Player vs Player):**\n"
+        "• `/dice <points>` - 🎲 Dice game\n"
+        "• `/basketball <points>` - 🏀 Basketball\n"
+        "• `/football <points>` - ⚽ Football\n"
+        "• `/bowling <points>` - 🎳 Bowling\n\n"
         "**Note:** Admin permissions required for most commands.",
         parse_mode='Markdown'
     )
@@ -361,6 +367,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await masked_users.handle_text_input(update, context)
             return
         
+        # Check if awaiting game challenge
+        if context.user_data.get('awaiting_challenge'):
+            await games.handle_game_challenge(update, context)
+            return
+        
         # Otherwise handle old recurring messages input
         # await recurring_messages.process_private_chat_input(update, context)
         return
@@ -394,6 +405,12 @@ def main() -> None:
     application.add_handler(CommandHandler("lookup", moderation.lookup_user))
     application.add_handler(CommandHandler("patikra", patikra_command))
     
+    # Casino games commands
+    application.add_handler(CommandHandler("dice", games.dice_command))
+    application.add_handler(CommandHandler("basketball", games.basketball_command))
+    application.add_handler(CommandHandler("football", games.football_command))
+    application.add_handler(CommandHandler("bowling", games.bowling_command))
+    
     # Recurring messages
     application.add_handler(CommandHandler("recurring", recurring_messages_menu))
     
@@ -421,6 +438,12 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(
         masked_users.handle_callback,
         pattern="^mask_"
+    ))
+    
+    # Games callbacks
+    application.add_handler(CallbackQueryHandler(
+        games.handle_game_buttons,
+        pattern="^(dice_|basketball_|football_|bowling_|game_|challenge_)"
     ))
     
     # Old recurring messages callbacks (fallback)
