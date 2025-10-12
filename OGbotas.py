@@ -47,7 +47,7 @@ import recurring_messages_grouphelp as recurring_messages
 import masked_users
 import admin_panel
 import games
-import funds_manager
+import payments
 
 # Telegram imports
 import telegram
@@ -114,8 +114,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/basketball <points>` - 🏀 Basketball\n"
         "• `/football <points>` - ⚽ Football\n"
         "• `/bowling <points>` - 🎳 Bowling\n\n"
-        "**Funds Management (Admin Only):**\n"
-        "• `/funds` - Manage deposits & withdrawals\n\n"
+        "**Balance & Payments:**\n"
+        "• `/balance` - Check balance, deposit/withdraw\n\n"
+        "**Admin Commands:**\n"
+        "• `/addbalance @user amount` - Add funds\n"
+        "• `/removebalance @user amount` - Remove funds\n\n"
         "**Note:** Admin permissions required for most commands.",
         parse_mode='Markdown'
     )
@@ -375,9 +378,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await games.handle_game_challenge(update, context)
             return
         
-        # Check if awaiting funds management input
-        if context.user_data.get('funds_action'):
-            await funds_manager.handle_text_input(update, context)
+        # Check if awaiting withdrawal details
+        if await payments.handle_withdrawal_text(update, context):
             return
         
         # Otherwise handle old recurring messages input
@@ -419,12 +421,10 @@ def main() -> None:
     application.add_handler(CommandHandler("football", games.football_command))
     application.add_handler(CommandHandler("bowling", games.bowling_command))
     
-    # Funds management command
-    async def funds_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Show funds management menu"""
-        await funds_manager.show_funds_menu(update, context)
-    
-    application.add_handler(CommandHandler("funds", funds_command))
+    # Payment commands (balance, deposit, withdraw)
+    application.add_handler(CommandHandler("balance", payments.balance_command))
+    application.add_handler(CommandHandler("addbalance", payments.add_balance_command))
+    application.add_handler(CommandHandler("removebalance", payments.remove_balance_command))
     
     # Recurring messages
     application.add_handler(CommandHandler("recurring", recurring_messages_menu))
@@ -461,10 +461,10 @@ def main() -> None:
         pattern="^(dice_|basketball_|football_|bowling_|game_|challenge_)"
     ))
     
-    # Funds management callbacks
+    # Payment callbacks (deposit/withdraw)
     application.add_handler(CallbackQueryHandler(
-        funds_manager.handle_callback,
-        pattern="^funds_"
+        payments.handle_payment_callback,
+        pattern="^(deposit|withdraw)"
     ))
     
     # Old recurring messages callbacks (fallback)
