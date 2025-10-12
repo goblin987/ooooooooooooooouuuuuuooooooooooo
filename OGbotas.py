@@ -47,6 +47,7 @@ import recurring_messages_grouphelp as recurring_messages
 import masked_users
 import admin_panel
 import games
+import funds_manager
 
 # Telegram imports
 import telegram
@@ -113,6 +114,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/basketball <points>` - 🏀 Basketball\n"
         "• `/football <points>` - ⚽ Football\n"
         "• `/bowling <points>` - 🎳 Bowling\n\n"
+        "**Funds Management (Admin Only):**\n"
+        "• `/funds` - Manage deposits & withdrawals\n\n"
         "**Note:** Admin permissions required for most commands.",
         parse_mode='Markdown'
     )
@@ -372,6 +375,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await games.handle_game_challenge(update, context)
             return
         
+        # Check if awaiting funds management input
+        if context.user_data.get('funds_action'):
+            await funds_manager.handle_text_input(update, context)
+            return
+        
         # Otherwise handle old recurring messages input
         # await recurring_messages.process_private_chat_input(update, context)
         return
@@ -411,6 +419,13 @@ def main() -> None:
     application.add_handler(CommandHandler("football", games.football_command))
     application.add_handler(CommandHandler("bowling", games.bowling_command))
     
+    # Funds management command
+    async def funds_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Show funds management menu"""
+        await funds_manager.show_funds_menu(update, context)
+    
+    application.add_handler(CommandHandler("funds", funds_command))
+    
     # Recurring messages
     application.add_handler(CommandHandler("recurring", recurring_messages_menu))
     
@@ -444,6 +459,12 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(
         games.handle_game_buttons,
         pattern="^(dice_|basketball_|football_|bowling_|game_|challenge_)"
+    ))
+    
+    # Funds management callbacks
+    application.add_handler(CallbackQueryHandler(
+        funds_manager.handle_callback,
+        pattern="^funds_"
     ))
     
     # Old recurring messages callbacks (fallback)
