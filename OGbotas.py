@@ -139,15 +139,6 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def recurring_messages_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Main recurring messages menu - GroupHelpBot style"""
     await recurring_messages.show_main_menu(update, context)
-        
-        async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
-            await self.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
-        
-        async def answer(self, text):
-            pass
-    
-    mock_query = MockQuery(update.message)
-    await recurring_messages.show_message_config(mock_query, context)
 
 # Callback query handler
 async def handle_recurring_callback(query, context):
