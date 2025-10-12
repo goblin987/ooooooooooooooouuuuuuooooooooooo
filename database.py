@@ -149,6 +149,18 @@ class Database:
                 review_notes TEXT
             )
         ''')
+        
+        # Users table - for points and crypto balance
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                points INTEGER DEFAULT 0,
+                balance REAL DEFAULT 0.0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
     
     def _create_indexes(self, conn):
         """Create database indexes for performance"""
@@ -163,7 +175,9 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_banned_words_chat_id ON banned_words(chat_id)",
             "CREATE INDEX IF NOT EXISTS idx_helpers_chat_id ON helpers(chat_id)",
             "CREATE INDEX IF NOT EXISTS idx_helpers_user_id ON helpers(user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_scammer_reports_status ON scammer_reports(status)"
+            "CREATE INDEX IF NOT EXISTS idx_scammer_reports_status ON scammer_reports(status)",
+            "CREATE INDEX IF NOT EXISTS idx_users_points ON users(points)",
+            "CREATE INDEX IF NOT EXISTS idx_users_balance ON users(balance)"
         ]
         
         for index_sql in indexes:

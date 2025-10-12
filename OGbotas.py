@@ -36,6 +36,12 @@ logging.basicConfig(
     ]
 )
 
+# Reduce noise from external libraries
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('httpcore').setLevel(logging.WARNING)
+logging.getLogger('apscheduler').setLevel(logging.WARNING)
+logging.getLogger('telegram').setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 # Import modules
