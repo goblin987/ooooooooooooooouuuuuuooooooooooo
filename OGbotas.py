@@ -377,9 +377,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await masked_users.handle_text_input(update, context)
             return
         
-        # Check if awaiting game challenge
-        if context.user_data.get('awaiting_challenge'):
-            await games.handle_game_challenge(update, context)
+        # Check if awaiting game challenge (crypto games)
+        if await games.handle_game_challenge(update, context):
+            return
+        
+        # Check if awaiting dice2 challenge (points game)
+        if await points_games.handle_dice2_challenge(update, context):
             return
         
         # Check if awaiting withdrawal details
@@ -463,10 +466,16 @@ def main() -> None:
         pattern="^mask_"
     ))
     
-    # Games callbacks
+    # Games callbacks (crypto games)
     application.add_handler(CallbackQueryHandler(
         games.handle_game_buttons,
         pattern="^(dice_|basketball_|football_|bowling_|game_|challenge_)"
+    ))
+    
+    # Points games callbacks (dice2)
+    application.add_handler(CallbackQueryHandler(
+        points_games.handle_dice2_buttons,
+        pattern="^dice2_"
     ))
     
     # Payment callbacks (deposit/withdraw)
