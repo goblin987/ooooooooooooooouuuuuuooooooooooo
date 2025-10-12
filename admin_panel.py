@@ -181,32 +181,41 @@ async def points_remove_start(query, context: ContextTypes.DEFAULT_TYPE) -> None
 
 async def show_points_leaderboard(query, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show top users by points"""
-    # Sort users by points
-    sorted_users = sorted(user_points.items(), key=lambda x: x[1], reverse=True)[:10]
-    
-    text = (
-        "🏆 **TOP USERS LEADERBOARD**\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    )
-    
-    if sorted_users:
-        for i, (user_id, points) in enumerate(sorted_users, 1):
-            # Try to get username
-            username = "Unknown"
-            for uname, uid in username_to_id.items():
-                if uid == user_id:
-                    username = f"@{uname}"
-                    break
-            
-            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
-            text += f"{medal} {username}: **{points}** points\n"
-    else:
-        text += "_No users with points yet._\n"
-    
-    keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="admin_points")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    try:
+        # Get top users from database
+        conn = database.get_sync_connection()
+        cursor = conn.execute(
+            "SELECT user_id, points FROM users WHERE points > 0 ORDER BY points DESC LIMIT 10"
+        )
+        sorted_users = cursor.fetchall()
+        conn.close()
+        
+        text = (
+            "🏆 **TOP USERS LEADERBOARD**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        )
+        
+        if sorted_users:
+            for i, (user_id, points) in enumerate(sorted_users, 1):
+                # Try to get username
+                username = "Unknown"
+                for uname, uid in username_to_id.items():
+                    if uid == user_id:
+                        username = f"@{uname}"
+                        break
+                
+                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+                text += f"{medal} {username}: **{points}** points\n"
+        else:
+            text += "_No users with points yet._\n"
+        
+        keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="admin_points")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    except Exception as e:
+        logger.error(f"Error showing leaderboard: {e}")
+        await query.edit_message_text("❌ Error loading leaderboard!")
 
 
 # ============================================================================
@@ -652,19 +661,19 @@ async def process_points_add(update: Update, context: ContextTypes.DEFAULT_TYPE,
             user_id = len(username_to_id) + 1000000
             username_to_id[username] = user_id
         
-        # Add points
-        current_points = user_points.get(user_id, 0)
-        user_points[user_id] = current_points + points
+        # Add points to database
+        current_points = get_user_points(user_id)
+        new_balance = current_points + points
+        update_user_points(user_id, new_balance)
         
-        # Save
-        data_manager.save_data(user_points, 'user_points.pkl')
+        # Save username mapping
         data_manager.save_data(username_to_id, 'username_to_id.pkl')
         
         await update.message.reply_text(
             f"✅ **Points Added!**\n\n"
             f"User: @{username}\n"
             f"Added: +{points} points\n"
-            f"New Balance: {user_points[user_id]} points",
+            f"New Balance: {new_balance} points",
             parse_mode='Markdown'
         )
         
@@ -691,17 +700,17 @@ async def process_points_remove(update: Update, context: ContextTypes.DEFAULT_TY
             return
         
         user_id = username_to_id.get(username)
-        if not user_id or user_id not in user_points:
+        if not user_id:
+            await update.message.reply_text(f"❌ User @{username} not found!")
+            return
+        
+        current_points = get_user_points(user_id)
+        if current_points == 0:
             await update.message.reply_text(f"❌ User @{username} has no points!")
             return
         
-        # Remove points
-        current_points = user_points[user_id]
         new_points = max(0, current_points - points)
-        user_points[user_id] = new_points
-        
-        # Save
-        data_manager.save_data(user_points, 'user_points.pkl')
+        update_user_points(user_id, new_points)
         
         await update.message.reply_text(
             f"✅ **Points Removed!**\n\n"
