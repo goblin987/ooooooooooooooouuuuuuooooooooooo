@@ -43,7 +43,7 @@ from config import BOT_TOKEN, WEBHOOK_URL, PORT
 from database import database
 from utils import data_manager, message_tracker
 import moderation
-import recurring_messages
+import recurring_messages_grouphelp as recurring_messages
 import admin_panel
 
 # Telegram imports
@@ -353,8 +353,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await admin_panel.handle_admin_input(update, context)
             return
         
-        # Otherwise handle recurring messages input
-        await recurring_messages.process_private_chat_input(update, context)
+        # Check if awaiting input for recurring messages (GroupHelpBot style)
+        if context.user_data.get('awaiting_input'):
+            await recurring_messages.handle_text_input(update, context)
+            return
+        
+        # Otherwise handle old recurring messages input
+        # await recurring_messages.process_private_chat_input(update, context)
         return
     
     # Handle group messages
@@ -396,7 +401,13 @@ def main() -> None:
         pattern="^(admin_|points_|seller_|scammer_|claim_)"
     ))
     
-    # Recurring messages callbacks (everything else)
+    # Recurring messages callbacks (GroupHelpBot style)
+    application.add_handler(CallbackQueryHandler(
+        recurring_messages.handle_callback,
+        pattern="^recur_"
+    ))
+    
+    # Old recurring messages callbacks (fallback)
     application.add_handler(CallbackQueryHandler(handle_recurring_callback))
     
     # Message handler (for private chat input and group messages)
