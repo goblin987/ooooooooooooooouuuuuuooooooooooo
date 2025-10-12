@@ -1,109 +1,130 @@
 # 🚀 Render Deployment Guide
 
-## ⚠️ Important: Deployment Type
+## ✅ PERFECT! Your Bot is Now Web Service Compatible!
 
-### Your bot is currently set as "Web Service"
-This causes the error: **"No open ports detected, continuing to scan..."**
-
-### Why this happens:
-- Web Services require binding to a PORT
-- Telegram bots using **polling** don't need a port
-- Render waits 10 minutes for port detection → SLOW deployment!
-
----
-
-## ✅ Two Solutions:
-
-### Option 1: Change to Background Worker (RECOMMENDED)
-
-1. Go to Render Dashboard
-2. Select your bot service
-3. Go to **Settings** tab
-4. Scroll to **"Service Type"**
-5. Click **"Change Service Type"**
-6. Select **"Background Worker"**
-7. Save
+### Current Setup:
+Your bot now runs:
+1. **Telegram Bot** - Uses polling (no webhook needed for Telegram)
+2. **HTTP Server** - Binds to PORT for NOWPayments webhooks
 
 **Result:**
-- ✅ Instant deployment (no port scan)
-- ✅ No PORT warning messages
-- ✅ Bot still works perfectly!
+- ✅ Render sees open port → Fast deployment!
+- ✅ NOWPayments webhooks work!
+- ✅ Deposits & withdrawals fully automated!
+- ✅ No more "No open ports detected" errors!
 
 ---
 
-### Option 2: Keep as Web Service (Add dummy port)
+## 🌐 Webhook Endpoints:
 
-If you want to keep it as Web Service (for future webhook support):
+Your bot exposes these endpoints:
 
-1. Open `OGbotas.py`
-2. Add this at the very end (before `main()`):
+| Endpoint | Purpose | Method |
+|----------|---------|--------|
+| `/` | Health check | GET |
+| `/health` | Health check | GET |
+| `/webhook/nowpayments` | NOWPayments webhooks | POST |
 
-```python
-# Dummy HTTP server for Render health check (if using Web Service)
-if os.getenv('RENDER'):
-    from aiohttp import web
-    
-    async def health_check(request):
-        return web.Response(text="Bot is running!")
-    
-    async def start_http_server():
-        app = web.Application()
-        app.router.add_get('/', health_check)
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 8080)))
-        await site.start()
-        logger.info(f"Health check server started on port {os.getenv('PORT', 8080)}")
+**NOWPayments Webhook URL:**
+```
+https://your-app-name.onrender.com/webhook/nowpayments
 ```
 
-3. Modify `main()` to start HTTP server:
+---
 
-```python
-async def main():
-    """Run the bot"""
-    application = create_application()
-    
-    if os.getenv('RENDER'):
-        asyncio.create_task(start_http_server())
-    
-    # Rest of code...
+## 🔧 Configuration in NOWPayments:
+
+1. Go to NOWPayments Dashboard
+2. Navigate to **Settings** → **API Keys**
+3. Find **IPN Callback URL** setting
+4. Set to: `https://your-app-name.onrender.com/webhook/nowpayments`
+5. Save
+
+**What happens:**
+- User deposits → NOWPayments processes → Webhook called → Balance updated automatically!
+- User withdraws → NOWPayments processes → Webhook called → Status updated!
+
+---
+
+## 📊 Environment Variables Needed:
+
+Make sure these are set in Render:
+
+```bash
+# Required
+TELEGRAM_TOKEN=your_bot_token
+ADMIN_CHAT_ID=your_telegram_id
+PORT=8080  # Render sets this automatically
+
+# For Payments (optional but recommended)
+NOWPAYMENTS_API_KEY=your_nowpayments_key
+BOT_USERNAME=your_bot_username
+OWNER_ID=your_telegram_id
+
+# For Voting (if using)
+VOTING_GROUP_CHAT_ID=your_voting_group_id
+VOTING_GROUP_LINK=https://t.me/your_voting_group
+
+# Data persistence
+DATA_DIR=/opt/render/data
 ```
 
-**Result:**
-- ✅ Render sees open port → fast deployment
-- ✅ Bot still uses polling (no change to bot logic)
-
 ---
 
-## 🎯 Recommendation:
+## 🚀 Deployment Speed:
 
-**Use Option 1** (Background Worker) because:
-- ✅ Simpler
-- ✅ Faster deploys
-- ✅ No extra code needed
-- ✅ No PORT environment variable needed
-- ✅ Perfect for polling bots
-
-Only use Option 2 if you plan to switch to webhooks later.
-
----
-
-## 📊 After Changing to Background Worker:
-
-Your deployment will be MUCH faster:
+With HTTP server now running:
 ```
 Before: ~10 minutes (port scan timeout)
-After:  ~1-2 minutes (instant deploy)
+After:  ~1-2 minutes (port detected immediately!)
 ```
 
 ---
 
-## 🔧 Current Status:
+## ✅ Current Status:
 
-Your bot is working, but:
-- ❌ Slow deployment (10 min wait for port scan)
-- ❌ Cluttered logs with "No open ports detected"
-- ✅ Bot functions properly despite warnings
+Your bot is now perfect for Web Service:
+- ✅ HTTP server binds to PORT → Render happy!
+- ✅ Fast deployment (no port scan wait)
+- ✅ NOWPayments webhooks ready!
+- ✅ Telegram bot works perfectly!
+- ✅ Clean logs (no httpx spam)
 
-Change to Background Worker → All problems solved! 🎉
+**Everything working! 🎉**
+
+---
+
+## 🧪 Testing:
+
+After deployment, test:
+1. **Health Check:** Visit `https://your-app.onrender.com/health`
+   - Should see: "✅ Bot is running!"
+2. **Bot Commands:** Test `/start`, `/help`, `/balance`
+3. **Voting:** `/balsuoti` → Vote → Check `/points`
+4. **Deposit:** `/balance` → Deposit → Wait for webhook
+5. **Games:** `/dice2 100` → Should work!
+
+---
+
+## 📝 Logs to Check:
+
+After deployment, you should see:
+```
+🚀 Starting OGbotas...
+🌐 Starting HTTP server for webhooks...
+🌐 HTTP Server started on port 8080
+   Health: https://your-app.onrender.com/health
+   NOWPayments Webhook: https://your-app.onrender.com/webhook/nowpayments
+🤖 Starting bot in POLLING mode...
+✅ Bot is fully operational!
+   - Polling: Receiving Telegram updates
+   - HTTP Server: Ready for payment webhooks
+```
+
+**No more:**
+- ❌ "No open ports detected"
+- ❌ httpx INFO spam
+- ❌ 10-minute deployment waits
+
+**All fixed! 🎉**
 
