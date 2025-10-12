@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 from config import BOT_TOKEN, WEBHOOK_URL, PORT
 from database import database
 from utils import data_manager, message_tracker
-import moderation
+import moderation_grouphelp as moderation
 import recurring_messages_grouphelp as recurring_messages
 import masked_users
 import admin_panel
