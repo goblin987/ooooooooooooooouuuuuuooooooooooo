@@ -137,16 +137,8 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
 async def recurring_messages_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Main recurring messages menu"""
-    if not await moderation.is_admin(update, context):
-        await update.message.reply_text("❌ Only admins can use this command!")
-        return
-    
-    # For now, redirect to the main config
-    class MockQuery:
-        def __init__(self, message):
-            self.message = message
-            self.from_user = message.from_user
+    """Main recurring messages menu - GroupHelpBot style"""
+    await recurring_messages.show_main_menu(update, context)
         
         async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
             await self.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
