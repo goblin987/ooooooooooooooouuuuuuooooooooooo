@@ -174,6 +174,8 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = query.from_user.id
     chat_id = query.message.chat_id
     data = query.data
+    
+    logger.info(f"🔘 DICE2 BUTTON: User {user_id} clicked '{data}' in chat {chat_id}")
 
     if not data.startswith('dice2_'):
         return False
