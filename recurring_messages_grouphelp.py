@@ -923,42 +923,55 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not awaiting:
         return
     
-    # Check for media files (photo, video, document)
+    # Check for media files (photo, video, animation/GIF, document)
     if awaiting == 'message_media':
         if update.message.photo:
             # Get the largest photo
             photo = update.message.photo[-1]
-            file = await context.bot.get_file(photo.file_id)
-            context.user_data['recur_msg_config']['media'] = file.file_path
+            # Store file_id, not file_path - file_id is what we need to resend
+            context.user_data['recur_msg_config']['media'] = photo.file_id
             context.user_data['recur_msg_config']['media_type'] = 'photo'
             context.user_data['recur_msg_config']['has_media'] = True
             context.user_data.pop('awaiting_input')
             
-            await update.message.reply_text("✅ Photo saved!")
+            await update.message.reply_text("✅ Nuotrauka išsaugota!")
             await show_customize_screen_after_input(update, context)
             return
             
         elif update.message.video:
             video = update.message.video
-            file = await context.bot.get_file(video.file_id)
-            context.user_data['recur_msg_config']['media'] = file.file_path
+            # Store file_id
+            context.user_data['recur_msg_config']['media'] = video.file_id
             context.user_data['recur_msg_config']['media_type'] = 'video'
             context.user_data['recur_msg_config']['has_media'] = True
             context.user_data.pop('awaiting_input')
             
-            await update.message.reply_text("✅ Video saved!")
+            await update.message.reply_text("✅ Video išsaugotas!")
+            await show_customize_screen_after_input(update, context)
+            return
+            
+        elif update.message.animation:
+            # GIF/Animation
+            animation = update.message.animation
+            # Store file_id
+            context.user_data['recur_msg_config']['media'] = animation.file_id
+            context.user_data['recur_msg_config']['media_type'] = 'animation'
+            context.user_data['recur_msg_config']['has_media'] = True
+            context.user_data.pop('awaiting_input')
+            
+            await update.message.reply_text("✅ GIF išsaugotas!")
             await show_customize_screen_after_input(update, context)
             return
             
         elif update.message.document:
             document = update.message.document
-            file = await context.bot.get_file(document.file_id)
-            context.user_data['recur_msg_config']['media'] = file.file_path
+            # Store file_id
+            context.user_data['recur_msg_config']['media'] = document.file_id
             context.user_data['recur_msg_config']['media_type'] = 'document'
             context.user_data['recur_msg_config']['has_media'] = True
             context.user_data.pop('awaiting_input')
             
-            await update.message.reply_text("✅ Document saved!")
+            await update.message.reply_text("✅ Dokumentas išsaugotas!")
             await show_customize_screen_after_input(update, context)
             return
     
@@ -1715,8 +1728,130 @@ async def send_recurring_message(bot, chat_id: int, message_id: int):
         
         # Send new message
         sent_message = None
-        if msg_type == 'text' and text:
-            logger.info(f"📨 Sending text message to chat {chat_id}")
+        
+        # Prioritize media if it exists
+        if media:
+            # Handle media messages (photo, video, GIF, document, etc.)
+            try:
+                if media.startswith('http://') or media.startswith('https://'):
+                    # It's a URL - detect media type from URL or try different methods
+                    logger.info(f"📷 Sending media message to chat {chat_id}: {media[:50]}...")
+                    
+                    # Try to detect media type from URL
+                    media_lower = media.lower()
+                    
+                    if any(ext in media_lower for ext in ['.mp4', '.mov', '.avi', '.mkv', 'video']):
+                        # Video
+                        logger.info(f"🎥 Detected video format")
+                        sent_message = await bot.send_video(
+                            chat_id=chat_id,
+                            video=media,
+                            caption=text if text else None,
+                            parse_mode='Markdown',
+                            reply_markup=reply_markup
+                        )
+                    elif any(ext in media_lower for ext in ['.gif', 'giphy.com', 'tenor.com']):
+                        # GIF/Animation
+                        logger.info(f"🎬 Detected GIF/animation format")
+                        sent_message = await bot.send_animation(
+                            chat_id=chat_id,
+                            animation=media,
+                            caption=text if text else None,
+                            parse_mode='Markdown',
+                            reply_markup=reply_markup
+                        )
+                    elif any(ext in media_lower for ext in ['.jpg', '.jpeg', '.png', '.webp', 'photo', 'image']):
+                        # Photo
+                        logger.info(f"🖼️ Detected photo format")
+                        sent_message = await bot.send_photo(
+                            chat_id=chat_id,
+                            photo=media,
+                            caption=text if text else None,
+                            parse_mode='Markdown',
+                            reply_markup=reply_markup
+                        )
+                    else:
+                        # Try as photo first, fallback to document
+                        logger.info(f"❓ Unknown format, trying as photo first")
+                        try:
+                            sent_message = await bot.send_photo(
+                                chat_id=chat_id,
+                                photo=media,
+                                caption=text if text else None,
+                                parse_mode='Markdown',
+                                reply_markup=reply_markup
+                            )
+                        except Exception as photo_error:
+                            logger.warning(f"Failed as photo, trying as document: {photo_error}")
+                            sent_message = await bot.send_document(
+                                chat_id=chat_id,
+                                document=media,
+                                caption=text if text else None,
+                                parse_mode='Markdown',
+                                reply_markup=reply_markup
+                            )
+                    
+                    logger.info(f"✅ Media message sent successfully: message_id={sent_message.message_id}")
+                else:
+                    # It's a file_id (from Telegram)
+                    logger.info(f"📎 Sending media by file_id to chat {chat_id}")
+                    # Try as photo first, then video, then animation, then document
+                    try:
+                        sent_message = await bot.send_photo(
+                            chat_id=chat_id,
+                            photo=media,
+                            caption=text if text else None,
+                            parse_mode='Markdown',
+                            reply_markup=reply_markup
+                        )
+                        logger.info(f"✅ Sent as photo")
+                    except Exception as e1:
+                        logger.debug(f"Not a photo: {e1}")
+                        try:
+                            sent_message = await bot.send_video(
+                                chat_id=chat_id,
+                                video=media,
+                                caption=text if text else None,
+                                parse_mode='Markdown',
+                                reply_markup=reply_markup
+                            )
+                            logger.info(f"✅ Sent as video")
+                        except Exception as e2:
+                            logger.debug(f"Not a video: {e2}")
+                            try:
+                                sent_message = await bot.send_animation(
+                                    chat_id=chat_id,
+                                    animation=media,
+                                    caption=text if text else None,
+                                    parse_mode='Markdown',
+                                    reply_markup=reply_markup
+                                )
+                                logger.info(f"✅ Sent as animation/GIF")
+                            except Exception as e3:
+                                logger.debug(f"Not an animation: {e3}")
+                                sent_message = await bot.send_document(
+                                    chat_id=chat_id,
+                                    document=media,
+                                    caption=text if text else None,
+                                    parse_mode='Markdown',
+                                    reply_markup=reply_markup
+                                )
+                                logger.info(f"✅ Sent as document")
+                    logger.info(f"✅ Media message sent successfully: message_id={sent_message.message_id}")
+            except Exception as e:
+                logger.error(f"❌ Error sending media: {e}", exc_info=True)
+                # Fallback to text-only if media fails
+                if text:
+                    logger.info(f"⚠️ Falling back to text-only message")
+                    sent_message = await bot.send_message(
+                        chat_id=chat_id,
+                        text=text,
+                        parse_mode='Markdown',
+                        reply_markup=reply_markup
+                    )
+        elif text:
+            # Text-only message (no media)
+            logger.info(f"📨 Sending text-only message to chat {chat_id}")
             sent_message = await bot.send_message(
                 chat_id=chat_id,
                 text=text,
@@ -1724,20 +1859,6 @@ async def send_recurring_message(bot, chat_id: int, message_id: int):
                 reply_markup=reply_markup
             )
             logger.info(f"✅ Message sent successfully: message_id={sent_message.message_id}")
-        elif media:
-            # Handle media messages (photo, video, etc.)
-            try:
-                if media.startswith('http://') or media.startswith('https://'):
-                    # It's a URL
-                    sent_message = await bot.send_photo(
-                        chat_id=chat_id,
-                        photo=media,
-                        caption=text if text else None,
-                        parse_mode='Markdown',
-                        reply_markup=reply_markup
-                    )
-            except Exception as e:
-                logger.error(f"Error sending media: {e}")
         
         if sent_message:
             # Pin message if enabled
