@@ -923,6 +923,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not awaiting:
         return
     
+    logger.info(f"📥 handle_text_input called: awaiting={awaiting}, has_photo={bool(update.message.photo if update.message else False)}, has_video={bool(update.message.video if update.message else False)}, has_animation={bool(update.message.animation if update.message else False)}")
+    
     # Check for media files (photo, video, animation/GIF, document)
     if awaiting == 'message_media':
         if update.message.photo:
