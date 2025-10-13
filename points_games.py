@@ -316,17 +316,17 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.info(f"🎲 DICE2 ROLL: Found game_key: {game_key}, all games: {list(context.bot_data.get('user_games_points', {}).keys())}")
         if not game_key:
             logger.warning(f"🎲 DICE2 ROLL: No game found for user {user_id} in chat {chat_id}")
-            await query.answer("No active game found!")
+            await query.answer("Žaidimas nerastas!")
             return True
         game = context.bot_data.get('games_points', {}).get(game_key)
         if not game:
-            await query.answer("Game data missing!")
+            await query.answer("Žaidimo duomenys dingo!")
             return True
         if query.message.message_id != game.get('message_id'):
-            await query.answer("This message is not for your game!")
+            await query.answer("Šis mygtukas ne tau!")
             return True
         if max(game['scores'].values()) >= game['points_to_win']:
-            await context.bot.send_message(chat_id, "The game has already ended!")
+            await context.bot.send_message(chat_id, "Žaidimas jau baigtas!")
             return True
         
         player_key = 'player1' if game['player1'] == user_id else 'player2' if game['player2'] == user_id else None
@@ -335,11 +335,11 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         
         turn_round = int(data.split('_')[2])
         if turn_round != game['round_number']:
-            await context.bot.send_message(chat_id, "This button is from a previous round!")
+            await context.bot.send_message(chat_id, "Senas mygtukas!")
             return True
         
         if player_key != game['current_player']:
-            await context.bot.send_message(chat_id, "It's not your turn!")
+            await context.bot.send_message(chat_id, "Ne tavo eilė!")
             return True
         
         # Send dice
@@ -353,19 +353,19 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             await evaluate_dice2_round(game, chat_id, game_key, context)
         else:
             if game['roll_count'][player_key] < game['rolls_needed']:
-                keyboard = [[InlineKeyboardButton(f"🎲 Roll Again (Round {game['round_number']})", callback_data=f"dice2_roll_{game['round_number']}")]]
+                keyboard = [[InlineKeyboardButton(f"🎲 Meskite dar kartą ({game['round_number']} raundas)", callback_data=f"dice2_roll_{game['round_number']}")]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                message = await context.bot.send_message(chat_id, f"Round {game['round_number']}: Roll again!", reply_markup=reply_markup)
+                message = await context.bot.send_message(chat_id, f"{game['round_number']} raundas: Meskite dar kartą!", reply_markup=reply_markup)
                 game['message_id'] = message.message_id  # Update message_id for next click
             else:
                 other_player = 'player2' if player_key == 'player1' else 'player1'
                 game['current_player'] = other_player
-                other_username = (await context.bot.get_chat_member(chat_id, game[other_player])).user.username or "Player"
-                keyboard = [[InlineKeyboardButton(f"🎲 Roll Dice (Round {game['round_number']})", callback_data=f"dice2_roll_{game['round_number']}")]]
+                other_username = (await context.bot.get_chat_member(chat_id, game[other_player])).user.username or "Žaidėjas"
+                keyboard = [[InlineKeyboardButton(f"🎲 Meskite kauliuką ({game['round_number']} raundas)", callback_data=f"dice2_roll_{game['round_number']}")]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 message = await context.bot.send_message(
                     chat_id,
-                    f"Round {game['round_number']}: @{other_username}, your turn! Tap the button to roll the dice.",
+                    f"{game['round_number']} raundas: @{other_username}, tavo eilė!",
                     reply_markup=reply_markup
                 )
                 game['message_id'] = message.message_id  # Update message_id for next click
@@ -375,13 +375,13 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
     elif data.startswith("dice2_accept_"):
         game_id = int(data.split('_')[2])
         if game_id not in context.bot_data.get('pending_challenges_points', {}):
-            await query.edit_message_text("❌ Challenge no longer valid.")
+            await query.edit_message_text("❌ Iššūkis nebegalioja.")
             return True
         game = context.bot_data['pending_challenges_points'][game_id]
         if user_id != game['challenged']:
             return True
         if (chat_id, game['initiator']) in context.bot_data.get('user_games_points', {}) or (chat_id, user_id) in context.bot_data.get('user_games_points', {}):
-            await context.bot.send_message(chat_id, "One of you is already in a game!")
+            await context.bot.send_message(chat_id, "Vienas iš jūsų jau žaidžia!")
             return True
         
         game_key = (chat_id, game['initiator'], user_id)
@@ -411,16 +411,16 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         update_user_points(game['initiator'], p1_points - game['bet'])
         update_user_points(user_id, p2_points - game['bet'])
         
-        player1_username = (await context.bot.get_chat_member(chat_id, game['initiator'])).user.username or "Player1"
-        player2_username = (await context.bot.get_chat_member(chat_id, user_id)).user.username or "Player2"
+        player1_username = (await context.bot.get_chat_member(chat_id, game['initiator'])).user.username or "Žaidėjas1"
+        player2_username = (await context.bot.get_chat_member(chat_id, user_id)).user.username or "Žaidėjas2"
         
         text = (
-            f"🎲 Match started!\n"
-            f"Player 1: @{player1_username}\n"
-            f"Player 2: @{player2_username}\n\n"
-            f"Round 1: @{player1_username}, your turn! Tap the button to roll the dice."
+            f"🎲 **Žaidimas prasideda!**\n\n"
+            f"👤 Žaidėjas 1: @{player1_username}\n"
+            f"👤 Žaidėjas 2: @{player2_username}\n\n"
+            f"**1 raundas:** @{player1_username}, tavo eilė!"
         )
-        keyboard = [[InlineKeyboardButton("🎲 Roll Dice (Round 1)", callback_data="dice2_roll_1")]]
+        keyboard = [[InlineKeyboardButton("🎲 Meskite kauliuką (1 raundas)", callback_data="dice2_roll_1")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         message = await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
         game_state['message_id'] = message.message_id
@@ -431,11 +431,11 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
     elif data.startswith("dice2_cancel_challenge_"):
         game_id = int(data.split('_')[-1])
         if game_id not in context.bot_data.get('pending_challenges_points', {}):
-            await query.edit_message_text("❌ Challenge no longer valid.")
+            await query.edit_message_text("❌ Iššūkis nebegalioja.")
             return True
         game = context.bot_data['pending_challenges_points'][game_id]
-        initiator_username = (await context.bot.get_chat_member(chat_id, game['initiator'])).user.username or "Someone"
-        text = f"❌ {initiator_username}'s challenge was declined."
+        initiator_username = (await context.bot.get_chat_member(chat_id, game['initiator'])).user.username or "Kažkas"
+        text = f"❌ {initiator_username} iššūkis atmestas."
         await query.edit_message_text(text=text)
         del context.bot_data['pending_challenges_points'][game_id]
         return True
@@ -565,26 +565,27 @@ async def evaluate_dice2_round(game, chat_id, game_key, context):
     elif score2 > score1:
         game['scores']['player2'] += 1
     
-    player1_username = (await context.bot.get_chat_member(chat_id, game['player1'])).user.username or "Player1"
-    player2_username = (await context.bot.get_chat_member(chat_id, game['player2'])).user.username or "Player2"
+    player1_username = (await context.bot.get_chat_member(chat_id, game['player1'])).user.username or "Žaidėjas1"
+    player2_username = (await context.bot.get_chat_member(chat_id, game['player2'])).user.username or "Žaidėjas2"
     
     # Round results
+    mode_lt = {'normal': 'Normalus', 'double': 'Dvigubas', 'crazy': 'Beprotiškas'}.get(game['mode'], game['mode'])
     text = (
-        f"🎲 Round Results\n"
-        f"Mode: {game['mode']}\n"
-        f"@{player1_username} rolls: {rolls1}, score: {score1}\n"
-        f"@{player2_username} rolls: {rolls2}, score: {score2}\n"
-        f"🎲 Scoreboard\n"
+        f"🎲 **Raundo rezultatai**\n\n"
+        f"⚙️ Režimas: {mode_lt}\n"
+        f"🎲 @{player1_username}: {rolls1} → **{score1}**\n"
+        f"🎲 @{player2_username}: {rolls2} → **{score2}**\n\n"
+        f"📊 **Rezultatai:**\n"
         f"@{player1_username}: {game['scores']['player1']}\n"
         f"@{player2_username}: {game['scores']['player2']}"
     )
     
     if score1 > score2:
-        text += f"\nPoint awarded to @{player1_username}!"
+        text += f"\n\n✨ Taškas: @{player1_username}!"
     elif score2 > score1:
-        text += f"\nPoint awarded to @{player2_username}!"
+        text += f"\n\n✨ Taškas: @{player2_username}!"
     else:
-        text += "\nTie - No points awarded."
+        text += "\n\n🤝 Lygiosios!"
     
     # Check for game end
     if max(game['scores'].values()) >= game['points_to_win']:
@@ -597,24 +598,24 @@ async def evaluate_dice2_round(game, chat_id, game_key, context):
         winner_username = player1_username if winner == 'player1' else player2_username
         
         text = (
-            f"🎲 Final Round Results\n"
-            f"Mode: {game['mode']}\n"
-            f"@{player1_username} rolls: {rolls1}, score: {score1}\n"
-            f"@{player2_username} rolls: {rolls2}, score: {score2}\n"
-            f"🎲 Final Scoreboard\n"
+            f"🎲 **Galutiniai rezultatai**\n\n"
+            f"⚙️ Režimas: {mode_lt}\n"
+            f"🎲 @{player1_username}: {rolls1} → **{score1}**\n"
+            f"🎲 @{player2_username}: {rolls2} → **{score2}**\n\n"
+            f"📊 **Baigiamasis rezultatas:**\n"
             f"@{player1_username}: {game['scores']['player1']}\n"
             f"@{player2_username}: {game['scores']['player2']}\n\n"
-            f"🏆 Game over!\n"
-            f"🎉 @{winner_username} wins {prize} points!"
+            f"🏆 **Žaidimas baigtas!**\n"
+            f"🎉 @{winner_username} laimi **{prize}** taškus!"
         )
         
         player1_points = get_user_points(game['player1'])
         player2_points = get_user_points(game['player2'])
-        text += f"\n\n@{player1_username} points: {player1_points}\n@{player2_username} points: {player2_points}"
+        text += f"\n\n💎 @{player1_username}: {player1_points} tšk\n💎 @{player2_username}: {player2_points} tšk"
         
         keyboard = [
-            [InlineKeyboardButton("Play Again", callback_data="dice2_play_again"),
-             InlineKeyboardButton("Double", callback_data="dice2_double")]
+            [InlineKeyboardButton("🔄 Žaisti dar kartą", callback_data="dice2_play_again"),
+             InlineKeyboardButton("⚡ Dvigubas", callback_data="dice2_double")]
         ]
         await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
         
@@ -635,8 +636,8 @@ async def evaluate_dice2_round(game, chat_id, game_key, context):
         game['current_player'] = 'player1'
         game['round_number'] += 1
         
-        text += f"\n\nRound {game['round_number']}: @{player1_username}, your turn! Tap the button to roll the dice."
-        keyboard = [[InlineKeyboardButton(f"🎲 Roll Dice (Round {game['round_number']})", callback_data=f"dice2_roll_{game['round_number']}")]]
+        text += f"\n\n**{game['round_number']} raundas:** @{player1_username}, tavo eilė!"
+        keyboard = [[InlineKeyboardButton(f"🎲 Meskite kauliuką ({game['round_number']} raundas)", callback_data=f"dice2_roll_{game['round_number']}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         message = await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
         game['message_id'] = message.message_id
