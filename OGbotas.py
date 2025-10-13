@@ -68,6 +68,25 @@ from aiohttp import web
 # Initialize scheduler
 recurring_messages.init_scheduler()
 
+# Helper function to safely answer callback queries
+async def safe_answer_callback(query, text: str = None, show_alert: bool = False):
+    """
+    Safely answer a callback query, handling expired/invalid queries gracefully.
+    This prevents crashes when queries are too old (>5 minutes).
+    """
+    try:
+        await query.answer(text=text, show_alert=show_alert)
+    except telegram.error.BadRequest as e:
+        if "Query is too old" in str(e) or "query id is invalid" in str(e):
+            logger.warning(f"Callback query too old or invalid, continuing anyway")
+            # Don't raise - the user clicked something, we should still process it
+        else:
+            # Other BadRequest errors should be raised
+            raise
+    except Exception as e:
+        # Log unexpected errors but don't crash
+        logger.error(f"Unexpected error answering callback query: {e}")
+
 # Load persistent data
 logger.info("Loading persistent data...")
 user_points = data_manager.load_data('user_points.pkl', {})
@@ -306,13 +325,13 @@ async def handle_recurring_callback(query, context):
     
     except Exception as e:
         logger.error(f"Error in handle_recurring_callback: {e}")
-        await query.answer("❌ Error processing request")
+        await safe_answer_callback(query, "❌ Error processing request")
 
 
 async def handle_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle admin panel callback queries"""
     query = update.callback_query
-    await query.answer()
+    await safe_answer_callback(query)
     
     data = query.data
     
