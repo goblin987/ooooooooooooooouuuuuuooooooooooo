@@ -1832,24 +1832,25 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             rep_str = msg_config.get('repetition', '24 hours')
             interval_hours = msg_config.get('interval_hours', 24)
             
-            # Check if it's in minutes or hours
-            if 'minutes' in rep_str:
-                # Convert to minutes for IntervalTrigger
-                minutes = int(rep_str.split()[0])
+            # Use interval_hours from config (more reliable than parsing string)
+            if interval_hours < 1:
+                # It's in minutes (fractional hours)
+                minutes = int(interval_hours * 60)
                 trigger = IntervalTrigger(
                     minutes=minutes,
                     start_date=datetime.now(pytz.timezone('Europe/Vilnius')),
                     timezone=pytz.timezone('Europe/Vilnius')
                 )
+                rep_text = f"{minutes} minutes"
             else:
-                # Hours
-                hours = int(rep_str.split()[0])
+                # It's in hours
+                hours = int(interval_hours)
                 trigger = IntervalTrigger(
                     hours=hours,
                     start_date=datetime.now(pytz.timezone('Europe/Vilnius')),
                     timezone=pytz.timezone('Europe/Vilnius')
                 )
-            rep_text = rep_str
+                rep_text = f"{hours} hours"
         
         # Save to database
         import json
