@@ -89,15 +89,19 @@ async def show_group_selection(update: Update, context: ContextTypes.DEFAULT_TYP
                 continue
         
         if not groups:
-            await update.message.reply_text(
+            text = (
                 "❌ **No groups found!**\n\n"
                 "To use recurring messages:\n"
                 "1. Add me to a group\n"
                 "2. Make me an admin\n"
                 "3. Use /recurring in the group\n\n"
-                "Or use /recurring directly in the group chat.",
-                parse_mode='Markdown'
+                "Or use /recurring directly in the group chat."
             )
+            
+            if update.callback_query:
+                await update.callback_query.edit_message_text(text, parse_mode='Markdown')
+            else:
+                await update.effective_message.reply_text(text, parse_mode='Markdown')
             return
         
         # Build selection menu
@@ -126,7 +130,7 @@ async def show_group_selection(update: Update, context: ContextTypes.DEFAULT_TYP
                 parse_mode='Markdown'
             )
         else:
-            await update.message.reply_text(
+            await update.effective_message.reply_text(
                 text,
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
@@ -134,10 +138,13 @@ async def show_group_selection(update: Update, context: ContextTypes.DEFAULT_TYP
             
     except Exception as e:
         logger.error(f"Error showing group selection: {e}")
-        await update.message.reply_text(
-            "❌ Error loading groups. Please use /recurring directly in the group chat.",
-            parse_mode='Markdown'
-        )
+        
+        text = "❌ Error loading groups. Please use /recurring directly in the group chat."
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(text, parse_mode='Markdown')
+        else:
+            await update.effective_message.reply_text(text, parse_mode='Markdown')
 
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -156,11 +163,19 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             try:
                 member = await context.bot.get_chat_member(chat_id, update.effective_user.id)
                 if member.status not in ['creator', 'administrator']:
-                    await update.message.reply_text("❌ You are no longer an admin in that group!")
+                    text = "❌ You are no longer an admin in that group!"
+                    if update.callback_query:
+                        await update.callback_query.edit_message_text(text)
+                    else:
+                        await update.effective_message.reply_text(text)
                     context.user_data.pop('selected_group_id', None)
                     return
             except Exception as e:
-                await update.message.reply_text("❌ Could not access that group!")
+                text = "❌ Could not access that group!"
+                if update.callback_query:
+                    await update.callback_query.edit_message_text(text)
+                else:
+                    await update.effective_message.reply_text(text)
                 context.user_data.pop('selected_group_id', None)
                 return
     else:
@@ -169,7 +184,11 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         # Check if user is admin
         if not await is_admin(update, context):
-            await update.message.reply_text("❌ Only administrators can manage recurring messages!")
+            text = "❌ Only administrators can manage recurring messages!"
+            if update.callback_query:
+                await update.callback_query.edit_message_text(text)
+            else:
+                await update.effective_message.reply_text(text)
             return
     
     # Get current time in Lithuanian timezone
@@ -228,7 +247,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode='Markdown'
         )
     else:
-        await update.message.reply_text(
+        await update.effective_message.reply_text(
             text,
             reply_markup=reply_markup,
             parse_mode='Markdown'
