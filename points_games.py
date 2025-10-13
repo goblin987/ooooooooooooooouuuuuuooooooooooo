@@ -355,18 +355,20 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             if game['roll_count'][player_key] < game['rolls_needed']:
                 keyboard = [[InlineKeyboardButton(f"🎲 Roll Again (Round {game['round_number']})", callback_data=f"dice2_roll_{game['round_number']}")]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await context.bot.send_message(chat_id, f"Round {game['round_number']}: Roll again!", reply_markup=reply_markup)
+                message = await context.bot.send_message(chat_id, f"Round {game['round_number']}: Roll again!", reply_markup=reply_markup)
+                game['message_id'] = message.message_id  # Update message_id for next click
             else:
                 other_player = 'player2' if player_key == 'player1' else 'player1'
                 game['current_player'] = other_player
                 other_username = (await context.bot.get_chat_member(chat_id, game[other_player])).user.username or "Player"
                 keyboard = [[InlineKeyboardButton(f"🎲 Roll Dice (Round {game['round_number']})", callback_data=f"dice2_roll_{game['round_number']}")]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await context.bot.send_message(
+                message = await context.bot.send_message(
                     chat_id,
                     f"Round {game['round_number']}: @{other_username}, your turn! Tap the button to roll the dice.",
                     reply_markup=reply_markup
                 )
+                game['message_id'] = message.message_id  # Update message_id for next click
         return True
 
     # Handle challenge acceptance

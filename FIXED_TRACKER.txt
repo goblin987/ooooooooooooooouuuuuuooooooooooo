@@ -185,6 +185,15 @@ Purpose: Track bugs, todos, and progress to prevent regressions
     - Made message_id check optional with .get() for safety
     - Now three phases are properly separated: setup, challenge, game
 
+[✅] Bug #31: Second player's "Roll dice" button not working - FIXED (2025-10-13 01:55)
+    - Root cause: message_id not updated after sending new roll button messages
+    - When player 1 rolls, bot sends NEW message to player 2
+    - But game['message_id'] still pointed to OLD message
+    - Line 323 validation: if query.message.message_id != game['message_id'] → REJECT!
+    - FIX: Update game['message_id'] after sending each new roll button message
+    - Lines 358-359 and 366-371: Capture message object and update game['message_id']
+    - Now both players can click their respective roll buttons
+
 [HIGH PRIORITY BUGS] - ALL FIXED ✅
 [✅] Bug #4: Grammar error "1 hours" should be "1 hour" - FIXED
 [✅] Bug #6: No environment variable validation - FIXED
