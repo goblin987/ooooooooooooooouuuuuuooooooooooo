@@ -28,7 +28,7 @@ file_handler.setFormatter(logging.Formatter(
 
 # Configure root logger
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Changed to DEBUG for detailed logging
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         file_handler,
@@ -36,7 +36,7 @@ logging.basicConfig(
     ]
 )
 
-# Reduce noise from external libraries
+# Reduce noise from external libraries (keep these at WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger('httpcore').setLevel(logging.WARNING)
 logging.getLogger('apscheduler').setLevel(logging.WARNING)
@@ -373,10 +373,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
     
     # Check game challenge handlers FIRST (work in both private and group chats)
+    logger.debug(f"🔍 MESSAGE HANDLER: Checking game challenges for user {update.effective_user.id}")
+    
     if await games.handle_game_challenge(update, context):
+        logger.debug(f"✅ MESSAGE HANDLER: Crypto game challenge handled")
         return
     
-    if await points_games.handle_dice2_challenge(update, context):
+    logger.debug(f"🔍 MESSAGE HANDLER: Checking dice2 challenge (expecting={context.user_data.get('expecting_username')})")
+    dice2_result = await points_games.handle_dice2_challenge(update, context)
+    logger.debug(f"🔍 MESSAGE HANDLER: dice2 challenge returned {dice2_result}")
+    if dice2_result:
+        logger.debug(f"✅ MESSAGE HANDLER: Dice2 challenge handled")
         return
     
     # Handle private chat input
