@@ -175,6 +175,14 @@ Purpose: Track bugs, todos, and progress to prevent regressions
     - Also supports reply-based challenges as fallback
     - ✅ FULLY WORKING NOW!
 
+[✅] Bug #30: KeyError 'message_id' in challenge acceptance - FIXED (2025-10-13 01:45)
+    - Root cause: Setup phase check applied to ALL dice2 buttons
+    - Challenge acceptance buttons (dice2_accept_, dice2_cancel_challenge_) triggered setup validation
+    - Setup validation expected 'message_id' which doesn't exist after challenge creation
+    - FIX: Skip setup validation for challenge acceptance buttons
+    - Also made message_id check optional with .get() for safety
+    - Now setup phase and challenge phase are properly separated
+
 [HIGH PRIORITY BUGS] - ALL FIXED ✅
 [✅] Bug #4: Grammar error "1 hours" should be "1 hour" - FIXED
 [✅] Bug #6: No environment variable validation - FIXED

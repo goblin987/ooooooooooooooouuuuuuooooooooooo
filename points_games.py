@@ -180,10 +180,12 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
 
     setup_key = 'dice2_setup'
     
-    # Handle setup phase
-    if setup_key in context.user_data:
+    # Handle setup phase (mode/points selection - NOT challenge acceptance!)
+    # Skip this check for challenge acceptance buttons (dice2_accept_, dice2_cancel_challenge_)
+    if setup_key in context.user_data and not (data.startswith("dice2_accept_") or data.startswith("dice2_cancel_challenge_")):
         setup = context.user_data[setup_key]
-        if setup['initiator'] != user_id or setup['message_id'] != query.message.message_id:
+        # Only check message_id if it exists in setup (it won't exist after challenge creation)
+        if setup.get('initiator') != user_id or (setup.get('message_id') and setup.get('message_id') != query.message.message_id):
             await query.answer("This is not your game setup!")
             return True
 
