@@ -387,16 +387,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         logger.debug(f"✅ MESSAGE HANDLER: Dice2 challenge handled")
         return
     
+    # Check for awaiting input (WORKS IN BOTH PRIVATE AND GROUP CHATS)
+    # This handles recurring messages, masked users, etc.
+    if context.user_data.get('awaiting_input'):
+        logger.debug(f"🔍 MESSAGE HANDLER: Awaiting input detected: {context.user_data.get('awaiting_input')}")
+        await recurring_messages.handle_text_input(update, context)
+        return
+    
     # Handle private chat input
     if update.effective_chat.type == 'private':
         # Check if it's admin panel input
         if context.user_data.get('admin_action'):
             await admin_panel.handle_admin_input(update, context)
-            return
-        
-        # Check if awaiting input for recurring messages (GroupHelpBot style)
-        if context.user_data.get('awaiting_input'):
-            await recurring_messages.handle_text_input(update, context)
             return
         
         # Check if awaiting input for masked users
