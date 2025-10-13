@@ -423,6 +423,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     elif data == "recur_customize":
         await show_customize_screen(query, context)
     
+    # Time (same as time slot)
+    elif data == "recur_time":
+        await show_time_slot_screen(query, context)
+    
     # Time slot
     elif data == "recur_time_slot":
         await show_time_slot_screen(query, context)
@@ -680,6 +684,50 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 # ============================================================================
+# HELPER FUNCTION - Show Customize Screen After Input
+# ============================================================================
+
+async def show_customize_screen_after_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show customize screen with checkmarks after saving input"""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    msg_config = context.user_data.get('recur_msg_config', {})
+    
+    text_icon = "✅" if msg_config.get('has_text') else "❌"
+    media_icon = "✅" if msg_config.get('has_media') else "❌"
+    buttons_icon = "✅" if msg_config.get('has_buttons') else "❌"
+    
+    text = (
+        "🔄 **Recurring messages**\n\n"
+        f"📝 Text: {text_icon}\n"
+        f"📷 Media: {media_icon}\n"
+        f"🔗 Url Buttons: {buttons_icon}\n\n"
+        "Use the buttons below to choose what you want to set"
+    )
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("📝 Text", callback_data="recur_set_text"),
+            InlineKeyboardButton("👁️ See", callback_data="recur_see_text")
+        ],
+        [
+            InlineKeyboardButton("📷 Media", callback_data="recur_set_media"),
+            InlineKeyboardButton("👁️ See", callback_data="recur_see_media")
+        ],
+        [
+            InlineKeyboardButton("🔗 Url Buttons", callback_data="recur_set_buttons"),
+            InlineKeyboardButton("👁️ See", callback_data="recur_see_buttons")
+        ],
+        [InlineKeyboardButton("👁️ Full preview", callback_data="recur_preview")],
+        [InlineKeyboardButton("📋 Select a Topic", callback_data="recur_topics")],
+        [InlineKeyboardButton("🔙 Back", callback_data="recur_config")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+
+# ============================================================================
 # TEXT INPUT HANDLER
 # ============================================================================
 
@@ -691,7 +739,49 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not awaiting:
         return
     
+    # Check for media files (photo, video, document)
+    if awaiting == 'message_media':
+        if update.message.photo:
+            # Get the largest photo
+            photo = update.message.photo[-1]
+            file = await context.bot.get_file(photo.file_id)
+            context.user_data['recur_msg_config']['media'] = file.file_path
+            context.user_data['recur_msg_config']['media_type'] = 'photo'
+            context.user_data['recur_msg_config']['has_media'] = True
+            context.user_data.pop('awaiting_input')
+            
+            await update.message.reply_text("✅ Photo saved!")
+            await show_customize_screen_after_input(update, context)
+            return
+            
+        elif update.message.video:
+            video = update.message.video
+            file = await context.bot.get_file(video.file_id)
+            context.user_data['recur_msg_config']['media'] = file.file_path
+            context.user_data['recur_msg_config']['media_type'] = 'video'
+            context.user_data['recur_msg_config']['has_media'] = True
+            context.user_data.pop('awaiting_input')
+            
+            await update.message.reply_text("✅ Video saved!")
+            await show_customize_screen_after_input(update, context)
+            return
+            
+        elif update.message.document:
+            document = update.message.document
+            file = await context.bot.get_file(document.file_id)
+            context.user_data['recur_msg_config']['media'] = file.file_path
+            context.user_data['recur_msg_config']['media_type'] = 'document'
+            context.user_data['recur_msg_config']['has_media'] = True
+            context.user_data.pop('awaiting_input')
+            
+            await update.message.reply_text("✅ Document saved!")
+            await show_customize_screen_after_input(update, context)
+            return
+    
     text = update.message.text
+    
+    if not text:
+        return
     
     if text == '/cancel':
         context.user_data.pop('awaiting_input', None)
@@ -703,40 +793,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         context.user_data['recur_msg_config']['has_text'] = True
         context.user_data.pop('awaiting_input')
         
-        # Send confirmation and immediately show updated customize screen
-        confirm_msg = await update.message.reply_text(
-            "✅ Message text saved!",
-            parse_mode='Markdown'
-        )
-        
-        # Show updated customize screen (GroupHelpBot behavior)
-        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-        
-        msg_config = context.user_data.get('recur_msg_config', {})
-        
-        # Build status display
-        status_text = "📝 **Message Configuration**\n\n"
-        status_text += f"**Status:** {msg_config.get('status', 'Off')}\n"
-        status_text += f"**Time:** {msg_config.get('time', 'Not set')}\n"
-        status_text += f"**Repetition:** {msg_config.get('repetition', 'Not set')}\n\n"
-        
-        # Content indicators
-        status_text += "**Content:**\n"
-        status_text += f"✅ Text\n" if msg_config.get('has_text') else "❌ Text\n"
-        status_text += f"✅ Media\n" if msg_config.get('has_media') else "❌ Media\n"
-        status_text += f"✅ Buttons\n" if msg_config.get('has_buttons') else "❌ Buttons\n"
-        
-        keyboard = [
-            [InlineKeyboardButton("⚙️ Customize", callback_data="recur_customize")],
-            [InlineKeyboardButton("💾 Save", callback_data="recur_save")],
-            [InlineKeyboardButton("🔙 Back", callback_data="recur_main_menu")]
-        ]
-        
-        await update.message.reply_text(
-            status_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
+        await update.message.reply_text("✅ Message text saved!")
+        await show_customize_screen_after_input(update, context)
     
     elif awaiting == 'custom_time':
         try:
@@ -791,12 +849,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         # Handle media URL input
         if text.startswith('http://') or text.startswith('https://'):
             context.user_data['recur_msg_config']['media'] = text
+            context.user_data['recur_msg_config']['media_type'] = 'url'
             context.user_data['recur_msg_config']['has_media'] = True
             context.user_data.pop('awaiting_input')
-            await update.message.reply_text(
-                "✅ Media URL saved!\n\n"
-                "Use /recurring to continue configuration."
-            )
+            
+            await update.message.reply_text("✅ Media URL saved!")
+            await show_customize_screen_after_input(update, context)
         else:
             await update.message.reply_text(
                 "❌ Invalid URL. Please send a valid HTTP/HTTPS URL.\n"
@@ -860,9 +918,9 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             
             btn_count = len(buttons)
             await update.message.reply_text(
-                f"✅ {btn_count} button{'s' if btn_count > 1 else ''} saved!\n\n"
-                "Use /recurring to continue configuration."
+                f"✅ {btn_count} button{'s' if btn_count > 1 else ''} saved!"
             )
+            await show_customize_screen_after_input(update, context)
             
         except Exception as e:
             logger.error(f"Error parsing buttons: {e}")
