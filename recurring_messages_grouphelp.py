@@ -1671,6 +1671,8 @@ async def send_recurring_message(bot, chat_id: int, message_id: int):
     This is the actual function that sends messages on schedule
     """
     try:
+        logger.info(f"📤 send_recurring_message called: chat_id={chat_id}, message_id={message_id}")
+        
         # Get message config from database
         conn = database.get_sync_connection()
         cursor = conn.execute(
@@ -1681,11 +1683,12 @@ async def send_recurring_message(bot, chat_id: int, message_id: int):
         result = cursor.fetchone()
         
         if not result:
-            logger.warning(f"Recurring message {message_id} not found in database")
+            logger.warning(f"❌ Recurring message {message_id} not found in database")
             conn.close()
             return
         
         text, media, buttons_json, pin, delete_last, last_msg_id, msg_type = result
+        logger.info(f"📋 Retrieved message config: text_len={len(text) if text else 0}, has_media={bool(media)}, type={msg_type}")
         
         # Delete last message if enabled
         if delete_last and last_msg_id:
@@ -1713,12 +1716,14 @@ async def send_recurring_message(bot, chat_id: int, message_id: int):
         # Send new message
         sent_message = None
         if msg_type == 'text' and text:
+            logger.info(f"📨 Sending text message to chat {chat_id}")
             sent_message = await bot.send_message(
                 chat_id=chat_id,
                 text=text,
                 parse_mode='Markdown',
                 reply_markup=reply_markup
             )
+            logger.info(f"✅ Message sent successfully: message_id={sent_message.message_id}")
         elif media:
             # Handle media messages (photo, video, etc.)
             try:
@@ -1891,7 +1896,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 msg_config.get('media', ''),
                 buttons_json,
                 repetition_type,
-                hours if repetition_type == 'interval' else 24,
+                msg_config.get('interval_hours', 24),
                 msg_config.get('pin_message', False),
                 msg_config.get('delete_last', False),
                 editing_message_id
@@ -1912,7 +1917,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 buttons_json,
                 'text',
                 repetition_type,
-                hours if repetition_type == 'interval' else 24,
+                msg_config.get('interval_hours', 24),
                 msg_config.get('pin_message', False),
                 msg_config.get('delete_last', False),
                 'active',
@@ -1959,6 +1964,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             # Single job
             job_id = f"recur_{chat_id}_{message_id}"
             
+            logger.info(f"🔧 Creating scheduler job: job_id={job_id}, trigger={trigger}, chat_id={chat_id}")
             scheduler.add_job(
                 send_recurring_message,
                 trigger=trigger,
@@ -1972,17 +1978,18 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 'UPDATE scheduled_messages SET job_id = ? WHERE id = ?',
                 (job_id, message_id)
             )
-            logger.info(f"Created recurring message job {job_id} for chat {chat_id}")
+            logger.info(f"✅ Created recurring message job {job_id} for chat {chat_id}, next run: {scheduler.get_job(job_id).next_run_time if scheduler.get_job(job_id) else 'Unknown'}")
         
         conn.commit()
         conn.close()
         
         # Send the message immediately (first time)
         try:
+            logger.info(f"🚀 Attempting to send initial recurring message: chat_id={chat_id}, message_id={message_id}")
             await send_recurring_message(context.bot, chat_id, message_id)
-            logger.info(f"Sent initial recurring message for chat {chat_id}, message_id {message_id}")
+            logger.info(f"✅ Successfully sent initial recurring message for chat {chat_id}, message_id {message_id}")
         except Exception as e:
-            logger.error(f"Error sending initial recurring message: {e}")
+            logger.error(f"❌ Error sending initial recurring message: {e}", exc_info=True)
             # Don't fail the save if initial send fails
         
         # Clear user config
