@@ -640,8 +640,21 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
         challenged_username = username
         
         # Method 1: Database lookup (PRIMARY - like cacacacasino-main/dice.py!)
+        logger.info(f"🔍 CHALLENGE DEBUG: Looking up username '@{username}'")
+        
         conn = database.get_sync_connection()
         try:
+            # First, check if ANY users exist in cache
+            cursor = conn.execute("SELECT COUNT(*) FROM user_cache")
+            total_users = cursor.fetchone()[0]
+            logger.info(f"📊 CHALLENGE DEBUG: Total users in cache: {total_users}")
+            
+            # Show all cached usernames for debugging
+            cursor = conn.execute("SELECT user_id, username FROM user_cache LIMIT 10")
+            cached_users = cursor.fetchall()
+            logger.info(f"📋 CHALLENGE DEBUG: Cached users (sample): {cached_users}")
+            
+            # Now try to find the specific user
             cursor = conn.execute(
                 "SELECT user_id FROM user_cache WHERE LOWER(username) = LOWER(?)",
                 (username,)
@@ -650,9 +663,11 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
             if result:
                 challenged_id = result['user_id'] if isinstance(result, sqlite3.Row) else result[0]
                 challenged_username = username
-                logger.info(f"✅ Found @{username} in database: ID {challenged_id}")
+                logger.info(f"✅ CHALLENGE DEBUG: Found @{username} in database: ID {challenged_id}")
+            else:
+                logger.warning(f"❌ CHALLENGE DEBUG: @{username} NOT in database (needs to send a message first)")
         except Exception as e:
-            logger.debug(f"Database lookup failed: {e}")
+            logger.error(f"❌ CHALLENGE DEBUG: Database lookup failed: {e}", exc_info=True)
         finally:
             conn.close()
         

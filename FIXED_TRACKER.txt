@@ -160,9 +160,11 @@ Purpose: Track bugs, todos, and progress to prevent regressions
 [✅] Bug #26: Import error moderation_grouphelp not defined - FIXED (2025-10-13 00:05)
 [✅] Bug #27: Pending bans not working for users not in group - FIXED (2025-10-13 00:10)
 [✅] Bug #28: Pending bans should accept username-only input - FIXED (2025-10-13 00:20)
-[✅] Bug #29: Dice2 challenge not finding users in group - FIXED (2025-10-13 00:40)
+[✅] Bug #29: Dice2 challenge not finding users in group - FIXED (2025-10-13 00:50)
     - NOTE: First fix was incomplete (API limitation), second fix was wrong direction
-    - FINAL FIX: Database lookup (cacacacasino-main style)
+    - FINAL FIX: Database lookup + auto-cache on every message
+    - Added auto-caching: Users stored in database when they send ANY message
+    - Enhanced debug logging: Shows cache status, total users, lookup results
     - Users can type @username directly (no reply needed!)
     - Also supports reply-based challenges as fallback
     - Works like your casino repo - instant database lookup!

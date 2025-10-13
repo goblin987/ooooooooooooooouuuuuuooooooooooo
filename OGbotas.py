@@ -405,9 +405,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     
     # Handle group messages
-    # TODO: Future feature - banned words filtering will be implemented here
-    # For now, just log group messages for analytics
-    logger.debug(f"Group message from user {update.effective_user.id} in chat {update.effective_chat.id}")
+    # CRITICAL: Auto-cache users when they send ANY message (for challenge lookup!)
+    user = update.effective_user
+    if user and user.id:
+        try:
+            database.store_user_info(
+                user.id,
+                user.username or f"user_{user.id}",
+                user.first_name,
+                user.last_name
+            )
+            logger.debug(f"✅ Cached user @{user.username or user.id} (ID: {user.id}) from group message")
+        except Exception as e:
+            logger.error(f"❌ Failed to cache user {user.id}: {e}")
 
 def create_application():
     """Create and configure the Telegram bot application."""

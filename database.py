@@ -244,11 +244,11 @@ class Database:
                     VALUES (?, ?, ?, ?, datetime('now'))
                 ''', (user_id, username, first_name, last_name))
                 conn.commit()
-                logger.debug(f"Stored user info: {username} (ID: {user_id})")
+                logger.info(f"💾 USER CACHE: Stored @{username} (ID: {user_id}, name: {first_name} {last_name})")
             finally:
                 conn.close()
         except Exception as e:
-            logger.warning(f"Error storing user info for {username}: {e}")
+            logger.error(f"❌ USER CACHE ERROR: Failed to store @{username} (ID: {user_id}): {e}", exc_info=True)
     
     def get_user_by_username(self, username: str) -> Optional[Dict]:
         """Get user info by username"""
