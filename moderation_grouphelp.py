@@ -232,10 +232,54 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_info = await resolve_user(context, target_input, chat_id)
     
     if not user_info or not user_info.get('user_id'):
-        await update.message.reply_text(
-            f"❌ Could not find user: {target_input}\n\n"
-            "Make sure the username is correct or use user ID."
+        # User not found - try to add to pending bans anyway (GroupHelpBot style!)
+        # This handles cases where user has never been in the group
+        clean_input = target_input.strip().lstrip('@')
+        
+        # Try to extract user ID if it's a numeric input
+        if clean_input.isdigit():
+            user_id = int(clean_input)
+            username = f"user_{user_id}"
+        else:
+            # For username-only input, we can't get user ID from Telegram API
+            # But we can still add them to pending bans with a placeholder
+            await update.message.reply_text(
+                f"❌ Could not find user: {target_input}\n\n"
+                f"**GroupHelpBot Style Solution:**\n"
+                f"To ban users not in the group, use their **user ID** instead:\n\n"
+                f"**Example:** `/ban 123456789 spam`\n\n"
+                f"💡 **How to get user ID:**\n"
+                f"• Forward their message to @userinfobot\n"
+                f"• Or use @getmyid_bot\n"
+                f"• Or check admin panel user lookup",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Add to pending bans with available info
+        database.add_pending_ban(
+            user_id=user_id,
+            username=username,
+            chat_id=chat_id,
+            banned_by=admin_user.id,
+            banned_by_username=admin_user.username or str(admin_user.id),
+            reason=reason
         )
+        
+        # Success message - GroupHelpBot style
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        await update.message.reply_text(
+            "⏳ **VARTOTOJAS PRIDĖTAS Į UŽDRAUDIMO SĄRAŠĄ** ⏳\n\n"
+            f"👤 Vartotojas: User (@{username})\n"
+            f"🆔 ID: `{user_id}`\n"
+            f"👮 Uždraudė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
+            f"📝 Priežastis: {reason}\n"
+            f"⏰ Data: {timestamp}\n\n"
+            f"✅ **Vartotojas bus automatiškai uždraustas, kai prisijungs prie grupės!**",
+            parse_mode='Markdown'
+        )
+        
+        logger.info(f"Added pending ban for {username} (ID: {user_id}) in chat {chat_id} - user not found in any cache")
         return
     
     user_id = user_info['user_id']
@@ -590,7 +634,10 @@ async def lookup_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     if not context.args:
         await update.message.reply_text(
-            "❌ **Usage:** `/lookup @username` or `/lookup user_id`",
+            "❌ **Usage:** `/lookup @username` or `/lookup user_id`\n\n"
+            "💡 **To get user ID for banning:**\n"
+            "• Forward their message to @userinfobot\n"
+            "• Or use @getmyid_bot",
             parse_mode='Markdown'
         )
         return
@@ -602,7 +649,17 @@ async def lookup_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     user_info = await resolve_user(context, target_input, chat_id)
     
     if not user_info or not user_info.get('user_id'):
-        await update.message.reply_text(f"❌ Could not find user: {target_input}")
+        await update.message.reply_text(
+            f"❌ Could not find user: {target_input}\n\n"
+            f"**To ban this user anyway:**\n"
+            f"Use their **user ID** instead of username:\n\n"
+            f"**Example:** `/ban 123456789 spam`\n\n"
+            f"💡 **How to get user ID:**\n"
+            f"• Forward their message to @userinfobot\n"
+            f"• Or use @getmyid_bot\n"
+            f"• Or check if they're in ban history",
+            parse_mode='Markdown'
+        )
         return
     
     user_id = user_info['user_id']
