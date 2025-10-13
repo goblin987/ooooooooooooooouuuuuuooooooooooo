@@ -1810,11 +1810,19 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         conn.close()
         
+        # Send the message immediately (first time)
+        try:
+            await send_recurring_message(context.bot, chat_id, message_id)
+            logger.info(f"Sent initial recurring message for chat {chat_id}, message_id {message_id}")
+        except Exception as e:
+            logger.error(f"Error sending initial recurring message: {e}")
+            # Don't fail the save if initial send fails
+        
         # Clear user config
         context.user_data.pop('recur_msg_config', None)
         
         # Show success
-        action_text = "atnaujintas" if editing_message_id else "išsaugotas"
+        action_text = "atnaujintas ir išsiųstas" if editing_message_id else "išsaugotas ir išsiųstas"
         await query.edit_message_text(
             f"✅ **Pasikartojantis skelbimas {action_text}!**\n\n"
             f"📝 Pranešimas: {msg_config.get('text', '')[:50]}...\n"
@@ -1822,7 +1830,8 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             f"🔄 Kartojimas: {rep_text}\n"
             f"📌 Prisegti: {'Taip' if msg_config.get('pin_message') else 'Ne'}\n"
             f"🗑️ Ištrinti paskutinį: {'Taip' if msg_config.get('delete_last') else 'Ne'}\n\n"
-            f"Pranešimas bus siunčiamas automatiškai!",
+            f"✅ Pirmas pranešimas išsiųstas!\n"
+            f"🔄 Pranešimas kartosis automatiškai kas {rep_text}",
             parse_mode='Markdown'
         )
         
