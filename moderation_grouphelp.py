@@ -232,7 +232,7 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_info = await resolve_user(context, target_input, chat_id)
     
     if not user_info or not user_info.get('user_id'):
-        # User not found - try to add to pending bans anyway (GroupHelpBot style!)
+        # User not found - add to pending bans anyway (GroupHelpBot style!)
         # This handles cases where user has never been in the group
         clean_input = target_input.strip().lstrip('@')
         
@@ -241,20 +241,10 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             user_id = int(clean_input)
             username = f"user_{user_id}"
         else:
-            # For username-only input, we can't get user ID from Telegram API
-            # But we can still add them to pending bans with a placeholder
-            await update.message.reply_text(
-                f"❌ Could not find user: {target_input}\n\n"
-                f"**GroupHelpBot Style Solution:**\n"
-                f"To ban users not in the group, use their **user ID** instead:\n\n"
-                f"**Example:** `/ban 123456789 spam`\n\n"
-                f"💡 **How to get user ID:**\n"
-                f"• Forward their message to @userinfobot\n"
-                f"• Or use @getmyid_bot\n"
-                f"• Or check admin panel user lookup",
-                parse_mode='Markdown'
-            )
-            return
+            # For username-only input - add to pending bans with user_id = 0
+            # Will match on join by username (GroupHelpBot behavior)
+            user_id = 0  # Placeholder - will be updated when user joins
+            username = clean_input.lower()
         
         # Add to pending bans with available info
         database.add_pending_ban(
@@ -268,18 +258,33 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         # Success message - GroupHelpBot style
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        await update.message.reply_text(
-            "⏳ **VARTOTOJAS PRIDĖTAS Į UŽDRAUDIMO SĄRAŠĄ** ⏳\n\n"
-            f"👤 Vartotojas: User (@{username})\n"
-            f"🆔 ID: `{user_id}`\n"
-            f"👮 Uždraudė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
-            f"📝 Priežastis: {reason}\n"
-            f"⏰ Data: {timestamp}\n\n"
-            f"✅ **Vartotojas bus automatiškai uždraustas, kai prisijungs prie grupės!**",
-            parse_mode='Markdown'
-        )
         
-        logger.info(f"Added pending ban for {username} (ID: {user_id}) in chat {chat_id} - user not found in any cache")
+        if user_id == 0:
+            # Username-only ban
+            await update.message.reply_text(
+                "🚫 **VARTOTOJAS UŽDRAUSTAS (PENDING)** 🚫\n\n"
+                f"👤 Vartotojas: @{username}\n"
+                f"👮 Uždraudė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
+                f"📝 Priežastis: {reason}\n"
+                f"⏰ Data: {timestamp}\n\n"
+                f"✅ **Vartotojas bus automatiškai uždraustas, kai prisijungs prie grupės!**\n\n"
+                f"💡 _Jei žinote user ID, naudokite: `/ban [ID] {reason}`_",
+                parse_mode='Markdown'
+            )
+        else:
+            # User ID ban
+            await update.message.reply_text(
+                "⏳ **VARTOTOJAS PRIDĖTAS Į UŽDRAUDIMO SĄRAŠĄ** ⏳\n\n"
+                f"👤 Vartotojas: @{username}\n"
+                f"🆔 ID: `{user_id}`\n"
+                f"👮 Uždraudė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
+                f"📝 Priežastis: {reason}\n"
+                f"⏰ Data: {timestamp}\n\n"
+                f"✅ **Vartotojas bus automatiškai uždraustas, kai prisijungs prie grupės!**",
+                parse_mode='Markdown'
+            )
+        
+        logger.info(f"Added pending ban for @{username} (ID: {user_id}) in chat {chat_id} - user not found in any cache")
         return
     
     user_id = user_info['user_id']
@@ -711,10 +716,29 @@ async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_T
         new_member = update.chat_member.new_chat_member.user
         chat_id = update.effective_chat.id
         
-        # Check if user is in pending ban list
+        # Check if user is in pending ban list by user_id OR username
+        pending_ban = None
+        
+        # Method 1: Check by user_id
         if database.is_pending_ban(new_member.id, chat_id):
             pending_ban = database.get_pending_ban(new_member.id, chat_id)
-            
+        
+        # Method 2: Check by username (for username-only bans)
+        if not pending_ban and new_member.username:
+            try:
+                conn = database.get_sync_connection()
+                cursor = conn.execute(
+                    "SELECT * FROM pending_bans WHERE LOWER(username) = ? AND chat_id = ?",
+                    (new_member.username.lower(), chat_id)
+                )
+                row = cursor.fetchone()
+                conn.close()
+                if row:
+                    pending_ban = dict(row)
+            except Exception as e:
+                logger.error(f"Error checking username in pending bans: {e}")
+        
+        if pending_ban:
             # Execute the ban immediately
             try:
                 await context.bot.ban_chat_member(
@@ -733,11 +757,24 @@ async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_T
                     reason=pending_ban['reason']
                 )
                 
-                # Remove from pending list
-                database.remove_pending_ban(new_member.id, chat_id)
+                # Remove from pending list (by ID if we have it, or by username)
+                if pending_ban.get('user_id', 0) > 0:
+                    database.remove_pending_ban(pending_ban['user_id'], chat_id)
+                else:
+                    # Remove by username for username-only bans
+                    try:
+                        conn = database.get_sync_connection()
+                        conn.execute(
+                            "DELETE FROM pending_bans WHERE LOWER(username) = ? AND chat_id = ?",
+                            (new_member.username.lower(), chat_id)
+                        )
+                        conn.commit()
+                        conn.close()
+                    except Exception as e:
+                        logger.error(f"Error removing username-based pending ban: {e}")
                 
                 # Log the auto-ban
-                logger.info(f"Auto-banned user {new_member.id} on join (pending ban executed)")
+                logger.info(f"Auto-banned user @{new_member.username} (ID: {new_member.id}) on join (pending ban executed)")
                 
                 # Optional: Send notification to admins (can be disabled)
                 # await notify_admins_auto_ban(context, new_member, pending_ban)

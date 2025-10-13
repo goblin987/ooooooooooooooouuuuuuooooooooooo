@@ -70,6 +70,16 @@ Purpose: Track bugs, todos, and progress to prevent regressions
     - Status: COMPLETED - Testing Required
     - Priority: HIGH | Date: 2025-10-13 00:10
 
+[✅] TODO-014: Username-only bans + dice2 challenge fix (Bugs #28 & #29)
+    - FIXED Bug #28: /ban @username now works (shows success, adds to pending)
+    - Supports username-only bans (user_id = 0 placeholder)
+    - Auto-ban checks both user_id AND username on join
+    - FIXED Bug #29: Dice2 challenge now checks group members directly
+    - Added get_chat_member lookup for users in group
+    - Auto-caches found users for faster future lookups
+    - Status: COMPLETED - Testing Required
+    - Priority: HIGH | Date: 2025-10-13 00:20
+
 [🔄] TODO-008: Implement recurring messages advanced features (Bug #21)
     - Days of week selection → APScheduler cron
     - Days of month selection → APScheduler cron
@@ -148,6 +158,8 @@ Purpose: Track bugs, todos, and progress to prevent regressions
 [✅] Feature #25: Pending bans system (GroupHelpBot style) - IMPLEMENTED (2025-10-12 23:45)
 [✅] Bug #26: Import error moderation_grouphelp not defined - FIXED (2025-10-13 00:05)
 [✅] Bug #27: Pending bans not working for users not in group - FIXED (2025-10-13 00:10)
+[✅] Bug #28: Pending bans should accept username-only input - FIXED (2025-10-13 00:20)
+[✅] Bug #29: Dice2 challenge not finding users in group - FIXED (2025-10-13 00:20)
 
 [HIGH PRIORITY BUGS] - ALL FIXED ✅
 [✅] Bug #4: Grammar error "1 hours" should be "1 hour" - FIXED
@@ -366,11 +378,11 @@ Last Updated: 2025-10-12 22:30:00
 Session Start: 2025-10-12 18:00:00
 
 📈 STATISTICS:
-- Total Bugs Fixed: 24 + 1 Major Feature (Pending bans system)
-- Total Tasks Completed: 11
+- Total Bugs Fixed: 26 + 1 Major Feature (Pending bans system)
+- Total Tasks Completed: 12
 - Total Tasks Pending: 1 (Bug #21 - recurring messages advanced features)
-- Files Modified Today: 21
-- Commits Pushed: 26 (pending)
+- Files Modified Today: 23
+- Commits Pushed: 27 (pending)
 
 🔥 TODAY'S ACHIEVEMENTS:
 ✅ Integrated voting system from old bot (preserves 3 months of data)
@@ -391,6 +403,8 @@ Session Start: 2025-10-12 18:00:00
 ✅ Implemented pending bans system (GroupHelpBot style) (Feature #25)
 ✅ Fixed critical import error for moderation commands (Bug #26)
 ✅ Fixed pending bans for users not in group (Bug #27)
+✅ Username-only bans now work like GroupHelpBot (Bug #28)
+✅ Dice2 challenge works for users in group (Bug #29)
 
 ⚡ CURRENT STATUS:
 - Bot: ✅ Fully operational (code-level)

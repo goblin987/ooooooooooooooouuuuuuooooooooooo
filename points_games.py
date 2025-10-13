@@ -637,7 +637,28 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
         except Exception as e:
             logger.debug(f"User cache lookup failed: {e}")
         
-        # Method 2: Try direct user ID lookup if input looks like an ID
+        # Method 2: Try to get from group members (if user is in group)
+        if not challenged_id:
+            try:
+                # Try to find user in group by iterating recent messages or using get_chat
+                # First, try searching in group admins/members
+                chat_member = await context.bot.get_chat_member(chat_id, f"@{username}")
+                if chat_member and chat_member.user:
+                    challenged_id = chat_member.user.id
+                    challenged_username = chat_member.user.username or username
+                    logger.info(f"Found {username} in group: {challenged_id}")
+                    
+                    # Store in cache for next time
+                    database.store_user_info(
+                        challenged_id,
+                        challenged_username,
+                        chat_member.user.first_name,
+                        chat_member.user.last_name
+                    )
+            except Exception as e:
+                logger.debug(f"get_chat_member lookup failed: {e}")
+        
+        # Method 3: Try direct user ID lookup if input looks like an ID
         if not challenged_id and text.strip().isdigit():
             challenged_id = int(text.strip())
             logger.info(f"Using direct user ID: {challenged_id}")
