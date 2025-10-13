@@ -829,9 +829,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         msg_id = int(data.replace("recur_delete_", ""))
         await delete_message(query, context, msg_id)
     
+    # Edit message
+    elif data.startswith("recur_edit_"):
+        msg_id = int(data.replace("recur_edit_", ""))
+        await edit_message(query, context, msg_id)
+    
     # Close
     elif data == "recur_close":
-        await query.edit_message_text("✅ Recurring messages menu closed.")
+        await query.edit_message_text("✅ Pasikartojančių skelbimų meniu uždarytas.")
 
 
 # ============================================================================
@@ -1170,7 +1175,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def show_manage_list(query, context: ContextTypes.DEFAULT_TYPE):
     """Show list of recurring messages with management options"""
-    chat_id = query.message.chat_id
+    # Get chat_id - use selected_group_id if in private chat
+    if query.message.chat.type == 'private' and context.user_data.get('selected_group_id'):
+        chat_id = context.user_data['selected_group_id']
+    else:
+        chat_id = query.message.chat_id
     
     conn = database.get_sync_connection()
     cursor = conn.execute(
@@ -1183,13 +1192,13 @@ async def show_manage_list(query, context: ContextTypes.DEFAULT_TYPE):
     
     if not messages:
         await query.edit_message_text(
-            "📋 **No recurring messages**\n\nYou haven't created any recurring messages yet.",
+            "📋 **Nėra pasikartojančių skelbimų**\n\nJūs dar nesukūrėte jokių pasikartojančių skelbimų.",
             parse_mode='Markdown'
         )
         return
     
-    text = "📋 **Manage Recurring Messages**\n\n"
-    text += "Click on a message to manage it:\n\n"
+    text = "📋 **Tvarkyti pasikartojančius skelbimus**\n\n"
+    text += "Paspauskite ant skelbimo, kad jį tvarkytumėte:\n\n"
     
     keyboard = []
     for msg in messages:
@@ -1208,7 +1217,7 @@ async def show_manage_list(query, context: ContextTypes.DEFAULT_TYPE):
             )
         ])
     
-    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="recur_main")])
+    keyboard.append([InlineKeyboardButton("🔙 Atgal", callback_data="recur_main")])
     
     await query.edit_message_text(
         text,
@@ -1222,39 +1231,46 @@ async def show_manage_single(query, context: ContextTypes.DEFAULT_TYPE, message_
     conn = database.get_sync_connection()
     cursor = conn.execute(
         '''SELECT message_text, repetition_type, status, is_active, last_sent, 
-           pin_message, delete_last_message FROM scheduled_messages WHERE id = ?''',
+           pin_message, delete_last_message, interval_hours FROM scheduled_messages WHERE id = ?''',
         (message_id,)
     )
     result = cursor.fetchone()
     conn.close()
     
     if not result:
-        await query.answer("❌ Message not found")
+        await query.answer("❌ Skelbimas nerastas")
         return
     
-    msg_text, rep_type, status, is_active, last_sent, pin, delete_last = result
+    msg_text, rep_type, status, is_active, last_sent, pin, delete_last, interval = result
     
-    text = "⚙️ **Manage Message**\n\n"
-    text += f"**Text:** {msg_text[:100]}...\n" if len(msg_text) > 100 else f"**Text:** {msg_text}\n"
-    text += f"**Type:** {rep_type}\n"
-    text += f"**Status:** {'Active' if is_active else 'Paused'}\n"
-    text += f"**Pin:** {'Yes' if pin else 'No'}\n"
-    text += f"**Delete last:** {'Yes' if delete_last else 'No'}\n"
+    text = "⚙️ **Tvarkyti skelbimą**\n\n"
+    text += f"**Tekstas:** {msg_text[:100]}...\n" if len(msg_text) > 100 else f"**Tekstas:** {msg_text}\n"
+    text += f"**Tipas:** {rep_type}\n"
+    text += f"**Statusas:** {'Aktyvus' if is_active else 'Pristabdytas'}\n"
+    
+    if rep_type == 'interval' and interval:
+        text += f"**Kartojimas:** Kas {interval} val.\n"
+    
+    text += f"**Prisegti:** {'Taip' if pin else 'Ne'}\n"
+    text += f"**Ištrinti paskutinį:** {'Taip' if delete_last else 'Ne'}\n"
     
     if last_sent:
-        text += f"**Last sent:** {last_sent}\n"
+        text += f"**Paskutinį kartą išsiųsta:** {last_sent}\n"
     
     keyboard = []
     
+    # Edit button
+    keyboard.append([InlineKeyboardButton("✏️ Redaguoti", callback_data=f"recur_edit_{message_id}")])
+    
     # Pause/Resume button
     if is_active:
-        keyboard.append([InlineKeyboardButton("⏸️ Pause", callback_data=f"recur_pause_{message_id}")])
+        keyboard.append([InlineKeyboardButton("⏸️ Pristabdyti", callback_data=f"recur_pause_{message_id}")])
     else:
-        keyboard.append([InlineKeyboardButton("▶️ Resume", callback_data=f"recur_resume_{message_id}")])
+        keyboard.append([InlineKeyboardButton("▶️ Tęsti", callback_data=f"recur_resume_{message_id}")])
     
     # Delete button
-    keyboard.append([InlineKeyboardButton("🗑️ Delete", callback_data=f"recur_delete_{message_id}")])
-    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="recur_manage_list")])
+    keyboard.append([InlineKeyboardButton("🗑️ Ištrinti", callback_data=f"recur_delete_{message_id}")])
+    keyboard.append([InlineKeyboardButton("🔙 Atgal", callback_data="recur_manage_list")])
     
     await query.edit_message_text(
         text,
@@ -1290,7 +1306,7 @@ async def pause_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: i
         
         conn.close()
         
-        await query.answer("⏸️ Message paused")
+        await query.answer("⏸️ Skelbimas pristabdytas")
         await show_manage_single(query, context, message_id)
         
     except Exception as e:
@@ -1338,7 +1354,7 @@ async def resume_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: 
         
         conn.close()
         
-        await query.answer("▶️ Message resumed")
+        await query.answer("▶️ Skelbimas tęsiamas")
         await show_manage_single(query, context, message_id)
         
     except Exception as e:
@@ -1373,12 +1389,123 @@ async def delete_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: 
         
         conn.close()
         
-        await query.answer("🗑️ Message deleted")
+        await query.answer("🗑️ Skelbimas ištrintas")
         await show_manage_list(query, context)
         
     except Exception as e:
         logger.error(f"Error deleting message: {e}")
         await query.answer(f"❌ Error: {str(e)}")
+
+
+async def edit_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: int):
+    """Edit an existing recurring message"""
+    try:
+        # Load message config from database
+        conn = database.get_sync_connection()
+        cursor = conn.execute(
+            '''SELECT message_text, message_media, message_buttons, message_type, 
+               repetition_type, interval_hours, days_of_week, days_of_month, 
+               time_slots, pin_message, delete_last_message, chat_id 
+               FROM scheduled_messages WHERE id = ?''',
+            (message_id,)
+        )
+        result = cursor.fetchone()
+        conn.close()
+        
+        if not result:
+            await query.answer("❌ Skelbimas nerastas")
+            return
+        
+        # Unpack result
+        msg_text, msg_media, msg_buttons, msg_type, rep_type, interval, \
+        days_week, days_month, time_slots, pin, delete_last, chat_id = result
+        
+        # Load into user context for editing
+        import json
+        
+        msg_config = {
+            'editing_message_id': message_id,  # Mark as editing mode
+            'status': 'On',
+            'time': '20:28',  # Default, will be updated
+            'repetition': f'{interval} hours' if rep_type == 'interval' else '24 hours',
+            'repetition_type': rep_type,
+            'interval_hours': interval,
+            'pin_message': bool(pin),
+            'delete_last': bool(delete_last),
+            'has_text': bool(msg_text),
+            'has_media': bool(msg_media),
+            'has_buttons': bool(msg_buttons),
+            'text': msg_text or '',
+            'media': msg_media or '',
+            'buttons': json.loads(msg_buttons) if msg_buttons else [],
+            'days_of_week': json.loads(days_week) if days_week else [],
+            'days_of_month': json.loads(days_month) if days_month else [],
+            'start_date': None,
+            'end_date': None,
+            'scheduled_deletion': None
+        }
+        
+        context.user_data['recur_msg_config'] = msg_config
+        context.user_data['selected_group_id'] = chat_id  # Set the group context
+        
+        # Show config screen for editing
+        await query.answer("✏️ Redagavimo režimas")
+        
+        # Build config screen
+        import pytz
+        from datetime import datetime
+        lithuanian_tz = pytz.timezone('Europe/Vilnius')
+        current_time = datetime.now(lithuanian_tz).strftime("%d/%m/%y %H:%M")
+        
+        try:
+            chat = await context.bot.get_chat(chat_id)
+            group_name = chat.title or "Group"
+        except:
+            group_name = "Group"
+        
+        status_icon = "🟢"
+        pin_icon = "✅" if pin else "❌"
+        delete_icon = "✅" if delete_last else "❌"
+        
+        config_text = (
+            "🔄 **Pasikartojantys skelbimai** (Redagavimas)\n\n"
+            f"Iš šio meniu galite nustatyti pranešimus, kurie bus siunčiami pakartotinai į grupę kas kelias minutes/valandas.\n\n"
+            f"**Dabartinis laikas:** {current_time}\n\n"
+            f"💬 **{group_name}** • {status_icon} **On**\n"
+            f"⏰ Laikas: {msg_config['time']}\n"
+            f"🔄 Kas {msg_config['repetition']}\n"
+            f"📝 Pranešimas {'ne' if not msg_config['has_text'] else ''}nustatytas.\n\n"
+            f"📌 Prisegti pranešimą: {pin_icon}\n"
+            f"🗑️ Ištrinti paskutinį pranešimą: {delete_icon}"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("✏️ Pritaikyti pranešimą", callback_data="recur_customize")],
+            [
+                InlineKeyboardButton("⏰ Laikas", callback_data="recur_time"),
+                InlineKeyboardButton("🔄 Pasikartojimas", callback_data="recur_repetition")
+            ],
+            [InlineKeyboardButton("📅 Savaitės dienos", callback_data="recur_days_week")],
+            [InlineKeyboardButton("📅 Mėnesio dienos", callback_data="recur_days_month")],
+            [InlineKeyboardButton("🕐 Nustatyti laiko tarpą", callback_data="recur_time_slot")],
+            [
+                InlineKeyboardButton("📅 Pradžios data", callback_data="recur_start_date"),
+                InlineKeyboardButton("📅 Pabaigos data", callback_data="recur_end_date")
+            ],
+            [InlineKeyboardButton(f"📌 Prisegti pranešimą {pin_icon}", callback_data="recur_toggle_pin")],
+            [InlineKeyboardButton(f"🗑️ Ištrinti paskutinį {delete_icon}", callback_data="recur_toggle_delete")],
+            [InlineKeyboardButton("⏱️ Suplanuotas ištrynimas", callback_data="recur_sched_deletion")],
+            [InlineKeyboardButton("👁️ Peržiūra", callback_data="recur_preview")],
+            [InlineKeyboardButton("💾 Išsaugoti", callback_data="recur_save")],
+            [InlineKeyboardButton("🔙 Atgal", callback_data=f"recur_manage_{message_id}")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(config_text, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Error editing message: {e}")
+        await query.answer(f"❌ Klaida: {str(e)}")
 
 
 # ============================================================================
@@ -1498,9 +1625,12 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
         
         user = query.from_user
         
+        # Check if we're editing an existing message
+        editing_message_id = msg_config.get('editing_message_id')
+        
         # Validate configuration
         if not msg_config.get('has_text'):
-            await query.answer("❌ Please set message text first!")
+            await query.answer("❌ Pirmiausia nustatykite pranešimo tekstą!")
             return
         
         # Parse time
@@ -1564,28 +1694,66 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             buttons_json = json.dumps(msg_config['buttons'])
         
         conn = database.get_sync_connection()
-        cursor = conn.execute('''
-            INSERT INTO scheduled_messages (
-                chat_id, message_text, message_media, message_buttons, message_type, 
-                repetition_type, interval_hours, pin_message, delete_last_message, 
-                status, created_by, created_by_username
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            chat_id,
-            msg_config.get('text', ''),
-            msg_config.get('media', ''),
-            buttons_json,
-            'text',
-            repetition_type,
-            hours if repetition_type == 'interval' else 24,
-            msg_config.get('pin_message', False),
-            msg_config.get('delete_last', False),
-            'active',
-            user.id,
-            user.username or user.first_name
-        ))
         
-        message_db_id = cursor.lastrowid
+        if editing_message_id:
+            # UPDATE existing message
+            # First, remove old job(s)
+            cursor = conn.execute('SELECT job_id FROM scheduled_messages WHERE id = ?', (editing_message_id,))
+            result = cursor.fetchone()
+            if result and result[0]:
+                job_id_str = result[0]
+                job_ids = job_id_str.split(',')
+                for job_id in job_ids:
+                    try:
+                        if scheduler:
+                            scheduler.remove_job(job_id.strip())
+                            logger.info(f"Removed old job {job_id}")
+                    except Exception as e:
+                        logger.warning(f"Could not remove old job {job_id}: {e}")
+            
+            # Update the message
+            cursor = conn.execute('''
+                UPDATE scheduled_messages SET
+                    message_text = ?, message_media = ?, message_buttons = ?, 
+                    repetition_type = ?, interval_hours = ?, 
+                    pin_message = ?, delete_last_message = ?, 
+                    is_active = 1
+                WHERE id = ?
+            ''', (
+                msg_config.get('text', ''),
+                msg_config.get('media', ''),
+                buttons_json,
+                repetition_type,
+                hours if repetition_type == 'interval' else 24,
+                msg_config.get('pin_message', False),
+                msg_config.get('delete_last', False),
+                editing_message_id
+            ))
+            message_id = editing_message_id
+        else:
+            # INSERT new message
+            cursor = conn.execute('''
+                INSERT INTO scheduled_messages (
+                    chat_id, message_text, message_media, message_buttons, message_type, 
+                    repetition_type, interval_hours, pin_message, delete_last_message, 
+                    status, created_by, created_by_username
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                chat_id,
+                msg_config.get('text', ''),
+                msg_config.get('media', ''),
+                buttons_json,
+                'text',
+                repetition_type,
+                hours if repetition_type == 'interval' else 24,
+                msg_config.get('pin_message', False),
+                msg_config.get('delete_last', False),
+                'active',
+                user.id,
+                user.username or user.first_name
+            ))
+            message_id = cursor.lastrowid
+        
         conn.commit()
         
         # Create APScheduler job(s)
@@ -1602,13 +1770,13 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                     timezone=pytz.timezone('Europe/Vilnius')
                 )
                 
-                job_id = f"recur_{chat_id}_{message_db_id}_{i}"
+                job_id = f"recur_{chat_id}_{message_id}_{i}"
                 job_ids.append(job_id)
                 
                 scheduler.add_job(
                     send_recurring_message,
                     trigger=trigger,
-                    args=[context.bot, chat_id, message_db_id],
+                    args=[context.bot, chat_id, message_id],
                     id=job_id,
                     replace_existing=True
                 )
@@ -1617,17 +1785,17 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             job_id_str = ','.join(job_ids)
             conn.execute(
                 'UPDATE scheduled_messages SET job_id = ? WHERE id = ?',
-                (job_id_str, message_db_id)
+                (job_id_str, message_id)
             )
             logger.info(f"Created {len(job_ids)} recurring message jobs for chat {chat_id}")
         else:
             # Single job
-            job_id = f"recur_{chat_id}_{message_db_id}"
+            job_id = f"recur_{chat_id}_{message_id}"
             
             scheduler.add_job(
                 send_recurring_message,
                 trigger=trigger,
-                args=[context.bot, chat_id, message_db_id],
+                args=[context.bot, chat_id, message_id],
                 id=job_id,
                 replace_existing=True
             )
@@ -1635,7 +1803,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             # Update job_id in database
             conn.execute(
                 'UPDATE scheduled_messages SET job_id = ? WHERE id = ?',
-                (job_id, message_db_id)
+                (job_id, message_id)
             )
             logger.info(f"Created recurring message job {job_id} for chat {chat_id}")
         
@@ -1646,14 +1814,15 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop('recur_msg_config', None)
         
         # Show success
+        action_text = "atnaujintas" if editing_message_id else "išsaugotas"
         await query.edit_message_text(
-            f"✅ **Recurring message saved!**\n\n"
-            f"📝 Message: {msg_config.get('text', '')[:50]}...\n"
-            f"🕐 Time: {time_str}\n"
-            f"🔄 Repetition: {rep_text}\n"
-            f"📌 Pin: {'Yes' if msg_config.get('pin_message') else 'No'}\n"
-            f"🗑️ Delete last: {'Yes' if msg_config.get('delete_last') else 'No'}\n\n"
-            f"The message will be sent automatically!",
+            f"✅ **Pasikartojantis skelbimas {action_text}!**\n\n"
+            f"📝 Pranešimas: {msg_config.get('text', '')[:50]}...\n"
+            f"🕐 Laikas: {time_str}\n"
+            f"🔄 Kartojimas: {rep_text}\n"
+            f"📌 Prisegti: {'Taip' if msg_config.get('pin_message') else 'Ne'}\n"
+            f"🗑️ Ištrinti paskutinį: {'Taip' if msg_config.get('delete_last') else 'Ne'}\n\n"
+            f"Pranešimas bus siunčiamas automatiškai!",
             parse_mode='Markdown'
         )
         
