@@ -310,6 +310,8 @@ async def show_message_config(query, context: ContextTypes.DEFAULT_TYPE) -> None
         [InlineKeyboardButton(f"📌 Prisegti pranešimą {pin_icon}", callback_data="recur_toggle_pin")],
         [InlineKeyboardButton(f"🗑️ Ištrinti paskutinį {delete_icon}", callback_data="recur_toggle_delete")],
         [InlineKeyboardButton("⏱️ Suplanuotas ištrynimas", callback_data="recur_sched_deletion")],
+        [InlineKeyboardButton("👁️ Peržiūra", callback_data="recur_preview")],
+        [InlineKeyboardButton("💾 Išsaugoti", callback_data="recur_save")],
         [InlineKeyboardButton("🔙 Atgal", callback_data="recur_main")]
     ]
     
@@ -331,29 +333,29 @@ async def show_customize_screen(query, context: ContextTypes.DEFAULT_TYPE) -> No
     buttons_icon = "✅" if msg_config.get('has_buttons') else "❌"
     
     text = (
-        "🔄 **Recurring messages**\n\n"
-        f"📝 Text: {text_icon}\n"
-        f"📷 Media: {media_icon}\n"
-        f"🔗 Url Buttons: {buttons_icon}\n\n"
-        "Use the buttons below to choose what you want to set"
+        "🔄 **Pasikartojantys skelbimai**\n\n"
+        f"📝 Tekstas: {text_icon}\n"
+        f"📷 Medija: {media_icon}\n"
+        f"🔗 URL Mygtukai: {buttons_icon}\n\n"
+        "Naudokite mygtukus žemiau, kad pasirinktumėte ką norite nustatyti"
     )
     
     keyboard = [
         [
-            InlineKeyboardButton("📝 Text", callback_data="recur_set_text"),
-            InlineKeyboardButton("👁️ See", callback_data="recur_see_text")
+            InlineKeyboardButton("📝 Tekstas", callback_data="recur_set_text"),
+            InlineKeyboardButton("👁️ Žiūrėti", callback_data="recur_see_text")
         ],
         [
-            InlineKeyboardButton("📷 Media", callback_data="recur_set_media"),
-            InlineKeyboardButton("👁️ See", callback_data="recur_see_media")
+            InlineKeyboardButton("📷 Medija", callback_data="recur_set_media"),
+            InlineKeyboardButton("👁️ Žiūrėti", callback_data="recur_see_media")
         ],
         [
-            InlineKeyboardButton("🔗 Url Buttons", callback_data="recur_set_buttons"),
-            InlineKeyboardButton("👁️ See", callback_data="recur_see_buttons")
+            InlineKeyboardButton("🔗 URL Mygtukai", callback_data="recur_set_buttons"),
+            InlineKeyboardButton("👁️ Žiūrėti", callback_data="recur_see_buttons")
         ],
-        [InlineKeyboardButton("👁️ Full preview", callback_data="recur_preview")],
-        [InlineKeyboardButton("📋 Select a Topic", callback_data="recur_topics")],
-        [InlineKeyboardButton("🔙 Back", callback_data="recur_config")]
+        [InlineKeyboardButton("👁️ Pilna peržiūra", callback_data="recur_preview")],
+        [InlineKeyboardButton("📋 Pasirinkti temą", callback_data="recur_topics")],
+        [InlineKeyboardButton("🔙 Atgal", callback_data="recur_config")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -614,10 +616,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         elif time_str == "custom":
             context.user_data['awaiting_input'] = 'custom_time'
             await query.edit_message_text(
-                "⏰ **Custom Time**\n\n"
-                "Please send the time in HH:MM format (24-hour)\n"
-                "Example: 14:30\n\n"
-                "Or /cancel to go back",
+                "⏰ **Pasirinkti laiką**\n\n"
+                "Atsiųskite laiką HH:MM formatu (24 valandų)\n"
+                "Pavyzdys: 14:30\n\n"
+                "Arba /cancel grįžti atgal",
                 parse_mode='Markdown'
             )
     
@@ -640,10 +642,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     elif data == "recur_add_time":
         context.user_data['awaiting_input'] = 'add_time'
         await query.edit_message_text(
-            "⏰ **Add Time**\n\n"
-            "Please send the time in HH:MM format (24-hour)\n"
-            "Example: 14:30\n\n"
-            "Or /cancel to go back",
+            "⏰ **Pridėti laiką**\n\n"
+            "Atsiųskite laiką HH:MM formatu (24 valandų)\n"
+            "Pavyzdys: 14:30\n\n"
+            "Arba /cancel grįžti atgal",
             parse_mode='Markdown'
         )
     
@@ -954,16 +956,78 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 if 0 <= hour <= 23 and 0 <= minute <= 59:
                     context.user_data['recur_msg_config']['time'] = text
                     context.user_data.pop('awaiting_input')
-                    await update.message.reply_text(
-                        f"✅ Time set to {text}!\n\n"
-                        "Use /recurring to continue configuration."
+                    
+                    # Send confirmation
+                    await update.message.reply_text(f"✅ Laikas nustatytas: {text}")
+                    
+                    # Return to config screen by creating a fake query
+                    from telegram import InlineKeyboardMarkup
+                    
+                    # Get chat_id for the config
+                    if update.effective_chat.type == 'private' and context.user_data.get('selected_group_id'):
+                        chat_id = context.user_data['selected_group_id']
+                    else:
+                        chat_id = update.effective_chat.id
+                    
+                    # Show config screen directly
+                    msg_config = context.user_data.get('recur_msg_config', {})
+                    status = msg_config.get('status', 'Off')
+                    status_icon = "🟢" if status == "On" else "❌"
+                    pin_icon = "✅" if msg_config.get('pin_message') else "❌"
+                    delete_icon = "✅" if msg_config.get('delete_last') else "❌"
+                    
+                    try:
+                        chat = await context.bot.get_chat(chat_id)
+                        group_name = chat.title or "Group"
+                    except:
+                        group_name = "Group"
+                    
+                    import pytz
+                    from datetime import datetime
+                    lithuanian_tz = pytz.timezone('Europe/Vilnius')
+                    current_time = datetime.now(lithuanian_tz).strftime("%d/%m/%y %H:%M")
+                    
+                    config_text = (
+                        "🔄 **Pasikartojantys skelbimai**\n\n"
+                        f"Iš šio meniu galite nustatyti pranešimus, kurie bus siunčiami pakartotinai į grupę kas kelias minutes/valandas.\n\n"
+                        f"**Dabartinis laikas:** {current_time}\n\n"
+                        f"💬 **{group_name}** • {status_icon} **{status}**\n"
+                        f"⏰ Laikas: {msg_config['time']}\n"
+                        f"🔄 Kas {msg_config.get('repetition', '24 hours')}\n"
+                        f"📝 Pranešimas {'ne' if not msg_config.get('has_text') else ''}nustatytas.\n\n"
+                        f"📌 Prisegti pranešimą: {pin_icon}\n"
+                        f"🗑️ Ištrinti paskutinį pranešimą: {delete_icon}"
                     )
+                    
+                    keyboard = [
+                        [InlineKeyboardButton("✏️ Pritaikyti pranešimą", callback_data="recur_customize")],
+                        [
+                            InlineKeyboardButton("⏰ Laikas", callback_data="recur_time"),
+                            InlineKeyboardButton("🔄 Pasikartojimas", callback_data="recur_repetition")
+                        ],
+                        [InlineKeyboardButton("📅 Savaitės dienos", callback_data="recur_days_week")],
+                        [InlineKeyboardButton("📅 Mėnesio dienos", callback_data="recur_days_month")],
+                        [InlineKeyboardButton("🕐 Nustatyti laiko tarpą", callback_data="recur_time_slot")],
+                        [
+                            InlineKeyboardButton("📅 Pradžios data", callback_data="recur_start_date"),
+                            InlineKeyboardButton("📅 Pabaigos data", callback_data="recur_end_date")
+                        ],
+                        [InlineKeyboardButton(f"📌 Prisegti pranešimą {pin_icon}", callback_data="recur_toggle_pin")],
+                        [InlineKeyboardButton(f"🗑️ Ištrinti paskutinį {delete_icon}", callback_data="recur_toggle_delete")],
+                        [InlineKeyboardButton("⏱️ Suplanuotas ištrynimas", callback_data="recur_sched_deletion")],
+                        [InlineKeyboardButton("👁️ Peržiūra", callback_data="recur_preview")],
+                        [InlineKeyboardButton("💾 Išsaugoti", callback_data="recur_save")],
+                        [InlineKeyboardButton("🔙 Atgal", callback_data="recur_main")]
+                    ]
+                    
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    await update.message.reply_text(config_text, reply_markup=reply_markup, parse_mode='Markdown')
                 else:
-                    await update.message.reply_text("❌ Invalid time. Please use HH:MM format (00:00 - 23:59)")
+                    await update.message.reply_text("❌ Neteisingas laikas. Naudokite HH:MM formatą (00:00 - 23:59)")
             else:
-                await update.message.reply_text("❌ Invalid format. Please use HH:MM format")
+                await update.message.reply_text("❌ Neteisingas formatas. Naudokite HH:MM formatą")
         except ValueError:
-            await update.message.reply_text("❌ Invalid time format. Please use HH:MM (e.g., 14:30)")
+            await update.message.reply_text("❌ Neteisingas laiko formatas. Naudokite HH:MM (pvz., 14:30)")
     
     elif awaiting == 'add_time':
         try:
@@ -981,18 +1045,39 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                         times.append(text)
                         times.sort()  # Keep sorted
                         context.user_data.pop('awaiting_input')
-                        await update.message.reply_text(
-                            f"✅ Added {text}!\n\n"
-                            "Use /recurring to continue configuration."
+                        await update.message.reply_text(f"✅ Pridėtas laikas: {text}")
+                        
+                        # Return to multiple times screen
+                        from telegram import InlineKeyboardMarkup
+                        
+                        selected_times = context.user_data['recur_msg_config'].get('multiple_times', [])
+                        
+                        times_text = (
+                            "🔄 **Keli laikai per dieną**\n\n"
+                            f"Pasirinkti laikai: {', '.join(selected_times) if selected_times else 'Nėra'}\n\n"
+                            "Pridėkite daugiau laikų arba patvirtinkite."
                         )
+                        
+                        keyboard = [[InlineKeyboardButton("➕ Pridėti laiką", callback_data="recur_add_time")]]
+                        
+                        for i, time in enumerate(selected_times):
+                            keyboard.append([
+                                InlineKeyboardButton(f"🗑️ Pašalinti {time}", callback_data=f"recur_remove_time_{i}")
+                            ])
+                        
+                        keyboard.append([InlineKeyboardButton("✅ Patvirtinti", callback_data="recur_times_confirm")])
+                        keyboard.append([InlineKeyboardButton("🔙 Atgal", callback_data="recur_config")])
+                        
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+                        await update.message.reply_text(times_text, reply_markup=reply_markup, parse_mode='Markdown')
                     else:
-                        await update.message.reply_text("❌ This time is already added!")
+                        await update.message.reply_text("❌ Šis laikas jau pridėtas!")
                 else:
-                    await update.message.reply_text("❌ Invalid time. Please use HH:MM format (00:00 - 23:59)")
+                    await update.message.reply_text("❌ Neteisingas laikas. Naudokite HH:MM formatą (00:00 - 23:59)")
             else:
-                await update.message.reply_text("❌ Invalid format. Please use HH:MM format")
+                await update.message.reply_text("❌ Neteisingas formatas. Naudokite HH:MM formatą")
         except ValueError:
-            await update.message.reply_text("❌ Invalid time format. Please use HH:MM (e.g., 14:30)")
+            await update.message.reply_text("❌ Neteisingas laiko formatas. Naudokite HH:MM (pvz., 14:30)")
     
     elif awaiting == 'message_media':
         # Handle media URL input
