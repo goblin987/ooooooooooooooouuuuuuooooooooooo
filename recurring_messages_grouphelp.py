@@ -42,18 +42,139 @@ def init_scheduler():
 # MAIN MENU - GroupHelpBot Style
 # ============================================================================
 
+async def show_group_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show group selection menu - GroupHelpBot style"""
+    user_id = update.effective_user.id
+    
+    # Get all groups where the bot is present and user is admin
+    # We'll get this from the database (groups where messages exist) or bot's memory
+    try:
+        # Get unique chat_ids from scheduled_messages and user_cache
+        conn = database.get_sync_connection()
+        
+        # Get chats from scheduled_messages
+        cursor = conn.execute('''
+            SELECT DISTINCT chat_id FROM scheduled_messages 
+            WHERE chat_id < 0
+            ORDER BY chat_id DESC
+        ''')
+        chat_ids = [row[0] for row in cursor.fetchall()]
+        
+        # Also get from user_cache (groups where bot has been active)
+        cursor = conn.execute('''
+            SELECT DISTINCT user_id FROM user_cache 
+            WHERE user_id < 0
+            LIMIT 20
+        ''')
+        cache_ids = [row[0] for row in cursor.fetchall()]
+        
+        # Combine and deduplicate
+        all_chat_ids = list(set(chat_ids + cache_ids))
+        conn.close()
+        
+        # Get chat info for each group
+        groups = []
+        for chat_id in all_chat_ids[:10]:  # Limit to 10 groups
+            try:
+                chat = await context.bot.get_chat(chat_id)
+                # Check if user is admin
+                member = await context.bot.get_chat_member(chat_id, user_id)
+                if member.status in ['creator', 'administrator']:
+                    groups.append({
+                        'id': chat_id,
+                        'title': chat.title or f"Group {chat_id}"
+                    })
+            except Exception as e:
+                logger.debug(f"Could not get chat info for {chat_id}: {e}")
+                continue
+        
+        if not groups:
+            await update.message.reply_text(
+                "❌ **No groups found!**\n\n"
+                "To use recurring messages:\n"
+                "1. Add me to a group\n"
+                "2. Make me an admin\n"
+                "3. Use /recurring in the group\n\n"
+                "Or use /recurring directly in the group chat.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Build selection menu
+        text = (
+            "🔄 **Recurring messages**\n\n"
+            "Select a group to manage recurring messages:\n\n"
+        )
+        
+        keyboard = []
+        for group in groups:
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"💬 {group['title']}", 
+                    callback_data=f"recur_select_group_{group['id']}"
+                )
+            ])
+        
+        keyboard.append([InlineKeyboardButton("🔙 Cancel", callback_data="recur_close")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        else:
+            await update.message.reply_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            
+    except Exception as e:
+        logger.error(f"Error showing group selection: {e}")
+        await update.message.reply_text(
+            "❌ Error loading groups. Please use /recurring directly in the group chat.",
+            parse_mode='Markdown'
+        )
+
+
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show main recurring messages menu - EXACTLY like GroupHelpBot"""
-    if not await is_admin(update, context):
-        await update.message.reply_text("❌ Only administrators can manage recurring messages!")
-        return
+    
+    # If in private chat, show group selection first
+    if update.effective_chat.type == 'private':
+        # Check if a group was already selected
+        if not context.user_data.get('selected_group_id'):
+            await show_group_selection(update, context)
+            return
+        else:
+            # Use the selected group
+            chat_id = context.user_data['selected_group_id']
+            # Verify user is still admin
+            try:
+                member = await context.bot.get_chat_member(chat_id, update.effective_user.id)
+                if member.status not in ['creator', 'administrator']:
+                    await update.message.reply_text("❌ You are no longer an admin in that group!")
+                    context.user_data.pop('selected_group_id', None)
+                    return
+            except Exception as e:
+                await update.message.reply_text("❌ Could not access that group!")
+                context.user_data.pop('selected_group_id', None)
+                return
+    else:
+        # In group chat, use current chat
+        chat_id = update.effective_chat.id
+        
+        # Check if user is admin
+        if not await is_admin(update, context):
+            await update.message.reply_text("❌ Only administrators can manage recurring messages!")
+            return
     
     # Get current time in Lithuanian timezone
     lithuanian_tz = pytz.timezone('Europe/Vilnius')
     current_time = datetime.now(lithuanian_tz).strftime("%d/%m/%y %H:%M")
-    
-    # Get chat_id
-    chat_id = update.effective_chat.id
     
     # Get existing messages
     conn = database.get_sync_connection()
@@ -65,11 +186,19 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     messages = cursor.fetchall()
     conn.close()
     
+    # Get group name
+    try:
+        chat = await context.bot.get_chat(chat_id)
+        group_name = chat.title or "Group"
+    except:
+        group_name = "Group"
+    
     text = (
         "🔄 **Recurring messages**\n\n"
         "From this menu you can set messages that will be sent "
         "repeatedly to the group every few minutes/hours or every "
         "few messages.\n\n"
+        f"**Group:** {group_name}\n"
         f"**Current time:** {current_time}\n\n"
     )
     
@@ -83,6 +212,10 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Add buttons for existing messages
     if messages:
         keyboard.append([InlineKeyboardButton("📋 Manage messages", callback_data="recur_manage_list")])
+    
+    # If in private chat, add "Change group" button
+    if update.effective_chat.type == 'private':
+        keyboard.append([InlineKeyboardButton("🔄 Change group", callback_data="recur_change_group")])
     
     keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="recur_close")])
     
@@ -127,9 +260,14 @@ async def show_message_config(query, context: ContextTypes.DEFAULT_TYPE) -> None
         'scheduled_deletion': None
     })
     
-    # Get group info
+    # Get group info - use selected_group_id if in private chat
+    if query.message.chat.type == 'private' and context.user_data.get('selected_group_id'):
+        chat_id = context.user_data['selected_group_id']
+    else:
+        chat_id = query.message.chat_id
+    
     try:
-        chat = await context.bot.get_chat(query.message.chat_id)
+        chat = await context.bot.get_chat(chat_id)
         group_name = chat.title or "Group"
     except:
         group_name = "Group"
@@ -409,6 +547,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     # Main menu
     if data == "recur_main":
+        await show_main_menu(update, context)
+    
+    # Change group (from private chat)
+    elif data == "recur_change_group":
+        context.user_data.pop('selected_group_id', None)
+        await show_group_selection(update, context)
+    
+    # Select group
+    elif data.startswith("recur_select_group_"):
+        group_id = int(data.replace("recur_select_group_", ""))
+        context.user_data['selected_group_id'] = group_id
         await show_main_menu(update, context)
     
     # Add message
@@ -1255,7 +1404,13 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
     """
     try:
         msg_config = context.user_data.get('recur_msg_config', {})
-        chat_id = query.message.chat_id
+        
+        # Get chat_id - use selected_group_id if in private chat
+        if query.message.chat.type == 'private' and context.user_data.get('selected_group_id'):
+            chat_id = context.user_data['selected_group_id']
+        else:
+            chat_id = query.message.chat_id
+        
         user = query.from_user
         
         # Validate configuration
