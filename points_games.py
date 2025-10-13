@@ -7,6 +7,7 @@ Exact same UI as crypto games but uses points balance
 
 import logging
 import asyncio
+import sqlite3
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from database import database
@@ -638,49 +639,36 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
         challenged_id = None
         challenged_username = username
         
-        # Method 1: Check user cache in database
+        # Method 1: Database lookup (PRIMARY - like cacacacasino-main/dice.py!)
+        conn = database.get_sync_connection()
         try:
-            user_info = database.get_user_by_username(username)
-            if user_info:
-                challenged_id = user_info['user_id']
-                challenged_username = user_info.get('username', username)
-                logger.info(f"Found {username} in user cache: {challenged_id}")
+            cursor = conn.execute(
+                "SELECT user_id FROM user_cache WHERE LOWER(username) = LOWER(?)",
+                (username,)
+            )
+            result = cursor.fetchone()
+            if result:
+                challenged_id = result['user_id'] if isinstance(result, sqlite3.Row) else result[0]
+                challenged_username = username
+                logger.info(f"✅ Found @{username} in database: ID {challenged_id}")
         except Exception as e:
-            logger.debug(f"User cache lookup failed: {e}")
+            logger.debug(f"Database lookup failed: {e}")
+        finally:
+            conn.close()
         
-        # Method 2: Try to get from group members (if user is in group)
-        if not challenged_id:
-            try:
-                # Try to find user in group by iterating recent messages or using get_chat
-                # First, try searching in group admins/members
-                chat_member = await context.bot.get_chat_member(chat_id, f"@{username}")
-                if chat_member and chat_member.user:
-                    challenged_id = chat_member.user.id
-                    challenged_username = chat_member.user.username or username
-                    logger.info(f"Found {username} in group: {challenged_id}")
-                    
-                    # Store in cache for next time
-                    database.store_user_info(
-                        challenged_id,
-                        challenged_username,
-                        chat_member.user.first_name,
-                        chat_member.user.last_name
-                    )
-            except Exception as e:
-                logger.debug(f"get_chat_member lookup failed: {e}")
-        
-        # Method 3: Try direct user ID lookup if input looks like an ID
+        # Method 2: Try direct user ID lookup if input looks like an ID
         if not challenged_id and text.strip().isdigit():
             challenged_id = int(text.strip())
+            challenged_username = f"user_{challenged_id}"
             logger.info(f"Using direct user ID: {challenged_id}")
         
         if not challenged_id:
             await update.message.reply_text(
                 f"❌ Vartotojas **@{username}** nerastas!\n\n"
-                f"💡 Patarimai:\n"
-                f"• Įsitikinkite, kad vartotojas yra šioje grupėje\n"
-                f"• Patikrinkite vartotojo vardo rašybą\n"
-                f"• Vartotojas turi būti aktyvus grupėje",
+                f"**💡 Geriau:**\n"
+                f"Atsakykite į jo žinutę ir parašykite:\n"
+                f"`/dice2 <taškai>`\n\n"
+                f"Arba palaukite, kol jis parašys bet ką grupėje!",
                 parse_mode='Markdown'
             )
             del context.user_data['expecting_username']

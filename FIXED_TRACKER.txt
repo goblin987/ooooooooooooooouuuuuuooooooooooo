@@ -160,11 +160,12 @@ Purpose: Track bugs, todos, and progress to prevent regressions
 [✅] Bug #26: Import error moderation_grouphelp not defined - FIXED (2025-10-13 00:05)
 [✅] Bug #27: Pending bans not working for users not in group - FIXED (2025-10-13 00:10)
 [✅] Bug #28: Pending bans should accept username-only input - FIXED (2025-10-13 00:20)
-[✅] Bug #29: Dice2 challenge not finding users in group - FIXED (2025-10-13 00:30)
-    - NOTE: First "fix" was incomplete (API limitation)
-    - PROPER FIX: Implemented reply-based challenges
-    - Users can now reply to ANY message and use /dice2
-    - Works 100% of the time, no cache needed!
+[✅] Bug #29: Dice2 challenge not finding users in group - FIXED (2025-10-13 00:40)
+    - NOTE: First fix was incomplete (API limitation), second fix was wrong direction
+    - FINAL FIX: Database lookup (cacacacasino-main style)
+    - Users can type @username directly (no reply needed!)
+    - Also supports reply-based challenges as fallback
+    - Works like your casino repo - instant database lookup!
 
 [HIGH PRIORITY BUGS] - ALL FIXED ✅
 [✅] Bug #4: Grammar error "1 hours" should be "1 hour" - FIXED
