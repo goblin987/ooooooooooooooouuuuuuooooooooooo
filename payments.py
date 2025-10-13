@@ -54,11 +54,11 @@ def user_exists(user_id: int) -> bool:
 
 
 def get_user_balance(user_id: int) -> Decimal:
-    """Get user balance"""
+    """Get user balance (crypto deposits/withdrawals)"""
     try:
         conn = database.get_sync_connection()
         cursor = conn.execute(
-            "SELECT points FROM users WHERE user_id = ?",
+            "SELECT balance FROM users WHERE user_id = ?",  # ← FIXED: Use 'balance' column, not 'points'
             (user_id,)
         )
         result = cursor.fetchone()
@@ -70,11 +70,11 @@ def get_user_balance(user_id: int) -> Decimal:
 
 
 def update_user_balance(user_id: int, new_balance: Decimal):
-    """Update user balance"""
+    """Update user balance (crypto deposits/withdrawals)"""
     try:
         conn = database.get_sync_connection()
         conn.execute(
-            "INSERT OR REPLACE INTO users (user_id, points) VALUES (?, ?)",
+            "INSERT OR REPLACE INTO users (user_id, balance) VALUES (?, ?)",  # ← FIXED: Use 'balance' column
             (user_id, float(new_balance))
         )
         conn.commit()
@@ -323,15 +323,15 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     
     balance = get_user_balance(user_id)
-    text = f"💰 Your balance: ${balance:.2f}"
+    text = f"💰 **Jūsų balansas:** ${balance:.2f}"
     
     keyboard = [
-        [InlineKeyboardButton("💵 Deposit", callback_data="deposit"),
-         InlineKeyboardButton("💸 Withdraw", callback_data="withdraw")]
+        [InlineKeyboardButton("💵 Įnešti", callback_data="deposit"),
+         InlineKeyboardButton("💸 Išimti", callback_data="withdraw")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
+    await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='Markdown')
 
 
 async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
