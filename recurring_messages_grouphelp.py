@@ -543,6 +543,86 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             parse_mode='Markdown'
         )
     
+    # Set media
+    elif data == "recur_set_media":
+        context.user_data['awaiting_input'] = 'message_media'
+        await query.edit_message_text(
+            "📷 **Set Media**\n\n"
+            "Please send a photo, video, or document for your recurring message.\n"
+            "You can also send a media URL.\n\n"
+            "Or /cancel to go back",
+            parse_mode='Markdown'
+        )
+    
+    # Set URL buttons
+    elif data == "recur_set_buttons":
+        context.user_data['awaiting_input'] = 'message_buttons'
+        await query.edit_message_text(
+            "🔗 **Set URL Buttons**\n\n"
+            "Send button(s) in this format:\n"
+            "`Button Text - https://example.com`\n\n"
+            "For multiple buttons (one per line):\n"
+            "`Button 1 - https://example1.com`\n"
+            "`Button 2 - https://example2.com`\n\n"
+            "Or /cancel to go back",
+            parse_mode='Markdown'
+        )
+    
+    # See text
+    elif data == "recur_see_text":
+        msg_config = context.user_data.get('recur_msg_config', {})
+        text = msg_config.get('text', '_(No text set)_')
+        await query.edit_message_text(
+            f"📝 **Current Text:**\n\n{text}\n\n"
+            "Use /recurring to go back",
+            parse_mode='Markdown'
+        )
+    
+    # See media
+    elif data == "recur_see_media":
+        msg_config = context.user_data.get('recur_msg_config', {})
+        media = msg_config.get('media', None)
+        if media:
+            await query.edit_message_text(
+                f"📷 **Current Media:**\n\n{media}\n\n"
+                "Use /recurring to go back",
+                parse_mode='Markdown'
+            )
+        else:
+            await query.edit_message_text(
+                "📷 **Current Media:**\n\n_(No media set)_\n\n"
+                "Use /recurring to go back",
+                parse_mode='Markdown'
+            )
+    
+    # See buttons
+    elif data == "recur_see_buttons":
+        msg_config = context.user_data.get('recur_msg_config', {})
+        buttons = msg_config.get('buttons', [])
+        if buttons:
+            btn_text = "\n".join([f"• {btn['text']} → {btn['url']}" for btn in buttons])
+            await query.edit_message_text(
+                f"🔗 **Current Buttons:**\n\n{btn_text}\n\n"
+                "Use /recurring to go back",
+                parse_mode='Markdown'
+            )
+        else:
+            await query.edit_message_text(
+                "🔗 **Current Buttons:**\n\n_(No buttons set)_\n\n"
+                "Use /recurring to go back",
+                parse_mode='Markdown'
+            )
+    
+    # Topics (not implemented yet)
+    elif data == "recur_topics":
+        await query.edit_message_text(
+            "📋 **Select a Topic**\n\n"
+            "This feature allows you to select pre-made message templates.\n\n"
+            "_(Not implemented yet)_\n\n"
+            "Use /recurring to go back",
+            parse_mode='Markdown'
+        )
+    
     # Confirm days of week selection
     elif data == "recur_days_confirm":
         selected = context.user_data['recur_msg_config']['days_of_week']
@@ -706,6 +786,90 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 await update.message.reply_text("❌ Invalid format. Please use HH:MM format")
         except ValueError:
             await update.message.reply_text("❌ Invalid time format. Please use HH:MM (e.g., 14:30)")
+    
+    elif awaiting == 'message_media':
+        # Handle media URL input
+        if text.startswith('http://') or text.startswith('https://'):
+            context.user_data['recur_msg_config']['media'] = text
+            context.user_data['recur_msg_config']['has_media'] = True
+            context.user_data.pop('awaiting_input')
+            await update.message.reply_text(
+                "✅ Media URL saved!\n\n"
+                "Use /recurring to continue configuration."
+            )
+        else:
+            await update.message.reply_text(
+                "❌ Invalid URL. Please send a valid HTTP/HTTPS URL.\n"
+                "Example: https://example.com/image.jpg"
+            )
+    
+    elif awaiting == 'message_buttons':
+        # Parse button format: "Button Text - https://example.com"
+        from urllib.parse import urlparse
+        
+        try:
+            buttons = []
+            lines = text.strip().split('\n')
+            
+            for line in lines:
+                if ' - ' not in line:
+                    await update.message.reply_text(
+                        "❌ Invalid format! Use:\n"
+                        "`Button Text - https://example.com`"
+                    )
+                    return
+                
+                parts = line.split(' - ', 1)
+                if len(parts) != 2:
+                    await update.message.reply_text(
+                        "❌ Invalid format! Use:\n"
+                        "`Button Text - https://example.com`"
+                    )
+                    return
+                
+                btn_text = parts[0].strip()
+                btn_url = parts[1].strip()
+                
+                # Validate URL
+                parsed = urlparse(btn_url)
+                if not parsed.scheme or not parsed.netloc:
+                    await update.message.reply_text(
+                        f"❌ Invalid URL: {btn_url}\n"
+                        "Please provide a valid HTTP/HTTPS URL."
+                    )
+                    return
+                
+                # URL encoding for special characters
+                from urllib.parse import quote
+                # Only encode path and query, not the scheme and domain
+                encoded_url = f"{parsed.scheme}://{parsed.netloc}"
+                if parsed.path:
+                    encoded_url += quote(parsed.path, safe='/')
+                if parsed.query:
+                    encoded_url += '?' + quote(parsed.query, safe='=&')
+                
+                buttons.append({
+                    'text': btn_text,
+                    'url': encoded_url
+                })
+            
+            # Save buttons
+            context.user_data['recur_msg_config']['buttons'] = buttons
+            context.user_data['recur_msg_config']['has_buttons'] = True
+            context.user_data.pop('awaiting_input')
+            
+            btn_count = len(buttons)
+            await update.message.reply_text(
+                f"✅ {btn_count} button{'s' if btn_count > 1 else ''} saved!\n\n"
+                "Use /recurring to continue configuration."
+            )
+            
+        except Exception as e:
+            logger.error(f"Error parsing buttons: {e}")
+            await update.message.reply_text(
+                "❌ Error parsing buttons. Please check the format:\n"
+                "`Button Text - https://example.com`"
+            )
 
 
 # ============================================================================
@@ -938,7 +1102,7 @@ async def send_recurring_message(bot, chat_id: int, message_id: int):
         # Get message config from database
         conn = database.get_sync_connection()
         cursor = conn.execute(
-            '''SELECT message_text, message_media, pin_message, delete_last_message, 
+            '''SELECT message_text, message_media, message_buttons, pin_message, delete_last_message, 
                last_message_id, message_type FROM scheduled_messages WHERE id = ?''',
             (message_id,)
         )
@@ -949,7 +1113,7 @@ async def send_recurring_message(bot, chat_id: int, message_id: int):
             conn.close()
             return
         
-        text, media, pin, delete_last, last_msg_id, msg_type = result
+        text, media, buttons_json, pin, delete_last, last_msg_id, msg_type = result
         
         # Delete last message if enabled
         if delete_last and last_msg_id:
@@ -959,17 +1123,44 @@ async def send_recurring_message(bot, chat_id: int, message_id: int):
             except Exception as e:
                 logger.warning(f"Could not delete last message: {e}")
         
+        # Parse buttons
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        import json
+        
+        reply_markup = None
+        if buttons_json:
+            try:
+                buttons_data = json.loads(buttons_json)
+                keyboard = []
+                for btn in buttons_data:
+                    keyboard.append([InlineKeyboardButton(btn['text'], url=btn['url'])])
+                reply_markup = InlineKeyboardMarkup(keyboard)
+            except Exception as e:
+                logger.error(f"Error parsing buttons: {e}")
+        
         # Send new message
         sent_message = None
         if msg_type == 'text' and text:
             sent_message = await bot.send_message(
                 chat_id=chat_id,
                 text=text,
-                parse_mode='Markdown'
+                parse_mode='Markdown',
+                reply_markup=reply_markup
             )
         elif media:
-            # TODO: Handle media messages (photo, video, etc.)
-            pass
+            # Handle media messages (photo, video, etc.)
+            try:
+                if media.startswith('http://') or media.startswith('https://'):
+                    # It's a URL
+                    sent_message = await bot.send_photo(
+                        chat_id=chat_id,
+                        photo=media,
+                        caption=text if text else None,
+                        parse_mode='Markdown',
+                        reply_markup=reply_markup
+                    )
+            except Exception as e:
+                logger.error(f"Error sending media: {e}")
         
         if sent_message:
             # Pin message if enabled
@@ -1067,15 +1258,25 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             rep_text = rep_str
         
         # Save to database
+        import json
+        
+        # Prepare buttons JSON
+        buttons_json = None
+        if msg_config.get('buttons'):
+            buttons_json = json.dumps(msg_config['buttons'])
+        
         conn = database.get_sync_connection()
         cursor = conn.execute('''
             INSERT INTO scheduled_messages (
-                chat_id, message_text, message_type, repetition_type, interval_hours,
-                pin_message, delete_last_message, status, created_by, created_by_username
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                chat_id, message_text, message_media, message_buttons, message_type, 
+                repetition_type, interval_hours, pin_message, delete_last_message, 
+                status, created_by, created_by_username
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             chat_id,
             msg_config.get('text', ''),
+            msg_config.get('media', ''),
+            buttons_json,
             'text',
             repetition_type,
             hours if repetition_type == 'interval' else 24,
