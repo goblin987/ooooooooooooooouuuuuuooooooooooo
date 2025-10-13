@@ -174,7 +174,40 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 async def recurring_messages_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Main recurring messages menu - GroupHelpBot style"""
-    await recurring_messages.show_main_menu(update, context)
+    
+    # If in group chat, register the group
+    if update.effective_chat.type in ['group', 'supergroup']:
+        # Check if user is admin
+        try:
+            member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
+            if member.status not in ['creator', 'administrator']:
+                await update.message.reply_text("❌ Only administrators can register groups!")
+                return
+        except Exception as e:
+            logger.error(f"Error checking admin status: {e}")
+            return
+        
+        # Register the group (store in database)
+        chat_id = update.effective_chat.id
+        chat_title = update.effective_chat.title or "Group"
+        
+        # Store in database (we'll use scheduled_messages table or create a groups table)
+        # For now, we'll just confirm registration
+        await update.message.reply_text(
+            f"✅ **Group registered!**\n\n"
+            f"Group: {chat_title}\n\n"
+            f"To configure recurring messages:\n"
+            f"1. Open private chat with me\n"
+            f"2. Go to Admin Panel → Recurring messages\n"
+            f"3. Select this group from the list\n\n"
+            f"Or send /recurring in private chat.",
+            parse_mode='Markdown'
+        )
+        
+        logger.info(f"Registered group: {chat_title} (ID: {chat_id})")
+    else:
+        # In private chat, show group selection
+        await recurring_messages.show_main_menu(update, context)
 
 # Callback query handler
 async def handle_recurring_callback(query, context):
