@@ -180,9 +180,16 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
 
     setup_key = 'dice2_setup'
     
-    # Handle setup phase (mode/points selection - NOT challenge acceptance!)
-    # Skip this check for challenge acceptance buttons (dice2_accept_, dice2_cancel_challenge_)
-    if setup_key in context.user_data and not (data.startswith("dice2_accept_") or data.startswith("dice2_cancel_challenge_")):
+    # Handle setup phase (mode/points selection - NOT challenge or game phase!)
+    # Skip this check for: challenge acceptance, game rolling, doubles
+    is_setup_button = not (
+        data.startswith("dice2_accept_") or 
+        data.startswith("dice2_cancel_challenge_") or
+        data.startswith("dice2_roll_") or
+        data == "dice2_double"
+    )
+    
+    if setup_key in context.user_data and is_setup_button:
         setup = context.user_data[setup_key]
         # Only check message_id if it exists in setup (it won't exist after challenge creation)
         if setup.get('initiator') != user_id or (setup.get('message_id') and setup.get('message_id') != query.message.message_id):
