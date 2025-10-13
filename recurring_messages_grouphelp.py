@@ -1964,18 +1964,18 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             if interval_hours < 1:
                 # It's in minutes (fractional hours)
                 minutes = int(interval_hours * 60)
+                logger.info(f"⏱️ Creating MINUTE interval trigger: {minutes} minutes (interval_hours={interval_hours})")
                 trigger = IntervalTrigger(
                     minutes=minutes,
-                    start_date=datetime.now(pytz.timezone('Europe/Vilnius')),
                     timezone=pytz.timezone('Europe/Vilnius')
                 )
                 rep_text = f"{minutes} minutes"
             else:
                 # It's in hours
                 hours = int(interval_hours)
+                logger.info(f"⏱️ Creating HOUR interval trigger: {hours} hours")
                 trigger = IntervalTrigger(
                     hours=hours,
-                    start_date=datetime.now(pytz.timezone('Europe/Vilnius')),
                     timezone=pytz.timezone('Europe/Vilnius')
                 )
                 rep_text = f"{hours} hours"

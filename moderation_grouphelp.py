@@ -826,7 +826,7 @@ async def info_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         # Method 2: Username or ID provided
         elif context.args:
-            identifier = context.args[0]
+            identifier = str(context.args[0])  # Convert to string in case it's parsed as int
             
             # Try to resolve username or ID
             resolved = await resolve_user(identifier, chat.id, context)
