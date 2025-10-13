@@ -88,8 +88,8 @@ async def resolve_user(context: ContextTypes.DEFAULT_TYPE, username_or_id: str, 
     Works even if user is not in the group!
     """
     
-    # Clean input
-    clean_input = username_or_id.strip()
+    # Convert to string and clean input
+    clean_input = str(username_or_id).strip()
     
     # Try direct ID parsing first
     if clean_input.isdigit():
@@ -829,24 +829,22 @@ async def info_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             identifier = str(context.args[0])  # Convert to string in case it's parsed as int
             
             # Try to resolve username or ID
-            resolved = await resolve_user(identifier, chat.id, context)
+            resolved = await resolve_user(context, identifier, chat.id)
             
             if resolved:
-                target_user_id = resolved
-                # Try to get user info from cache
-                user_info = database.get_user_by_id(target_user_id)
-                if user_info:
-                    # Create a minimal user object from cache
-                    class CachedUser:
-                        def __init__(self, data):
-                            self.id = data['user_id']
-                            self.username = data.get('username')
-                            self.first_name = data.get('first_name', 'Unknown')
-                            self.last_name = data.get('last_name')
-                            self.is_bot = False
-                    
-                    target_user = CachedUser(user_info)
-                    logger.info(f"Info command: target from cache - {target_user_id}")
+                target_user_id = resolved.get('user_id')
+                
+                # Create a minimal user object from resolved data
+                class ResolvedUser:
+                    def __init__(self, data):
+                        self.id = data.get('user_id')
+                        self.username = data.get('username')
+                        self.first_name = data.get('first_name', 'Unknown')
+                        self.last_name = data.get('last_name')
+                        self.is_bot = False
+                
+                target_user = ResolvedUser(resolved)
+                logger.info(f"Info command: target resolved - {target_user_id}")
             else:
                 await update.message.reply_text(
                     f"❌ Vartotojas `{identifier}` nerastas.\n\n"
