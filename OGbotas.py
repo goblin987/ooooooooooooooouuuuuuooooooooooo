@@ -181,28 +181,22 @@ async def recurring_messages_menu(update: Update, context: ContextTypes.DEFAULT_
         try:
             member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
             if member.status not in ['creator', 'administrator']:
-                await update.message.reply_text("❌ Only administrators can register groups!")
+                await update.message.reply_text("❌ Tik administratoriai gali aktyvuoti skelbimus.")
                 return
         except Exception as e:
             logger.error(f"Error checking admin status: {e}")
             return
         
-        # Register the group (store in database)
+        # Register the group in database
         chat_id = update.effective_chat.id
         chat_title = update.effective_chat.title or "Group"
+        user_id = update.effective_user.id
         
-        # Store in database (we'll use scheduled_messages table or create a groups table)
-        # For now, we'll just confirm registration
-        await update.message.reply_text(
-            f"✅ **Group registered!**\n\n"
-            f"Group: {chat_title}\n\n"
-            f"To configure recurring messages:\n"
-            f"1. Open private chat with me\n"
-            f"2. Go to Admin Panel → Recurring messages\n"
-            f"3. Select this group from the list\n\n"
-            f"Or send /recurring in private chat.",
-            parse_mode='Markdown'
-        )
+        # Store in groups table
+        database.add_or_update_group(chat_id, chat_title, user_id)
+        
+        # Reply with simple Lithuanian confirmation
+        await update.message.reply_text("grupės skelbimai aktyvuoti")
         
         logger.info(f"Registered group: {chat_title} (ID: {chat_id})")
     else:

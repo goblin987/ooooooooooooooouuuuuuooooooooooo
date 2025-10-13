@@ -176,6 +176,17 @@ class Database:
                 UNIQUE(user_id, chat_id)
             )
         ''')
+        
+        # Groups table - for recurring messages group registration
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER UNIQUE NOT NULL,
+                title TEXT,
+                registered_by INTEGER,
+                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
     
     def _create_indexes(self, conn):
         """Create database indexes for performance"""
@@ -194,7 +205,8 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_users_points ON users(points)",
             "CREATE INDEX IF NOT EXISTS idx_users_balance ON users(balance)",
             "CREATE INDEX IF NOT EXISTS idx_pending_bans_user_id ON pending_bans(user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_pending_bans_chat_id ON pending_bans(chat_id)"
+            "CREATE INDEX IF NOT EXISTS idx_pending_bans_chat_id ON pending_bans(chat_id)",
+            "CREATE INDEX IF NOT EXISTS idx_groups_chat_id ON groups(chat_id)"
         ]
         
         for index_sql in indexes:
@@ -396,6 +408,44 @@ class Database:
         except Exception as e:
             logger.error(f"Error getting ban history: {e}")
             return []
+    
+    # Groups methods (for recurring messages)
+    def add_or_update_group(self, chat_id: int, title: str, registered_by: int):
+        """Add or update group registration"""
+        try:
+            conn = self.get_sync_connection()
+            try:
+                conn.execute('''
+                    INSERT OR REPLACE INTO groups 
+                    (chat_id, title, registered_by, registered_at)
+                    VALUES (?, ?, ?, datetime('now'))
+                ''', (chat_id, title, registered_by))
+                conn.commit()
+                logger.info(f"Registered group: {title} (ID: {chat_id})")
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f"Error adding/updating group: {e}")
+    
+    def get_all_groups(self) -> List[Dict]:
+        """Get all registered groups"""
+        try:
+            conn = self.get_sync_connection()
+            try:
+                cursor = conn.execute(
+                    "SELECT * FROM groups ORDER BY registered_at DESC"
+                )
+                return [dict(row) for row in cursor.fetchall()]
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f"Error getting groups: {e}")
+            return []
+    
+    def list_groups_for_user(self, user_id: int) -> List[Dict]:
+        """Get groups registered by a specific user (optional filtering)"""
+        # For now, return all groups - admin check will be done at runtime
+        return self.get_all_groups()
     
     # Scheduled messages methods
     def add_scheduled_message(self, **kwargs) -> int:

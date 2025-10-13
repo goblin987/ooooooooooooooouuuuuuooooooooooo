@@ -46,56 +46,37 @@ async def show_group_selection(update: Update, context: ContextTypes.DEFAULT_TYP
     """Show group selection menu - GroupHelpBot style"""
     user_id = update.effective_user.id
     
-    # Get all groups where the bot is present and user is admin
-    # We'll get this from the database (groups where messages exist) or bot's memory
+    # Get all registered groups from the groups table
     try:
-        # Get unique chat_ids from scheduled_messages and user_cache
-        conn = database.get_sync_connection()
+        # Get groups from database
+        registered_groups = database.get_all_groups()
         
-        # Get chats from scheduled_messages
-        cursor = conn.execute('''
-            SELECT DISTINCT chat_id FROM scheduled_messages 
-            WHERE chat_id < 0
-            ORDER BY chat_id DESC
-        ''')
-        chat_ids = [row[0] for row in cursor.fetchall()]
-        
-        # Also get from user_cache (groups where bot has been active)
-        cursor = conn.execute('''
-            SELECT DISTINCT user_id FROM user_cache 
-            WHERE user_id < 0
-            LIMIT 20
-        ''')
-        cache_ids = [row[0] for row in cursor.fetchall()]
-        
-        # Combine and deduplicate
-        all_chat_ids = list(set(chat_ids + cache_ids))
-        conn.close()
-        
-        # Get chat info for each group
+        # Verify user is admin in each group and bot is still present
         groups = []
-        for chat_id in all_chat_ids[:10]:  # Limit to 10 groups
+        for group_data in registered_groups:
+            chat_id = group_data['chat_id']
             try:
+                # Check if bot is still in the group
                 chat = await context.bot.get_chat(chat_id)
                 # Check if user is admin
                 member = await context.bot.get_chat_member(chat_id, user_id)
                 if member.status in ['creator', 'administrator']:
                     groups.append({
                         'id': chat_id,
-                        'title': chat.title or f"Group {chat_id}"
+                        'title': group_data['title'] or chat.title or f"Group {chat_id}"
                     })
             except Exception as e:
-                logger.debug(f"Could not get chat info for {chat_id}: {e}")
+                logger.debug(f"Could not access group {chat_id}: {e}")
                 continue
         
         if not groups:
             text = (
-                "❌ **No groups found!**\n\n"
-                "To use recurring messages:\n"
-                "1. Add me to a group\n"
-                "2. Make me an admin\n"
-                "3. Use /recurring in the group\n\n"
-                "Or use /recurring directly in the group chat."
+                "❌ **Nerasta grupių!**\n\n"
+                "Norėdami naudoti pasikartojančius skelbimus:\n"
+                "1. Pridėkite mane į grupę\n"
+                "2. Padarykite mane administratoriumi\n"
+                "3. Naudokite /recurring grupėje\n\n"
+                "Arba naudokite /recurring tiesiogiai grupės pokalbyje."
             )
             
             if update.callback_query:
@@ -106,8 +87,8 @@ async def show_group_selection(update: Update, context: ContextTypes.DEFAULT_TYP
         
         # Build selection menu
         text = (
-            "🔄 **Recurring messages**\n\n"
-            "Select a group to manage recurring messages:\n\n"
+            "🔄 **Pasikartojantys skelbimai**\n\n"
+            "Pasirinkite grupę pasikartojančių skelbimų tvarkymui:\n\n"
         )
         
         keyboard = []
@@ -119,7 +100,7 @@ async def show_group_selection(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
             ])
         
-        keyboard.append([InlineKeyboardButton("🔙 Cancel", callback_data="recur_close")])
+        keyboard.append([InlineKeyboardButton("🔙 Atšaukti", callback_data="recur_close")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -139,7 +120,7 @@ async def show_group_selection(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         logger.error(f"Error showing group selection: {e}")
         
-        text = "❌ Error loading groups. Please use /recurring directly in the group chat."
+        text = "❌ Klaida įkeliant grupes. Naudokite /recurring tiesiogiai grupės pokalbyje."
         
         if update.callback_query:
             await update.callback_query.edit_message_text(text, parse_mode='Markdown')
@@ -184,7 +165,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         # Check if user is admin
         if not await is_admin(update, context):
-            text = "❌ Only administrators can manage recurring messages!"
+            text = "❌ Tik administratoriai gali tvarkyti pasikartojančius skelbimus!"
             if update.callback_query:
                 await update.callback_query.edit_message_text(text)
             else:
@@ -213,30 +194,30 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         group_name = "Group"
     
     text = (
-        "🔄 **Recurring messages**\n\n"
-        "From this menu you can set messages that will be sent "
-        "repeatedly to the group every few minutes/hours or every "
-        "few messages.\n\n"
-        f"**Group:** {group_name}\n"
-        f"**Current time:** {current_time}\n\n"
+        "🔄 **Pasikartojantys skelbimai**\n\n"
+        "Iš šio meniu galite nustatyti pranešimus, kurie bus siunčiami "
+        "pakartotinai į grupę kas kelias minutes/valandas arba kas "
+        "kelis pranešimus.\n\n"
+        f"**Grupė:** {group_name}\n"
+        f"**Dabartinis laikas:** {current_time}\n\n"
     )
     
     if messages:
-        text += f"**Active messages:** {len(messages)}\n"
+        text += f"**Aktyvūs skelbimai:** {len(messages)}\n"
     
     keyboard = [
-        [InlineKeyboardButton("➕ Add message", callback_data="recur_add_message")]
+        [InlineKeyboardButton("➕ Pridėti skelbimą", callback_data="recur_add_message")]
     ]
     
     # Add buttons for existing messages
     if messages:
-        keyboard.append([InlineKeyboardButton("📋 Manage messages", callback_data="recur_manage_list")])
+        keyboard.append([InlineKeyboardButton("📋 Tvarkyti skelbimus", callback_data="recur_manage_list")])
     
     # If in private chat, add "Change group" button
     if update.effective_chat.type == 'private':
-        keyboard.append([InlineKeyboardButton("🔄 Change group", callback_data="recur_change_group")])
+        keyboard.append([InlineKeyboardButton("🔄 Keisti grupę", callback_data="recur_change_group")])
     
-    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="recur_close")])
+    keyboard.append([InlineKeyboardButton("🔙 Atgal", callback_data="recur_close")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -302,34 +283,34 @@ async def show_message_config(query, context: ContextTypes.DEFAULT_TYPE) -> None
     delete_icon = "✅" if msg_config['delete_last'] else "❌"
     
     text = (
-        "🔄 **Recurring messages**\n\n"
-        f"From this menu you can set messages that will be sent repeatedly to the group every few minutes/hours or every few messages.\n\n"
-        f"**Current time:** {current_time}\n\n"
+        "🔄 **Pasikartojantys skelbimai**\n\n"
+        f"Iš šio meniu galite nustatyti pranešimus, kurie bus siunčiami pakartotinai į grupę kas kelias minutes/valandas.\n\n"
+        f"**Dabartinis laikas:** {current_time}\n\n"
         f"💬 **{group_name}** • {status_icon} **{status}**\n"
-        f"⏰ Time: {msg_config['time']}\n"
-        f"🔄 Every {msg_config['repetition']}\n"
-        f"📝 Message is {'not ' if not msg_config['has_text'] else ''}set.\n\n"
-        f"📌 Pin message: {pin_icon}\n"
-        f"🗑️ Delete last message: {delete_icon}"
+        f"⏰ Laikas: {msg_config['time']}\n"
+        f"🔄 Kas {msg_config['repetition']}\n"
+        f"📝 Pranešimas {'ne' if not msg_config['has_text'] else ''}nustatytas.\n\n"
+        f"📌 Prisegti pranešimą: {pin_icon}\n"
+        f"🗑️ Ištrinti paskutinį pranešimą: {delete_icon}"
     )
     
     keyboard = [
-        [InlineKeyboardButton("✏️ Customize message", callback_data="recur_customize")],
+        [InlineKeyboardButton("✏️ Pritaikyti pranešimą", callback_data="recur_customize")],
         [
-            InlineKeyboardButton("⏰ Time", callback_data="recur_time"),
-            InlineKeyboardButton("🔄 Repetition", callback_data="recur_repetition")
+            InlineKeyboardButton("⏰ Laikas", callback_data="recur_time"),
+            InlineKeyboardButton("🔄 Pasikartojimas", callback_data="recur_repetition")
         ],
-        [InlineKeyboardButton("📅 Days of the week", callback_data="recur_days_week")],
-        [InlineKeyboardButton("📅 Days of the month", callback_data="recur_days_month")],
-        [InlineKeyboardButton("🕐 Set time slot", callback_data="recur_time_slot")],
+        [InlineKeyboardButton("📅 Savaitės dienos", callback_data="recur_days_week")],
+        [InlineKeyboardButton("📅 Mėnesio dienos", callback_data="recur_days_month")],
+        [InlineKeyboardButton("🕐 Nustatyti laiko tarpą", callback_data="recur_time_slot")],
         [
-            InlineKeyboardButton("📅 Start date", callback_data="recur_start_date"),
-            InlineKeyboardButton("📅 End date", callback_data="recur_end_date")
+            InlineKeyboardButton("📅 Pradžios data", callback_data="recur_start_date"),
+            InlineKeyboardButton("📅 Pabaigos data", callback_data="recur_end_date")
         ],
-        [InlineKeyboardButton(f"📌 Pin message {pin_icon}", callback_data="recur_toggle_pin")],
-        [InlineKeyboardButton(f"🗑️ Delete last message {delete_icon}", callback_data="recur_toggle_delete")],
-        [InlineKeyboardButton("⏱️ Scheduled deletion", callback_data="recur_sched_deletion")],
-        [InlineKeyboardButton("🔙 Back", callback_data="recur_main")]
+        [InlineKeyboardButton(f"📌 Prisegti pranešimą {pin_icon}", callback_data="recur_toggle_pin")],
+        [InlineKeyboardButton(f"🗑️ Ištrinti paskutinį {delete_icon}", callback_data="recur_toggle_delete")],
+        [InlineKeyboardButton("⏱️ Suplanuotas ištrynimas", callback_data="recur_sched_deletion")],
+        [InlineKeyboardButton("🔙 Atgal", callback_data="recur_main")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -387,18 +368,18 @@ async def show_time_slot_screen(query, context: ContextTypes.DEFAULT_TYPE) -> No
     """Show time slot selection - EXACTLY like GroupHelpBot"""
     
     text = (
-        "🕐 **Set time slot**\n\n"
-        "Choose a pre-set time or set your own custom time:"
+        "🕐 **Nustatyti laiko tarpą**\n\n"
+        "Pasirinkite iš anksto nustatytą laiką arba nustatykite savo:"
     )
     
     keyboard = [
-        [InlineKeyboardButton("🌅 Morning (08:00)", callback_data="recur_time_08:00")],
-        [InlineKeyboardButton("🌞 Midday (12:00)", callback_data="recur_time_12:00")],
-        [InlineKeyboardButton("🌇 Evening (18:00)", callback_data="recur_time_18:00")],
-        [InlineKeyboardButton("🌙 Night (22:00)", callback_data="recur_time_22:00")],
-        [InlineKeyboardButton("⏰ Custom time", callback_data="recur_time_custom")],
-        [InlineKeyboardButton("🔄 Multiple times", callback_data="recur_time_multiple")],
-        [InlineKeyboardButton("🔙 Back", callback_data="recur_config")]
+        [InlineKeyboardButton("🌅 Rytas (08:00)", callback_data="recur_time_08:00")],
+        [InlineKeyboardButton("🌞 Diena (12:00)", callback_data="recur_time_12:00")],
+        [InlineKeyboardButton("🌇 Vakaras (18:00)", callback_data="recur_time_18:00")],
+        [InlineKeyboardButton("🌙 Naktis (22:00)", callback_data="recur_time_22:00")],
+        [InlineKeyboardButton("⏰ Pasirinkti laiką", callback_data="recur_time_custom")],
+        [InlineKeyboardButton("🔄 Keli laikai", callback_data="recur_time_multiple")],
+        [InlineKeyboardButton("🔙 Atgal", callback_data="recur_config")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
