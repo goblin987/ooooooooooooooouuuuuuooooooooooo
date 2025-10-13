@@ -280,7 +280,16 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
 
         # Challenge button
         elif data == "dice2_challenge":
+            # Store state with initiator ID (like casino bot!)
             context.user_data['expecting_username'] = 'dice2'
+            context.user_data['dice2_setup'] = {
+                'initiator': user_id,
+                'chat_id': chat_id,
+                'bet_amount': setup.get('bet_amount'),
+                'win_condition': setup.get('win_condition'),
+                'mode': setup.get('mode')
+            }
+            logger.info(f"💾 DICE2 STATE: User {user_id} expecting username input (chat: {chat_id})")
             await context.bot.send_message(
                 chat_id=chat_id,
                 text="👤 **Įveskite žaidėjo vardą:**\n"
@@ -621,11 +630,20 @@ async def evaluate_dice2_round(game, chat_id, game_key, context):
 
 async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Handle text input for dice2 player challenges"""
-    if 'expecting_username' not in context.user_data or context.user_data['expecting_username'] != 'dice2':
+    # Check state like casino bot: expecting_username AND correct initiator
+    if not context.user_data.get('expecting_username') == 'dice2':
         return False
     
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
+    
+    # Verify it's the same user who initiated the challenge (like casino bot!)
+    dice2_setup = context.user_data.get('dice2_setup', {})
+    if dice2_setup.get('initiator') != user_id:
+        logger.warning(f"🚫 DICE2 STATE: Wrong user responding (expected {dice2_setup.get('initiator')}, got {user_id})")
+        return False
+    
+    logger.info(f"✅ DICE2 STATE: Correct initiator {user_id} responding with username")
     text = update.message.text.strip()
     
     # Parse username
