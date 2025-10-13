@@ -725,8 +725,9 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
             del context.user_data['expecting_username']
             return True
         
+        bet_amount = setup.get('bet_amount', 0)
         challenged_balance = get_user_points(challenged_id)
-        if setup['bet'] > challenged_balance:
+        if bet_amount > challenged_balance:
             await update.message.reply_text(f"❌ @{challenged_username} neturi pakankamai taškų!\nTuri: {challenged_balance} tšk.")
             del context.user_data['expecting_username']
             return True
@@ -738,7 +739,7 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
             'challenged': challenged_id,
             'mode': context.user_data['dice2_mode'],
             'points_to_win': context.user_data['dice2_points'],
-            'bet': setup['bet']
+            'bet': bet_amount
         }
         
         initiator_username = update.effective_user.username or "Žaidėjas"
@@ -747,7 +748,7 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
         
         text = (
             f"🎲 **{initiator_username}** meta iššūkį **@{challenged_username}!**\n\n"
-            f"💰 Statymas: {setup['bet']} tšk\n"
+            f"💰 Statymas: {bet_amount} tšk\n"
             f"🎯 Pirmas iki: {points} tšk\n"
             f"⚙️ Režimas: {mode_lt}\n\n"
             f"@{challenged_username}, ar priimi iššūkį?"
