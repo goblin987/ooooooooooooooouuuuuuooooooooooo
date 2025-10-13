@@ -309,8 +309,11 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Handle in-game phase (rolling dice)
     elif data.startswith("dice2_roll_"):
+        logger.info(f"🎲 DICE2 ROLL: User {user_id} clicked {data} in chat {chat_id}")
         game_key = context.bot_data.get('user_games_points', {}).get((chat_id, user_id))
+        logger.info(f"🎲 DICE2 ROLL: Found game_key: {game_key}, all games: {list(context.bot_data.get('user_games_points', {}).keys())}")
         if not game_key:
+            logger.warning(f"🎲 DICE2 ROLL: No game found for user {user_id} in chat {chat_id}")
             await query.answer("No active game found!")
             return True
         game = context.bot_data.get('games_points', {}).get(game_key)
@@ -395,6 +398,8 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         context.bot_data.setdefault('games_points', {})[game_key] = game_state
         context.bot_data.setdefault('user_games_points', {})[(chat_id, game['initiator'])] = game_key
         context.bot_data['user_games_points'][(chat_id, user_id)] = game_key
+        logger.info(f"🎲 GAME CREATED: game_key={game_key}, player1={game['initiator']}, player2={user_id}")
+        logger.info(f"🎲 GAME STORED: Keys registered: {list(context.bot_data['user_games_points'].keys())}")
         
         # Deduct bets
         p1_points = get_user_points(game['initiator'])
