@@ -615,11 +615,17 @@ async def main():
         logger.info("🤖 Starting bot in POLLING mode...")
         await application.initialize()
         await application.start()
+        
+        # Load recurring message jobs from database
+        logger.info("📅 Loading scheduled recurring messages...")
+        recurring_messages.load_scheduled_jobs_from_db(application.bot)
+        
         await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
         
         logger.info("✅ Bot is fully operational!")
         logger.info("   - Polling: Receiving Telegram updates")
         logger.info("   - HTTP Server: Ready for payment webhooks")
+        logger.info("   - Scheduled messages: Loaded from database")
         
         # Keep running forever
         import asyncio
