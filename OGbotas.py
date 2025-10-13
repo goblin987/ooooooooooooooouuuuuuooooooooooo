@@ -495,6 +495,7 @@ def create_application():
     application.add_handler(CommandHandler("mute", moderation.mute_user))
     application.add_handler(CommandHandler("unmute", moderation.unmute_user))
     application.add_handler(CommandHandler("lookup", moderation.lookup_user))
+    application.add_handler(CommandHandler("info", moderation.info_user))
     application.add_handler(CommandHandler("patikra", patikra_command))
     
     # Warn system commands (GroupHelpBot style)

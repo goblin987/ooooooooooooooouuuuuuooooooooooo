@@ -787,6 +787,194 @@ async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_T
         logger.error(f"Error in handle_new_chat_member: {e}")
 
 
+# ============================================================================
+# INFO COMMAND - GroupHelpBot Style
+# ============================================================================
+
+async def info_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Display detailed information about a user
+    Usage: /info (as reply) or /info @username or /info user_id
+    """
+    try:
+        chat = update.effective_chat
+        user = update.effective_user
+        
+        # Only work in groups
+        if chat.type == 'private':
+            await update.message.reply_text(
+                "ℹ️ **Informacija**\n\n"
+                "Ši komanda veikia tik grupėse.\n"
+                "Naudokite: `/info` atsakydami į pranešimą arba `/info @username`",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Check if user is admin
+        if not await is_admin(update, context):
+            await update.message.reply_text("❌ Tik administratoriai gali naudoti šią komandą.")
+            return
+        
+        target_user = None
+        target_user_id = None
+        
+        # Method 1: Reply to a message
+        if update.message.reply_to_message:
+            target_user = update.message.reply_to_message.from_user
+            target_user_id = target_user.id
+            logger.info(f"Info command: target from reply - {target_user_id}")
+        
+        # Method 2: Username or ID provided
+        elif context.args:
+            identifier = context.args[0]
+            
+            # Try to resolve username or ID
+            resolved = await resolve_user(identifier, chat.id, context)
+            
+            if resolved:
+                target_user_id = resolved
+                # Try to get user info from cache
+                user_info = database.get_user_by_id(target_user_id)
+                if user_info:
+                    # Create a minimal user object from cache
+                    class CachedUser:
+                        def __init__(self, data):
+                            self.id = data['user_id']
+                            self.username = data.get('username')
+                            self.first_name = data.get('first_name', 'Unknown')
+                            self.last_name = data.get('last_name')
+                            self.is_bot = False
+                    
+                    target_user = CachedUser(user_info)
+                    logger.info(f"Info command: target from cache - {target_user_id}")
+            else:
+                await update.message.reply_text(
+                    f"❌ Vartotojas `{identifier}` nerastas.\n\n"
+                    "Naudokite:\n"
+                    "• `/info` atsakydami į pranešimą\n"
+                    "• `/info @username`\n"
+                    "• `/info user_id`",
+                    parse_mode='Markdown'
+                )
+                return
+        else:
+            await update.message.reply_text(
+                "ℹ️ **Kaip naudoti /info**\n\n"
+                "• Atsakykite į vartotojo pranešimą su `/info`\n"
+                "• Arba naudokite: `/info @username`\n"
+                "• Arba: `/info user_id`",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Get additional info from database
+        user_cache = database.get_user_by_id(target_user_id) if target_user_id else None
+        
+        # Build info message
+        info_text = "👤 **Vartotojo informacija**\n\n"
+        
+        # Basic info
+        if target_user:
+            info_text += f"**ID:** `{target_user.id}`\n"
+            
+            if target_user.username:
+                info_text += f"**Vartotojo vardas:** @{target_user.username}\n"
+            
+            name = target_user.first_name
+            if target_user.last_name:
+                name += f" {target_user.last_name}"
+            info_text += f"**Vardas:** {name}\n"
+            
+            if hasattr(target_user, 'is_bot') and target_user.is_bot:
+                info_text += f"**Tipas:** 🤖 Botas\n"
+            else:
+                info_text += f"**Tipas:** 👤 Vartotojas\n"
+        
+        # Try to get chat member status
+        try:
+            member = await context.bot.get_chat_member(chat.id, target_user_id)
+            
+            status_emoji = {
+                'creator': '👑',
+                'administrator': '⭐',
+                'member': '👤',
+                'restricted': '🔇',
+                'left': '🚪',
+                'kicked': '🚫'
+            }
+            
+            status_text = {
+                'creator': 'Savininkas',
+                'administrator': 'Administratorius',
+                'member': 'Narys',
+                'restricted': 'Apribotas',
+                'left': 'Išėjo',
+                'kicked': 'Užblokuotas'
+            }
+            
+            emoji = status_emoji.get(member.status, '❓')
+            status = status_text.get(member.status, member.status)
+            info_text += f"**Statusas:** {emoji} {status}\n"
+            
+            # Join date if available
+            if hasattr(member, 'joined_date') and member.joined_date:
+                join_date = member.joined_date.strftime("%Y-%m-%d %H:%M")
+                info_text += f"**Prisijungė:** {join_date}\n"
+        
+        except Exception as e:
+            logger.warning(f"Could not get chat member status: {e}")
+            info_text += f"**Statusas:** ❓ Nežinomas\n"
+        
+        # Database info
+        if user_cache:
+            info_text += f"\n**📊 Duomenų bazės informacija:**\n"
+            
+            if user_cache.get('first_seen'):
+                info_text += f"**Pirmas pamatytas:** {user_cache['first_seen']}\n"
+            
+            if user_cache.get('last_seen'):
+                info_text += f"**Paskutinį kartą matytas:** {user_cache['last_seen']}\n"
+            
+            if user_cache.get('message_count'):
+                info_text += f"**Pranešimų skaičius:** {user_cache['message_count']}\n"
+        
+        # Check warnings
+        try:
+            warnings = database.get_warnings(target_user_id, chat.id)
+            if warnings:
+                info_text += f"\n**⚠️ Įspėjimai:** {len(warnings)}/3\n"
+        except:
+            pass
+        
+        # Check if pending ban
+        try:
+            pending_ban = database.get_pending_ban(target_user_id, chat.id)
+            if pending_ban:
+                info_text += f"\n**🚫 Laukiantis užblokavimas:** Taip\n"
+                info_text += f"**Priežastis:** {pending_ban.get('reason', 'Nenurodyta')}\n"
+        except:
+            pass
+        
+        # Check ban history
+        try:
+            ban_history = database.get_ban_history(target_user_id, chat.id)
+            if ban_history:
+                info_text += f"\n**📜 Užblokavimų istorija:** {len(ban_history)}\n"
+        except:
+            pass
+        
+        # Send info
+        await update.message.reply_text(info_text, parse_mode='Markdown')
+        logger.info(f"Info displayed for user {target_user_id} by admin {user.id}")
+        
+    except Exception as e:
+        logger.error(f"Error in info_user: {e}", exc_info=True)
+        await update.message.reply_text(
+            f"❌ Klaida gaunant informaciją: {str(e)}",
+            parse_mode='Markdown'
+        )
+
+
 # Export functions
 __all__ = [
     'is_admin',
@@ -796,6 +984,7 @@ __all__ = [
     'mute_user',
     'unmute_user',
     'lookup_user',
-    'handle_new_chat_member'
+    'handle_new_chat_member',
+    'info_user'
 ]
 
