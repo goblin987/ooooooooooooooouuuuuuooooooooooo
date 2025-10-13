@@ -401,6 +401,9 @@ async def show_repetition_screen(query, context: ContextTypes.DEFAULT_TYPE) -> N
     )
     
     keyboard = [
+        [InlineKeyboardButton("⏰ Kas 10 minučių", callback_data="recur_rep_10m")],
+        [InlineKeyboardButton("⏰ Kas 15 minučių", callback_data="recur_rep_15m")],
+        [InlineKeyboardButton("⏰ Kas 30 minučių", callback_data="recur_rep_30m")],
         [InlineKeyboardButton("⏰ Kas 1 valandą", callback_data="recur_rep_1h")],
         [InlineKeyboardButton("⏰ Kas 2 valandas", callback_data="recur_rep_2h")],
         [InlineKeyboardButton("⏰ Kas 3 valandas", callback_data="recur_rep_3h")],
@@ -626,7 +629,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Handle repetition selection
     elif data.startswith("recur_rep_"):
         rep_type = data.replace("recur_rep_", "")
-        if rep_type.endswith("h"):
+        if rep_type.endswith("m"):
+            # Minute intervals (10m, 15m, 30m)
+            minutes = int(rep_type[:-1])
+            context.user_data['recur_msg_config']['repetition'] = f"{minutes} minutes"
+            context.user_data['recur_msg_config']['repetition_type'] = 'interval'
+            context.user_data['recur_msg_config']['interval_hours'] = minutes / 60  # Store as fractional hours
+            await query.answer(f"✅ Nustatyta kas {minutes} min.")
+            await show_message_config(query, context)
+        elif rep_type.endswith("h"):
             hours = rep_type[:-1]
             context.user_data['recur_msg_config']['repetition'] = f"{hours} hours"
             context.user_data['recur_msg_config']['repetition_type'] = 'interval'
@@ -634,12 +645,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await query.answer(f"✅ Nustatyta kas {hours} val.")
             await show_message_config(query, context)
         elif rep_type == "custom":
-            # Custom interval - ask user to input hours
+            # Custom interval - ask user to input hours or minutes
             context.user_data['awaiting_input'] = 'custom_interval'
             await query.edit_message_text(
                 "⏱️ **Pasirinkti intervalą**\n\n"
-                "Atsiųskite intervalą valandomis (skaičius)\n"
-                "Pavyzdys: 4 (kas 4 valandas)\n\n"
+                "Atsiųskite intervalą:\n"
+                "• Valandomis: 4 (kas 4 valandas)\n"
+                "• Minutėmis: 45m (kas 45 minutes)\n\n"
                 "Arba /cancel grįžti atgal",
                 parse_mode='Markdown'
             )
@@ -1102,83 +1114,100 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     
     elif awaiting == 'custom_interval':
         try:
-            # Validate interval (must be a positive number)
-            hours = int(text)
-            if hours > 0 and hours <= 168:  # Max 1 week (168 hours)
-                context.user_data['recur_msg_config']['repetition'] = f"{hours} hours"
-                context.user_data['recur_msg_config']['repetition_type'] = 'interval'
-                context.user_data['recur_msg_config']['interval_hours'] = hours
-                context.user_data.pop('awaiting_input')
-                
-                # Send confirmation
-                await update.message.reply_text(f"✅ Intervalas nustatytas: kas {hours} val.")
-                
-                # Return to config screen
-                from telegram import InlineKeyboardMarkup
-                import pytz
-                from datetime import datetime
-                
-                # Get chat_id for the config
-                if update.effective_chat.type == 'private' and context.user_data.get('selected_group_id'):
-                    chat_id = context.user_data['selected_group_id']
+            # Check if input ends with 'm' for minutes
+            if text.endswith('m'):
+                # Minutes format (e.g., "45m")
+                minutes = int(text[:-1])
+                if minutes > 0 and minutes <= 10080:  # Max 1 week (10080 minutes)
+                    context.user_data['recur_msg_config']['repetition'] = f"{minutes} minutes"
+                    context.user_data['recur_msg_config']['repetition_type'] = 'interval'
+                    context.user_data['recur_msg_config']['interval_hours'] = minutes / 60
+                    context.user_data.pop('awaiting_input')
+                    
+                    # Send confirmation
+                    await update.message.reply_text(f"✅ Intervalas nustatytas: kas {minutes} min.")
                 else:
-                    chat_id = update.effective_chat.id
-                
-                # Show config screen directly
-                msg_config = context.user_data.get('recur_msg_config', {})
-                status = msg_config.get('status', 'Off')
-                status_icon = "🟢" if status == "On" else "❌"
-                pin_icon = "✅" if msg_config.get('pin_message') else "❌"
-                delete_icon = "✅" if msg_config.get('delete_last') else "❌"
-                
-                try:
-                    chat = await context.bot.get_chat(chat_id)
-                    group_name = chat.title or "Group"
-                except:
-                    group_name = "Group"
-                
-                lithuanian_tz = pytz.timezone('Europe/Vilnius')
-                current_time = datetime.now(lithuanian_tz).strftime("%d/%m/%y %H:%M")
-                
-                config_text = (
-                    "🔄 **Pasikartojantys skelbimai**\n\n"
-                    f"Iš šio meniu galite nustatyti pranešimus, kurie bus siunčiami pakartotinai į grupę kas kelias minutes/valandas.\n\n"
-                    f"**Dabartinis laikas:** {current_time}\n\n"
-                    f"💬 **{group_name}** • {status_icon} **{status}**\n"
-                    f"⏰ Laikas: {msg_config['time']}\n"
-                    f"🔄 Kas {msg_config['repetition']}\n"
-                    f"📝 Pranešimas {'ne' if not msg_config.get('has_text') else ''}nustatytas.\n\n"
-                    f"📌 Prisegti pranešimą: {pin_icon}\n"
-                    f"🗑️ Ištrinti paskutinį pranešimą: {delete_icon}"
-                )
-                
-                keyboard = [
-                    [InlineKeyboardButton("✏️ Pritaikyti pranešimą", callback_data="recur_customize")],
-                    [
-                        InlineKeyboardButton("⏰ Laikas", callback_data="recur_time"),
-                        InlineKeyboardButton("🔄 Pasikartojimas", callback_data="recur_repetition")
-                    ],
-                    [InlineKeyboardButton("📅 Savaitės dienos", callback_data="recur_days_week")],
-                    [InlineKeyboardButton("📅 Mėnesio dienos", callback_data="recur_days_month")],
-                    [InlineKeyboardButton("🕐 Nustatyti laiko tarpą", callback_data="recur_time_slot")],
-                    [
-                        InlineKeyboardButton("📅 Pradžios data", callback_data="recur_start_date"),
-                        InlineKeyboardButton("📅 Pabaigos data", callback_data="recur_end_date")
-                    ],
-                    [InlineKeyboardButton(f"📌 Prisegti pranešimą {pin_icon}", callback_data="recur_toggle_pin")],
-                    [InlineKeyboardButton(f"🗑️ Ištrinti paskutinį {delete_icon}", callback_data="recur_toggle_delete")],
-                    [InlineKeyboardButton("⏱️ Suplanuotas ištrynimas", callback_data="recur_sched_deletion")],
-                    [InlineKeyboardButton("👁️ Peržiūra", callback_data="recur_preview")],
-                    [InlineKeyboardButton("💾 Išsaugoti", callback_data="recur_save")],
-                    [InlineKeyboardButton("🔙 Atgal", callback_data="recur_main")]
-                ]
-                
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                await update.message.reply_text(config_text, reply_markup=reply_markup, parse_mode='Markdown')
+                    await update.message.reply_text("❌ Neteisingas intervalas. Įveskite skaičių nuo 1 iki 10080 (minutės)")
+                    return
             else:
-                await update.message.reply_text("❌ Neteisingas intervalas. Įveskite skaičių nuo 1 iki 168 (valandos)")
+                # Hours format (e.g., "4")
+                hours = int(text)
+                if hours > 0 and hours <= 168:  # Max 1 week (168 hours)
+                    context.user_data['recur_msg_config']['repetition'] = f"{hours} hours"
+                    context.user_data['recur_msg_config']['repetition_type'] = 'interval'
+                    context.user_data['recur_msg_config']['interval_hours'] = hours
+                    context.user_data.pop('awaiting_input')
+                    
+                    # Send confirmation
+                    await update.message.reply_text(f"✅ Intervalas nustatytas: kas {hours} val.")
+                else:
+                    await update.message.reply_text("❌ Neteisingas intervalas. Įveskite skaičių nuo 1 iki 168 (valandos)")
+                    return
+            
+            # Return to config screen
+            from telegram import InlineKeyboardMarkup
+            import pytz
+            from datetime import datetime
+            
+            # Get chat_id for the config
+            if update.effective_chat.type == 'private' and context.user_data.get('selected_group_id'):
+                chat_id = context.user_data['selected_group_id']
+            else:
+                chat_id = update.effective_chat.id
+            
+            # Show config screen directly
+            msg_config = context.user_data.get('recur_msg_config', {})
+            status = msg_config.get('status', 'Off')
+            status_icon = "🟢" if status == "On" else "❌"
+            pin_icon = "✅" if msg_config.get('pin_message') else "❌"
+            delete_icon = "✅" if msg_config.get('delete_last') else "❌"
+            
+            try:
+                chat = await context.bot.get_chat(chat_id)
+                group_name = chat.title or "Group"
+            except:
+                group_name = "Group"
+            
+            lithuanian_tz = pytz.timezone('Europe/Vilnius')
+            current_time = datetime.now(lithuanian_tz).strftime("%d/%m/%y %H:%M")
+            
+            config_text = (
+                "🔄 **Pasikartojantys skelbimai**\n\n"
+                f"Iš šio meniu galite nustatyti pranešimus, kurie bus siunčiami pakartotinai į grupę kas kelias minutes/valandas.\n\n"
+                f"**Dabartinis laikas:** {current_time}\n\n"
+                f"💬 **{group_name}** • {status_icon} **{status}**\n"
+                f"⏰ Laikas: {msg_config['time']}\n"
+                f"🔄 Kas {msg_config['repetition']}\n"
+                f"📝 Pranešimas {'ne' if not msg_config.get('has_text') else ''}nustatytas.\n\n"
+                f"📌 Prisegti pranešimą: {pin_icon}\n"
+                f"🗑️ Ištrinti paskutinį pranešimą: {delete_icon}"
+            )
+            
+            keyboard = [
+                [InlineKeyboardButton("✏️ Pritaikyti pranešimą", callback_data="recur_customize")],
+                [
+                    InlineKeyboardButton("⏰ Laikas", callback_data="recur_time"),
+                    InlineKeyboardButton("🔄 Pasikartojimas", callback_data="recur_repetition")
+                ],
+                [InlineKeyboardButton("📅 Savaitės dienos", callback_data="recur_days_week")],
+                [InlineKeyboardButton("📅 Mėnesio dienos", callback_data="recur_days_month")],
+                [InlineKeyboardButton("🕐 Nustatyti laiko tarpą", callback_data="recur_time_slot")],
+                [
+                    InlineKeyboardButton("📅 Pradžios data", callback_data="recur_start_date"),
+                    InlineKeyboardButton("📅 Pabaigos data", callback_data="recur_end_date")
+                ],
+                [InlineKeyboardButton(f"📌 Prisegti pranešimą {pin_icon}", callback_data="recur_toggle_pin")],
+                [InlineKeyboardButton(f"🗑️ Ištrinti paskutinį {delete_icon}", callback_data="recur_toggle_delete")],
+                [InlineKeyboardButton("⏱️ Suplanuotas ištrynimas", callback_data="recur_sched_deletion")],
+                [InlineKeyboardButton("👁️ Peržiūra", callback_data="recur_preview")],
+                [InlineKeyboardButton("💾 Išsaugoti", callback_data="recur_save")],
+                [InlineKeyboardButton("🔙 Atgal", callback_data="recur_main")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(config_text, reply_markup=reply_markup, parse_mode='Markdown')
         except ValueError:
-            await update.message.reply_text("❌ Neteisingas formatas. Įveskite tik skaičių (pvz., 4)")
+            await update.message.reply_text("❌ Neteisingas formatas. Įveskite skaičių (pvz., 4 arba 45m)")
     
     elif awaiting == 'message_media':
         # Handle media URL input
@@ -1345,7 +1374,13 @@ async def show_manage_single(query, context: ContextTypes.DEFAULT_TYPE, message_
     text += f"**Statusas:** {'Aktyvus' if is_active else 'Pristabdytas'}\n"
     
     if rep_type == 'interval' and interval:
-        text += f"**Kartojimas:** Kas {interval} val.\n"
+        if interval < 1:
+            # It's in minutes
+            minutes = int(interval * 60)
+            text += f"**Kartojimas:** Kas {minutes} min.\n"
+        else:
+            # It's in hours
+            text += f"**Kartojimas:** Kas {int(interval)} val.\n"
     
     text += f"**Prisegti:** {'Taip' if pin else 'Ne'}\n"
     text += f"**Ištrinti paskutinį:** {'Taip' if delete_last else 'Ne'}\n"
@@ -1426,10 +1461,20 @@ async def resume_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: 
             
             # Recreate job
             if rep_type == 'interval':
-                trigger = IntervalTrigger(
-                    hours=interval,
-                    timezone=pytz.timezone('Europe/Vilnius')
-                )
+                # Check if interval is less than 1 hour (fractional hours = minutes)
+                if interval < 1:
+                    # It's in minutes
+                    minutes = int(interval * 60)
+                    trigger = IntervalTrigger(
+                        minutes=minutes,
+                        timezone=pytz.timezone('Europe/Vilnius')
+                    )
+                else:
+                    # It's in hours
+                    trigger = IntervalTrigger(
+                        hours=int(interval),
+                        timezone=pytz.timezone('Europe/Vilnius')
+                    )
                 
                 job_id = f"recur_{query.message.chat_id}_{message_id}"
                 
@@ -1519,11 +1564,23 @@ async def edit_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: in
         # Load into user context for editing
         import json
         
+        # Determine repetition display text
+        if rep_type == 'interval':
+            if interval < 1:
+                # It's in minutes
+                minutes = int(interval * 60)
+                repetition_text = f'{minutes} minutes'
+            else:
+                # It's in hours
+                repetition_text = f'{int(interval)} hours'
+        else:
+            repetition_text = '24 hours'
+        
         msg_config = {
             'editing_message_id': message_id,  # Mark as editing mode
             'status': 'On',
             'time': '20:28',  # Default, will be updated
-            'repetition': f'{interval} hours' if rep_type == 'interval' else '24 hours',
+            'repetition': repetition_text,
             'repetition_type': rep_type,
             'interval_hours': interval,
             'pin_message': bool(pin),
@@ -1771,14 +1828,27 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             rep_text = f"{len(times)} times per day: {', '.join(times)}"
             
         else:
-            # Interval trigger (hours)
+            # Interval trigger (hours or minutes)
             rep_str = msg_config.get('repetition', '24 hours')
-            hours = int(rep_str.split()[0])
-            trigger = IntervalTrigger(
-                hours=hours,
-                start_date=datetime.now(pytz.timezone('Europe/Vilnius')),
-                timezone=pytz.timezone('Europe/Vilnius')
-            )
+            interval_hours = msg_config.get('interval_hours', 24)
+            
+            # Check if it's in minutes or hours
+            if 'minutes' in rep_str:
+                # Convert to minutes for IntervalTrigger
+                minutes = int(rep_str.split()[0])
+                trigger = IntervalTrigger(
+                    minutes=minutes,
+                    start_date=datetime.now(pytz.timezone('Europe/Vilnius')),
+                    timezone=pytz.timezone('Europe/Vilnius')
+                )
+            else:
+                # Hours
+                hours = int(rep_str.split()[0])
+                trigger = IntervalTrigger(
+                    hours=hours,
+                    start_date=datetime.now(pytz.timezone('Europe/Vilnius')),
+                    timezone=pytz.timezone('Europe/Vilnius')
+                )
             rep_text = rep_str
         
         # Save to database
