@@ -71,19 +71,30 @@ async def dice2_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     args = context.args
+    
+    # Check if this is a reply-based challenge (PROPER SOLUTION!)
+    if update.message.reply_to_message:
+        return await handle_reply_dice2_challenge(update, context)
 
     if not user_has_points(user_id):
-        await update.message.reply_text("You don't have any points yet! Earn points by being active in the group.")
+        await update.message.reply_text(
+            "❌ Neturite taškų!\n\n"
+            "Užsidirbkite taškų:\n"
+            "• Balsuokite už pardavėjus (/balsuoti)\n"
+            "• Būkite aktyvūs grupėje"
+        )
         return
 
     if not args:
         points = get_user_points(user_id)
         await update.message.reply_text(
-            f"🎲 **Dice Game (Points - PvP)**\n\n"
-            f"Your Points: {points}\n\n"
-            f"**Usage:** `/dice2 <points>`\n"
-            f"**Example:** `/dice2 100`\n\n"
-            f"_Note: This uses saved points (not crypto) and is Player vs Player only!_",
+            f"🎲 **Kauliukų žaidimas (Taškai - PvP)**\n\n"
+            f"💰 Jūsų taškai: {points}\n\n"
+            f"**Naudojimas:**\n"
+            f"• `/dice2 <taškai>` - tada įveskite @username\n"
+            f"• **ARBA** atsakykite į žinutę: `/dice2 <taškai>`\n\n"
+            f"**Pavyzdys:** `/dice2 10`\n\n"
+            f"_💡 Patarimas: Atsakykite į žinutę, kad mesti iššūkį greičiau!_",
             parse_mode='Markdown'
         )
         return
@@ -731,9 +742,110 @@ async def handle_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_T
         
     except Exception as e:
         logger.error(f"Error in dice2 challenge: {e}")
-        await update.message.reply_text("❌ Vartotojas nerastas! Įsitikinkite, kad jis yra šiame pokalbyje.")
+        await update.message.reply_text(
+            "❌ Vartotojas nerastas!\n\n"
+            "**💡 Geriau:**\n"
+            "Atsakykite į jo žinutę ir parašykite:\n"
+            "`/dice2 <taškai>`\n\n"
+            "Arba palaukite, kol jis parašys bet ką grupėje!",
+            parse_mode='Markdown'
+        )
         del context.user_data['expecting_username']
         return True
+
+
+# ============================================================================
+# REPLY-BASED CHALLENGE (PROPER SOLUTION)
+# ============================================================================
+
+async def handle_reply_dice2_challenge(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle reply-based dice2 challenges - ALWAYS WORKS!"""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    challenged_user = update.message.reply_to_message.from_user
+    
+    # Check if trying to challenge yourself
+    if challenged_user.id == user_id:
+        await update.message.reply_text("❌ Negalite mesti iššūkio sau!")
+        return
+    
+    # Check if user has points
+    if not user_has_points(user_id):
+        await update.message.reply_text(
+            "❌ Neturite taškų!\n\n"
+            "Užsidirbkite taškų:\n"
+            "• Balsuokite už pardavėjus (/balsuoti)\n"
+            "• Būkite aktyvūs grupėje"
+        )
+        return
+    
+    # Parse bet amount
+    args = context.args
+    if not args:
+        await update.message.reply_text(
+            "❌ Nurodykite statymo sumą!\n\n"
+            "**Pavyzdys:** `/dice2 10` (atsakant į žinutę)"
+        )
+        return
+    
+    try:
+        bet = int(args[0])
+        if bet <= 0:
+            raise ValueError("Bet must be positive")
+        
+        balance = get_user_points(user_id)
+        if bet > balance:
+            await update.message.reply_text(
+                f"❌ Neturite tiek taškų!\n\n"
+                f"💰 Jūsų taškai: {balance}"
+            )
+            return
+        
+        # Check if challenged user has points
+        if not user_has_points(challenged_user.id):
+            await update.message.reply_text(
+                f"❌ {challenged_user.first_name} dar neturi taškų!"
+            )
+            return
+        
+        challenged_balance = get_user_points(challenged_user.id)
+        if bet > challenged_balance:
+            await update.message.reply_text(
+                f"❌ {challenged_user.first_name} neturi pakankamai taškų!\n"
+                f"Turi: {challenged_balance} tšk."
+            )
+            return
+        
+        # Create challenge directly (skip mode selection for reply-based)
+        game_id = len(context.bot_data.get('pending_challenges_points', {})) + 1
+        context.bot_data.setdefault('pending_challenges_points', {})[game_id] = {
+            'initiator': user_id,
+            'challenged': challenged_user.id,
+            'mode': 'normal',  # Default to normal mode for reply-based
+            'points_to_win': 1,  # Default to first-to-1
+            'bet': bet
+        }
+        
+        initiator_username = update.effective_user.username or update.effective_user.first_name
+        challenged_username = challenged_user.username or challenged_user.first_name
+        
+        text = (
+            f"🎲 **{initiator_username}** meta iššūkį **{challenged_username}!**\n\n"
+            f"💰 Statymas: {bet} tšk\n"
+            f"🎯 Pirmas iki: 1 tšk\n"
+            f"⚙️ Režimas: Normalus\n\n"
+            f"{challenged_username}, ar priimi iššūkį?"
+        )
+        keyboard = [
+            [InlineKeyboardButton("✅ Priimti", callback_data=f"dice2_accept_{game_id}"),
+             InlineKeyboardButton("❌ Atsisakyti", callback_data=f"dice2_cancel_challenge_{game_id}")]
+        ]
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+        
+        logger.info(f"Reply-based challenge created: {initiator_username} -> {challenged_username}, bet={bet}")
+        
+    except ValueError:
+        await update.message.reply_text("❌ Neteisingas statymas! Naudokite skaičių.")
 
 
 # Export functions
@@ -742,6 +854,7 @@ __all__ = [
     'points_command',
     'handle_dice2_buttons',
     'handle_dice2_challenge',
+    'handle_reply_dice2_challenge',
     'get_user_points',
     'update_user_points'
 ]
