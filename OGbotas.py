@@ -54,6 +54,7 @@ import masked_users
 import admin_panel
 import games
 import payments
+import warn_system
 import points_games
 import voting
 
@@ -447,6 +448,12 @@ def create_application():
     application.add_handler(CommandHandler("unmute", moderation.unmute_user))
     application.add_handler(CommandHandler("lookup", moderation.lookup_user))
     application.add_handler(CommandHandler("patikra", patikra_command))
+    
+    # Warn system commands (GroupHelpBot style)
+    application.add_handler(CommandHandler("warn", warn_system.warn_user))
+    application.add_handler(CommandHandler("unwarn", warn_system.unwarn_user))
+    application.add_handler(CommandHandler("warnings", warn_system.warnings_command))
+    application.add_handler(CommandHandler("resetwarns", warn_system.resetwarns_command))
     
     # Chat member handler for auto-ban on join (pending bans)
     from telegram.ext import ChatMemberHandler
