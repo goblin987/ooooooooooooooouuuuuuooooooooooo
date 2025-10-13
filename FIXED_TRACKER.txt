@@ -160,12 +160,12 @@ Purpose: Track bugs, todos, and progress to prevent regressions
 [✅] Bug #26: Import error moderation_grouphelp not defined - FIXED (2025-10-13 00:05)
 [✅] Bug #27: Pending bans not working for users not in group - FIXED (2025-10-13 00:10)
 [✅] Bug #28: Pending bans should accept username-only input - FIXED (2025-10-13 00:20)
-[✅] Bug #29: Dice2 challenge not finding users in group - FIXED (2025-10-13 01:35)
-    - NOTE: Attempts 1-4 failed (API limit, wrong approach, state check, handler conflict)
+[✅] Bug #29: Dice2 challenge not finding users in group - FIXED (2025-10-13 01:40)
+    - NOTE: Attempts 1-5 failed (API limit, wrong approach, state check, handler conflict, key mismatch)
     - REAL ROOT CAUSE #1: games.handle_game_challenge() was consuming dice2 messages!
     - FIX #1: Added game type filter in crypto games handler
-    - REAL ROOT CAUSE #2: KeyError - accessing setup['bet'] instead of setup['bet_amount']
-    - FIX #2: Changed all references from 'bet' to 'bet_amount'
+    - REAL ROOT CAUSE #2: Inconsistent key naming - stored as 'bet' but accessed as 'bet_amount'
+    - FIX #2: Standardized to 'bet' (like crypto games) - matches initial setup at line 118
     - Crypto games now only process: dice, basketball, football, bowling
     - Dice2 (points game) messages no longer consumed by wrong handler
     - Added initiator verification (casino bot style)
