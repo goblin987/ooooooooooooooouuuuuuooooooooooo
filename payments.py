@@ -318,30 +318,12 @@ def initiate_payout(currency: str, amount: float, address: str):
 # ============================================================================
 
 async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show balance with deposit/withdraw buttons - redirects to private chat"""
+    """Show balance with deposit/withdraw buttons (works in groups and private)"""
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-    chat_type = update.effective_chat.type
     
-    # If in group, redirect to private chat
-    if chat_type in ['group', 'supergroup']:
-        bot_username = (await context.bot.get_me()).username
-        keyboard = [[InlineKeyboardButton("💼 Atidaryti piniginę", url=f"https://t.me/{bot_username}?start=pinigine")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await update.message.reply_text(
-            f"💰 **Piniginė**\n\n"
-            f"Dėl privatumo, visos finansinės operacijos atliekamos privačiame pokalbyje.\n\n"
-            f"👇 Paspauskite mygtuką apačioje:",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
-        return
-    
-    # In private chat, show balance
     balance = get_user_balance(user_id)
-    text = f"💰 **Jūsų balansas:** ${balance:.2f}\n\n" \
-          f"Pasirinkite veiksmą:"
+    text = f"💰 **Jūsų balansas:** ${balance:.2f}"
     
     keyboard = [
         [InlineKeyboardButton("💵 Įnešti", callback_data="deposit"),
@@ -349,7 +331,7 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='Markdown')
 
 
 async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
