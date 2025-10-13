@@ -160,13 +160,15 @@ Purpose: Track bugs, todos, and progress to prevent regressions
 [✅] Bug #26: Import error moderation_grouphelp not defined - FIXED (2025-10-13 00:05)
 [✅] Bug #27: Pending bans not working for users not in group - FIXED (2025-10-13 00:10)
 [✅] Bug #28: Pending bans should accept username-only input - FIXED (2025-10-13 00:20)
-[✅] Bug #29: Dice2 challenge not finding users in group - FIXED (2025-10-13 01:15)
-    - NOTE: Attempts 1-3 failed (API limitation, wrong approach, missing state check)
-    - FINAL FIX: Casino bot-style state management + database lookup
-    - Added initiator verification: Only challenge creator can input username
-    - Stores dice2_setup with initiator, chat_id, and game settings
-    - Auto-caching works: Users stored when they send ANY message
-    - Enhanced debug logging: Shows state transitions and lookup results
+[✅] Bug #29: Dice2 challenge not finding users in group - FIXED (2025-10-13 01:30)
+    - NOTE: Attempts 1-4 failed (API limit, wrong approach, state check, handler conflict)
+    - REAL ROOT CAUSE: games.handle_game_challenge() was consuming dice2 messages!
+    - FINAL FIX: Added game type filter in crypto games handler
+    - Crypto games now only process: dice, basketball, football, bowling
+    - Dice2 (points game) messages no longer consumed by wrong handler
+    - Added initiator verification (casino bot style)
+    - Auto-caching: Users stored when they send ANY message
+    - Enhanced debug logging: Shows handler routing and state
     - Users can type @username directly (works like casino bot!)
     - Also supports reply-based challenges as fallback
 

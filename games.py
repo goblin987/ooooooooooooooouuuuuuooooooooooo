@@ -785,6 +785,12 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
         return False
     
     game_type = context.user_data['expecting_username']
+    
+    # CRITICAL: Only handle crypto games (dice, basketball, football, bowling)
+    # Don't consume dice2 (points game) messages!
+    if game_type not in ['dice', 'basketball', 'football', 'bowling']:
+        logger.debug(f"🚫 CRYPTO GAMES: Ignoring non-crypto game type '{game_type}'")
+        return False
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     text = update.message.text.strip()
