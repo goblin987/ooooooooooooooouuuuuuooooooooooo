@@ -100,7 +100,13 @@ logger.info(f"Loaded {len(user_points)} user points, {len(trusted_sellers)} sell
 
 # Basic bot commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Start command"""
+    """Start command - handles deep links for wallet/pinigine"""
+    # Check if there's a deep link parameter
+    if context.args and context.args[0] == 'pinigine':
+        # Redirect to balance command
+        await payments.balance_command(update, context)
+        return
+    
     await update.message.reply_text(
         "🤖 **OGbotas Active!**\n\n"
         "Available commands:\n"
@@ -110,7 +116,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "🔊 `/unmute @user` - Unmute user\n"
         "🔄 `/recurring` - Recurring messages\n"
         "🔍 `/lookup @user` - Lookup user info\n"
-        "📊 `/patikra @user` - Check if scammer\n\n"
+        "📊 `/patikra @user` - Check if scammer\n"
+        "💰 `/pinigine` - Your wallet\n\n"
         "Bot is ready to serve! 🚀",
         parse_mode='Markdown'
     )
@@ -520,6 +527,7 @@ def create_application():
     
     # Payment commands (balance, deposit, withdraw)
     application.add_handler(CommandHandler("balance", payments.balance_command))
+    application.add_handler(CommandHandler("pinigine", payments.balance_command))  # Lithuanian alias
     application.add_handler(CommandHandler("addbalance", payments.add_balance_command))
     application.add_handler(CommandHandler("removebalance", payments.remove_balance_command))
     
