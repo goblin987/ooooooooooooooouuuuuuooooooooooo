@@ -205,7 +205,7 @@ def get_currency_to_usd_price(currency: str) -> float:
 def create_deposit_payment(user_id: int, currency: str = 'ltc'):
     """Create deposit payment via NOWPayments"""
     try:
-        min_deposit_usd = 1.0
+        min_deposit_usd = 10.0  # Increased to $10 to meet NOWPayments minimum
         currency_price = get_currency_to_usd_price(currency)
         min_deposit_currency = min_deposit_usd / currency_price
         
@@ -476,14 +476,18 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
             
             add_pending_deposit(payment_id, user_id, currency)
             
+            # Calculate minimum amount in crypto
+            min_usd = 10.0
+            currency_price = get_currency_to_usd_price(currency)
+            min_crypto = min_usd / currency_price
+            
             text = (
                 f"💳 <b>Įnešimas {currency.upper()}</b>\n\n"
-                f"Norėdami papildyti balansą, perveskite norimą sumą į šį adresą.\n\n"
-                f"<b>Svarbu:</b>\n"
-                f"1. Adresas laikinas ir galioja 1 valandą\n"
-                f"2. Vienas adresas priima tik vieną mokėjimą\n\n"
+                f"Perveskite bet kokią sumą (min. ${min_usd:.0f}) į šį adresą:\n\n"
                 f"<b>{currency.upper()} adresas:</b>\n<code>{address}</code>\n\n"
-                f"<b>Galioja:</b> {expires_in}"
+                f"<b>Minimalus įnešimas:</b> ~{min_crypto:.4f} {currency.upper()} (${min_usd:.0f})\n"
+                f"<b>Galioja:</b> {expires_in}\n\n"
+                f"<i>💡 Adresas priima tik vieną mokėjimą ir galioja 1 valandą.</i>"
             )
             
             await context.bot.send_message(chat_id=chat_id, text=text, parse_mode='HTML')
@@ -491,6 +495,14 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
             error_msg = str(e)
             if "401" in error_msg:
                 await context.bot.send_message(chat_id=chat_id, text="❌ API raktas neteisingas. Susisiekite su palaikymu.")
+            elif "AMOUNT_MINIMAL_ERROR" in error_msg or "amount" in error_msg.lower():
+                await context.bot.send_message(
+                    chat_id=chat_id, 
+                    text="❌ Suma per maža.\n\n"
+                         "Minimalus įnešimas: <b>$10 USD</b>\n\n"
+                         "Bandykite dar kartą.",
+                    parse_mode='HTML'
+                )
             elif "400" in error_msg:
                 await context.bot.send_message(chat_id=chat_id, text="❌ Neteisinga užklausa. Bandykite vėliau.")
             else:
