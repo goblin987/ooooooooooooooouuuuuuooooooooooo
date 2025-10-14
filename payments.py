@@ -333,7 +333,8 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     
     balance = get_user_balance(user_id)
-    text = f"💰 **Jūsų balansas:** ${balance:.2f}"
+    text = f"💰 **Jūsų balansas:** ${balance:.2f}\n\n" \
+          f"_Pasirinkite veiksmą apačioje:_"
     
     keyboard = [
         [InlineKeyboardButton("💵 Įnešti", callback_data="deposit"),
@@ -445,10 +446,13 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
         if update.effective_chat.type != 'private':
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"Please start a private chat with me: t.me/{BOT_USERNAME}"
+                text=f"💰 **Įnešimas**\n\n"
+                     f"Dėl privatumo, įnešimai atliekami privačiame pokalbyje.\n\n"
+                     f"Pradėkite pokalbį su manimi: t.me/{BOT_USERNAME}",
+                parse_mode='Markdown'
             )
         else:
-            text = "💳 **Deposit**\n\nChoose your preferred deposit method:"
+            text = "💳 **Įnešimas**\n\nPasirinkite kriptovaliutą:"
             keyboard = [
                 [InlineKeyboardButton("SOLANA", callback_data="deposit_sol"),
                  InlineKeyboardButton("USDT TRX", callback_data="deposit_usdt_trx")],
@@ -473,40 +477,43 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
             add_pending_deposit(payment_id, user_id, currency)
             
             text = (
-                f"💳 **Deposit {currency.upper()}**\n\n"
-                f"To top up your balance, transfer the desired amount to this address.\n\n"
-                f"**Please note:**\n"
-                f"1. The address is temporary and valid for 1 hour\n"
-                f"2. One address accepts only one payment\n\n"
-                f"**{currency.upper()} address:**\n`{address}`\n\n"
-                f"**Expires in:** {expires_in}"
+                f"💳 **Įnešimas {currency.upper()}**\n\n"
+                f"Norėdami papildyti balansą, perveskite norimą sumą į šį adresą.\n\n"
+                f"**Svarbu:**\n"
+                f"1. Adresas laikinas ir galioja 1 valandą\n"
+                f"2. Vienas adresas priima tik vieną mokėjimą\n\n"
+                f"**{currency.upper()} adresas:**\n`{address}`\n\n"
+                f"**Galioja:** {expires_in}"
             )
             
             await context.bot.send_message(chat_id=chat_id, text=text, parse_mode='Markdown')
         except Exception as e:
             error_msg = str(e)
             if "401" in error_msg:
-                await context.bot.send_message(chat_id=chat_id, text="❌ API key invalid. Contact support.")
+                await context.bot.send_message(chat_id=chat_id, text="❌ API raktas neteisingas. Susisiekite su palaikymu.")
             elif "400" in error_msg:
-                await context.bot.send_message(chat_id=chat_id, text="❌ Invalid request. Try again later.")
+                await context.bot.send_message(chat_id=chat_id, text="❌ Neteisinga užklausa. Bandykite vėliau.")
             else:
-                await context.bot.send_message(chat_id=chat_id, text=f"❌ Failed to generate address: {error_msg}")
+                await context.bot.send_message(chat_id=chat_id, text=f"❌ Nepavyko sugeneruoti adreso: {error_msg}")
     
     elif data == "withdraw":
         if update.effective_chat.type != 'private':
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"Please start a private chat with me: t.me/{BOT_USERNAME}"
+                text=f"💸 **Išėmimas**\n\n"
+                     f"Dėl privatumo, išėmimai atliekami privačiame pokalbyje.\n\n"
+                     f"Pradėkite pokalbį su manimi: t.me/{BOT_USERNAME}",
+                parse_mode='Markdown'
             )
         else:
             context.user_data['expecting_withdrawal_details'] = True
             await context.bot.send_message(
                 chat_id=chat_id,
-                text="💸 **Withdrawal**\n\n"
-                     "Please enter the amount in USD and your LTC address:\n"
-                     "Format: `amount address`\n\n"
-                     "Example: `9.87 LTC123...`\n\n"
-                     "_Note: Only Litecoin withdrawals are supported._",
+                text="💸 **Išėmimas**\n\n"
+                     "Įveskite sumą USD ir savo LTC adresą:\n"
+                     "Formatas: `suma adresas`\n\n"
+                     "Pavyzdys: `9.87 LTC123...`\n\n"
+                     "_Pastaba: Palaikomi tik Litecoin išėmimai._",
                 parse_mode='Markdown'
             )
 
@@ -521,7 +528,7 @@ async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_T
         try:
             parts = update.message.text.strip().split()
             if len(parts) < 2:
-                raise ValueError("Please enter 'amount address', e.g., '9.87 LTC123...'")
+                raise ValueError("❌ Įveskite 'suma adresas', pvz.: '9.87 LTC123...'")
             
             amount_usd = Decimal(parts[0])
             address = parts[1]
@@ -530,7 +537,7 @@ async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_T
             if not is_valid_ltc_address(address):
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text="❌ Invalid LTC address. Please check and try again."
+                    text="❌ Neteisingas LTC adresas. Patikrinkite ir bandykite dar kartą."
                 )
                 return True
             
@@ -538,7 +545,9 @@ async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_T
             if amount_usd > balance:
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text="❌ Insufficient balance for withdrawal"
+                    text=f"❌ Nepakanka lėšų išėmimui\n\n"
+                         f"Jūsų balansas: ${balance:.2f}\n"
+                         f"Norite išimti: ${amount_usd:.2f}"
                 )
                 return True
             
@@ -546,7 +555,7 @@ async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_T
             if ltc_price_usd == 0:
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text="❌ Failed to fetch LTC price. Try again later."
+                    text="❌ Nepavyko gauti LTC kainos. Bandykite vėliau."
                 )
                 return True
             
@@ -554,18 +563,21 @@ async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_T
             payout_response = initiate_payout(currency, ltc_amount, address)
             
             if payout_response.get('status') == 'error':
-                error_msg = payout_response.get('message', 'Unknown error')
+                error_msg = payout_response.get('message', 'Nežinoma klaida')
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text=f"❌ Withdrawal failed: {error_msg}"
+                    text=f"❌ Išėmimas nepavyko: {error_msg}"
                 )
             else:
                 new_balance = balance - amount_usd
                 update_user_balance(update.effective_user.id, new_balance)
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text=f"✅ Withdrawal of ${amount_usd:.2f} to {address} successful!\n"
-                         f"New balance: ${new_balance:.2f}"
+                    text=f"✅ **Išėmimas sėkmingas!**\n\n"
+                         f"Suma: ${amount_usd:.2f}\n"
+                         f"Adresas: `{address}`\n"
+                         f"Naujas balansas: ${new_balance:.2f}",
+                    parse_mode='Markdown'
                 )
             
             context.user_data['expecting_withdrawal_details'] = False
@@ -577,7 +589,7 @@ async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_T
             logger.error(f"Withdrawal error: {e}")
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="❌ An error occurred. Try again or contact support."
+                text="❌ Įvyko klaida. Bandykite dar kartą arba susisiekite su palaikymu."
             )
             return True
     

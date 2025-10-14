@@ -45,7 +45,7 @@ logging.getLogger('telegram').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Import modules
-from config import BOT_TOKEN, WEBHOOK_URL, PORT
+from config import BOT_TOKEN, WEBHOOK_URL, PORT, OWNER_ID, ADMIN_CHAT_ID
 from database import database
 from utils import data_manager, message_tracker
 import moderation_grouphelp as moderation
@@ -101,26 +101,52 @@ logger.info(f"Loaded {len(user_points)} user points, {len(trusted_sellers)} sell
 # Basic bot commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start command - handles deep links for wallet/pinigine"""
+    user_id = update.effective_user.id
+    
     # Check if there's a deep link parameter
     if context.args and context.args[0] == 'pinigine':
         # Redirect to balance command
         await payments.balance_command(update, context)
         return
     
-    await update.message.reply_text(
-        "🤖 **OGbotas Active!**\n\n"
-        "Available commands:\n"
-        "🔨 `/ban @user` - Ban user\n"
-        "🔓 `/unban @user` - Unban user\n"
-        "🔇 `/mute @user` - Mute user\n"
-        "🔊 `/unmute @user` - Unmute user\n"
-        "🔄 `/recurring` - Recurring messages\n"
-        "🔍 `/lookup @user` - Lookup user info\n"
-        "📊 `/patikra @user` - Check if scammer\n"
-        "💰 `/pinigine` - Your wallet\n\n"
-        "Bot is ready to serve! 🚀",
-        parse_mode='Markdown'
-    )
+    # Check if user is admin/owner
+    is_admin = user_id == OWNER_ID or (update.effective_chat and update.effective_chat.id == ADMIN_CHAT_ID)
+    
+    if is_admin:
+        # Admin message (English with all commands)
+        await update.message.reply_text(
+            "🤖 **OGbotas Aktyvuotas!**\n\n"
+            "**Administratoriaus komandos:**\n"
+            "🔨 `/ban @user [priežastis]` - Užblokuoti vartotoją\n"
+            "🔓 `/unban @user` - Atblokuoti vartotoją\n"
+            "🔇 `/mute @user [minutes]` - Nutildyti vartotoją\n"
+            "🔊 `/unmute @user` - Atšaukti nutildymą\n"
+            "⚠️ `/warn @user [priežastis]` - Įspėti vartotoją\n"
+            "ℹ️ `/info @user` - Vartotojo informacija\n"
+            "🔍 `/lookup @user` - Ieškoti vartotojo\n"
+            "🔄 `/recurring` - Pasikartojantys pranešimai\n"
+            "👤 `/masked` - Maskuoti vartotojai\n\n"
+            "**Viešos komandos:**\n"
+            "📊 `/patikra @username` - Patikrinti ar sukčius\n"
+            "💰 `/pinigine` - Jūsų piniginė\n"
+            "🎲 `/dice2 @username` - Žaisti kauliukus taškams\n"
+            "🏆 `/points` - Jūsų taškai\n\n"
+            "Botas paruoštas! 🚀",
+            parse_mode='Markdown'
+        )
+    else:
+        # Regular user message (Lithuanian, simple commands only)
+        await update.message.reply_text(
+            "🤖 **Sveiki!**\n\n"
+            "**Prieinamos komandos:**\n\n"
+            "📊 `/patikra @username` - Patikrinti ar vartotojas sukčius\n"
+            "💰 `/pinigine` - Jūsų piniginė (balansas, įnešimai, išėmimai)\n"
+            "🎲 `/dice2 @username` - Žaisti kauliukus taškams\n"
+            "🏆 `/points` - Peržiūrėti savo taškus\n\n"
+            "Sėkmės! 🍀",
+            parse_mode='Markdown'
+        )
+    
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Help command"""
