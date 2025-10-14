@@ -374,10 +374,13 @@ async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Amount must be greater than 0")
         return
     
-    target_user_id = get_user_by_username(username)
-    if not target_user_id:
+    target_user = get_user_by_username(username)
+    if not target_user:
         await update.message.reply_text(f"❌ User @{username} not found in cache.\n\nThey need to send at least one message in a group where the bot is present.")
         return
+    
+    # Extract user_id from the returned dict
+    target_user_id = target_user if isinstance(target_user, int) else target_user.get('user_id') if isinstance(target_user, dict) else target_user
     
     logger.info(f"Adding balance to user {target_user_id} (@{username})")
     current_balance = get_user_balance(target_user_id)
@@ -424,10 +427,13 @@ async def remove_balance_command(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text("❌ Amount must be greater than 0")
         return
     
-    target_user_id = get_user_by_username(username)
-    if not target_user_id:
+    target_user = get_user_by_username(username)
+    if not target_user:
         await update.message.reply_text(f"❌ User @{username} not found")
         return
+    
+    # Extract user_id from the returned dict
+    target_user_id = target_user if isinstance(target_user, int) else target_user.get('user_id') if isinstance(target_user, dict) else target_user
     
     current_balance = get_user_balance(target_user_id)
     new_balance = current_balance - amount
