@@ -433,8 +433,8 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         # Challenge button
         elif data == f"{game_type}_challenge":
-            # Clear setup data since we're moving to challenge phase
-            del context.user_data[setup_key]
+            # Don't delete setup_key yet - we need it for the challenge creation
+            # It will be deleted after the challenge is sent
             context.user_data['expecting_username'] = game_type
             await context.bot.send_message(
                 chat_id=chat_id,
@@ -958,6 +958,10 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
         ]
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
         
+        # Clean up setup and username expectation
+        setup_key = f'{game_type}_setup'
+        if setup_key in context.user_data:
+            del context.user_data[setup_key]
         del context.user_data['expecting_username']
         return True
         
