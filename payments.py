@@ -222,9 +222,9 @@ def create_deposit_payment(user_id: int, currency: str = 'ltc'):
         url = "https://api.nowpayments.io/v1/payment"
         headers = {"x-api-key": NOWPAYMENTS_API_KEY}
         payload = {
-            "price_amount": min_deposit_currency,
-            "price_currency": currency,
-            "pay_currency": currency,
+            "price_amount": min_deposit_usd,  # Amount in USD
+            "price_currency": "usd",  # We want to receive USD value
+            "pay_currency": currency,  # User pays in crypto
             "ipn_callback_url": f"{WEBHOOK_URL}/webhook/nowpayments",
             "order_id": f"deposit_{user_id}_{int(time.time())}",
         }
