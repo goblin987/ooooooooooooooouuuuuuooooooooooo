@@ -805,15 +805,21 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
     else:
         username = text
     
-    # Find user by username
+    # Find user by username (using database cache like points games)
     try:
-        # Try to find user in chat
-        chat_member = None
-        try:
-            chat_member = await context.bot.get_chat(f"@{username}")
-            challenged_id = chat_member.id
-        except:
-            await update.message.reply_text("❌ Naudotojas nerastas! Įsitikinkite, kad jis šiame pokalbyje.")
+        from database import database
+        
+        # Try to find user in database cache
+        challenged_id = database.get_user_by_username(username)
+        
+        if not challenged_id:
+            await update.message.reply_text(
+                "❌ Naudotojas nerastas!\n\n"
+                "Įsitikinkite, kad:\n"
+                "• Jis yra šiame pokalbyje\n"
+                "• Jis rašė bent vieną žinutę\n"
+                "• Username teisingas"
+            )
             del context.user_data['expecting_username']
             return True
         
