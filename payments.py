@@ -333,8 +333,8 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     
     balance = get_user_balance(user_id)
-    text = f"💰 **Jūsų balansas:** ${balance:.2f}\n\n" \
-          f"_Pasirinkite veiksmą apačioje:_"
+    text = f"💰 <b>Jūsų balansas:</b> ${balance:.2f}\n\n" \
+          f"<i>Pasirinkite veiksmą apačioje:</i>"
     
     keyboard = [
         [InlineKeyboardButton("💵 Įnešti", callback_data="deposit"),
@@ -342,7 +342,7 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='Markdown')
+    await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
 
 
 async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -446,13 +446,13 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
         if update.effective_chat.type != 'private':
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"💰 **Įnešimas**\n\n"
+                text=f"💰 <b>Įnešimas</b>\n\n"
                      f"Dėl privatumo, įnešimai atliekami privačiame pokalbyje.\n\n"
                      f"Pradėkite pokalbį su manimi: t.me/{BOT_USERNAME}",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
         else:
-            text = "💳 **Įnešimas**\n\nPasirinkite kriptovaliutą:"
+            text = "💳 <b>Įnešimas</b>\n\nPasirinkite kriptovaliutą:"
             keyboard = [
                 [InlineKeyboardButton("SOLANA", callback_data="deposit_sol"),
                  InlineKeyboardButton("USDT TRX", callback_data="deposit_usdt_trx")],
@@ -462,7 +462,7 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
                  InlineKeyboardButton("LTC", callback_data="deposit_ltc")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='Markdown')
+            await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
     
     elif data.startswith("deposit_"):
         currency = data.split("_", 1)[1]
@@ -477,16 +477,16 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
             add_pending_deposit(payment_id, user_id, currency)
             
             text = (
-                f"💳 **Įnešimas {currency.upper()}**\n\n"
+                f"💳 <b>Įnešimas {currency.upper()}</b>\n\n"
                 f"Norėdami papildyti balansą, perveskite norimą sumą į šį adresą.\n\n"
-                f"**Svarbu:**\n"
+                f"<b>Svarbu:</b>\n"
                 f"1. Adresas laikinas ir galioja 1 valandą\n"
                 f"2. Vienas adresas priima tik vieną mokėjimą\n\n"
-                f"**{currency.upper()} adresas:**\n`{address}`\n\n"
-                f"**Galioja:** {expires_in}"
+                f"<b>{currency.upper()} adresas:</b>\n<code>{address}</code>\n\n"
+                f"<b>Galioja:</b> {expires_in}"
             )
             
-            await context.bot.send_message(chat_id=chat_id, text=text, parse_mode='Markdown')
+            await context.bot.send_message(chat_id=chat_id, text=text, parse_mode='HTML')
         except Exception as e:
             error_msg = str(e)
             if "401" in error_msg:
@@ -500,21 +500,21 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
         if update.effective_chat.type != 'private':
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"💸 **Išėmimas**\n\n"
+                text=f"💸 <b>Išėmimas</b>\n\n"
                      f"Dėl privatumo, išėmimai atliekami privačiame pokalbyje.\n\n"
                      f"Pradėkite pokalbį su manimi: t.me/{BOT_USERNAME}",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
         else:
             context.user_data['expecting_withdrawal_details'] = True
             await context.bot.send_message(
                 chat_id=chat_id,
-                text="💸 **Išėmimas**\n\n"
+                text="💸 <b>Išėmimas</b>\n\n"
                      "Įveskite sumą USD ir savo LTC adresą:\n"
-                     "Formatas: `suma adresas`\n\n"
-                     "Pavyzdys: `9.87 LTC123...`\n\n"
-                     "_Pastaba: Palaikomi tik Litecoin išėmimai._",
-                parse_mode='Markdown'
+                     "Formatas: <code>suma adresas</code>\n\n"
+                     "Pavyzdys: <code>9.87 LTC123...</code>\n\n"
+                     "<i>Pastaba: Palaikomi tik Litecoin išėmimai.</i>",
+                parse_mode='HTML'
             )
 
 
@@ -573,11 +573,11 @@ async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_T
                 update_user_balance(update.effective_user.id, new_balance)
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text=f"✅ **Išėmimas sėkmingas!**\n\n"
+                    text=f"✅ <b>Išėmimas sėkmingas!</b>\n\n"
                          f"Suma: ${amount_usd:.2f}\n"
-                         f"Adresas: `{address}`\n"
+                         f"Adresas: <code>{address}</code>\n"
                          f"Naujas balansas: ${new_balance:.2f}",
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
             
             context.user_data['expecting_withdrawal_details'] = False
