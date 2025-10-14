@@ -141,18 +141,10 @@ def remove_pending_deposit(payment_id: str):
 
 
 def get_user_by_username(username: str):
-    """Get user ID by username"""
+    """Get user ID by username (from user_cache table)"""
     try:
-        conn = database.get_sync_connection()
-        # Assuming we need to check the database for username
-        # This might need adjustment based on your actual database schema
-        cursor = conn.execute(
-            "SELECT user_id FROM users WHERE username = ? COLLATE NOCASE",
-            (username,)
-        )
-        result = cursor.fetchone()
-        conn.close()
-        return result[0] if result else None
+        # Use database.get_user_by_username which uses user_cache table
+        return database.get_user_by_username(username)
     except Exception as e:
         logger.error(f"Error getting user by username: {e}")
         return None
@@ -357,8 +349,9 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner-only: Add balance to user"""
-    if update.effective_user.id != OWNER_ID:
-        await update.message.reply_text("❌ Unauthorized")
+    # Allow owner or admin chat
+    if update.effective_user.id != OWNER_ID and update.effective_chat.id != ADMIN_CHAT_ID:
+        await update.message.reply_text(f"❌ Unauthorized (Your ID: {update.effective_user.id})")
         return
     
     if len(context.args) != 2:
@@ -398,8 +391,9 @@ async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def remove_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner-only: Remove balance from user"""
-    if update.effective_user.id != OWNER_ID:
-        await update.message.reply_text("❌ Unauthorized")
+    # Allow owner or admin chat
+    if update.effective_user.id != OWNER_ID and update.effective_chat.id != ADMIN_CHAT_ID:
+        await update.message.reply_text(f"❌ Unauthorized (Your ID: {update.effective_user.id})")
         return
     
     if len(context.args) != 2:
