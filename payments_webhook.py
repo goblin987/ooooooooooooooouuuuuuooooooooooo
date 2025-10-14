@@ -36,12 +36,21 @@ async def handle_nowpayments_webhook(data: dict) -> bool:
         
         logger.info(f"📥 Webhook: order_id={order_id}, status={payment_status}, amount=${price_amount}")
         
-        # Extract user_id from order_id (format: "user_12345")
-        if not order_id or not order_id.startswith('user_'):
-            logger.warning(f"Invalid order_id format: {order_id}")
+        # Extract user_id from order_id (format: "deposit_12345_timestamp" or "user_12345")
+        if not order_id:
+            logger.warning(f"Missing order_id")
             return False
         
-        user_id = int(order_id.split('_')[1])
+        parts = order_id.split('_')
+        if parts[0] == 'deposit':
+            # Format: deposit_USERID_TIMESTAMP
+            user_id = int(parts[1])
+        elif parts[0] == 'user':
+            # Format: user_USERID
+            user_id = int(parts[1])
+        else:
+            logger.warning(f"Invalid order_id format: {order_id}")
+            return False
         
         # Handle payment status
         if payment_status == 'finished':

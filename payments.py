@@ -215,7 +215,7 @@ def create_deposit_payment(user_id: int, currency: str = 'ltc'):
             "price_amount": min_deposit_currency,
             "price_currency": currency,
             "pay_currency": currency,
-            "ipn_callback_url": f"{WEBHOOK_URL}/webhook",
+            "ipn_callback_url": f"{WEBHOOK_URL}/webhook/nowpayments",
             "order_id": f"deposit_{user_id}_{int(time.time())}",
         }
         
@@ -305,7 +305,7 @@ def initiate_payout(currency: str, amount: float, address: str):
                     "address": address,
                     "currency": currency,
                     "amount": float(amount),
-                    "ipn_callback_url": f"{WEBHOOK_URL}/payout_webhook"
+                    "ipn_callback_url": f"{WEBHOOK_URL}/webhook/nowpayments"
                 }
             ]
         }
