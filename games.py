@@ -466,24 +466,34 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
             return
         
         logger.info(f"✅ ROLL DICE: All validations passed, proceeding with roll")
+        
+        logger.info(f"🔍 ROLL DICE: Checking if game finished: max score={max(game['scores'].values())}, points_to_win={game['points_to_win']}")
         if max(game['scores'].values()) >= game['points_to_win']:
+            logger.warning(f"⚠️ ROLL DICE: Game already finished!")
             await context.bot.send_message(chat_id, "Žaidimas jau baigtas!")
             return
         
         player_key = 'player1' if game['player1'] == user_id else 'player2' if game['player2'] == user_id else None
+        logger.info(f"🔍 ROLL DICE: player_key={player_key} for user_id={user_id}")
         if not player_key:
+            logger.error(f"❌ ROLL DICE: Could not determine player_key!")
             return
         
         turn_round = int(data.split('_')[-1])
+        logger.info(f"🔍 ROLL DICE: turn_round={turn_round}, game round_number={game['round_number']}")
         if turn_round != game['round_number']:
+            logger.warning(f"⚠️ ROLL DICE: Old button! turn_round={turn_round} != game round={game['round_number']}")
             await context.bot.send_message(chat_id, "Senas mygtukas!")
             return
         
+        logger.info(f"🔍 ROLL DICE: current_player={game['current_player']}, player_key={player_key}")
         if player_key != game['current_player']:
+            logger.warning(f"⚠️ ROLL DICE: Not your turn! current={game['current_player']}, you={player_key}")
             await context.bot.send_message(chat_id, "Ne tavo eilė!")
             return
         
         # Send the appropriate emoji
+        logger.info(f"🎲 ROLL DICE: About to send dice emoji for {game_type}")
         dice_emoji_map = {
             'dice': '🎲',
             'basketball': '🏀',
@@ -491,6 +501,7 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
             'bowling': '🎳'
         }
         dice_msg = await context.bot.send_dice(chat_id=chat_id, emoji=dice_emoji_map[game_type])
+        logger.info(f"✅ ROLL DICE: Dice sent! Waiting for result...")
         await asyncio.sleep(4)
         dice_value = dice_msg.dice.value
         game['rolls'][player_key].append(dice_value)
