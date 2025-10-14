@@ -828,13 +828,7 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
             del context.user_data['expecting_username']
             return True
         
-        # Check if challenged user exists in system
-        if not user_exists(challenged_id):
-            await update.message.reply_text("❌ Šis naudotojas dar neregistruotas! Jis turi naudoti /balance.")
-            del context.user_data['expecting_username']
-            return True
-        
-        # Check balance
+        # Get setup
         setup_key = f'{game_type}_setup'
         setup = context.user_data.get(setup_key)
         if not setup:
@@ -842,9 +836,14 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
             del context.user_data['expecting_username']
             return True
         
+        # Check balance (create user if doesn't exist)
+        if not user_exists(challenged_id):
+            # Auto-create user with 0 balance
+            update_user_balance(challenged_id, 0.0)
+        
         challenged_balance = get_user_balance(challenged_id)
         if setup['bet'] > challenged_balance:
-            await update.message.reply_text(f"❌ @{username} nepakanka balanso! Turi ${challenged_balance:.2f}.")
+            await update.message.reply_text(f"❌ @{username} neturi pakankamai pinigų ir yra bomžas! 💸\n\nBalansas: ${challenged_balance:.2f}")
             del context.user_data['expecting_username']
             return True
         
