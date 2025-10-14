@@ -1,0 +1,263 @@
+================================================================================
+                        OGBOTAS DEVELOPMENT PROGRESS
+================================================================================
+Last Updated: 2025-10-14
+
+================================================================================
+✅ COMPLETED & WORKING (DO NOT TOUCH)
+================================================================================
+
+1. VOTING SYSTEM
+   - /balsuoti command works
+   - Weekly/monthly/all-time tracking
+   - 7-day cooldown per user
+   - Trusted sellers list
+   - Status: STABLE ✅
+
+2. POINTS SYSTEM (Reward Points - NO CRYPTO)
+   - /dice2 command works
+   - /points command shows points balance
+   - Challenge flow works
+   - Turn-based gameplay works
+   - Status: STABLE ✅
+
+3. MODERATION SYSTEM
+   - /ban, /unban, /mute, /unmute work
+   - Pending bans system (bans users when they join)
+   - Username resolution via database cache
+   - /info command shows user details
+   - Warn system with auto-sanctions
+   - Status: STABLE ✅
+
+4. RECURRING MESSAGES
+   - GroupHelpBot-style interface
+   - Advanced scheduling (days, time slots, intervals)
+   - Media support (photos, videos, GIFs, documents)
+   - URL buttons with proper parsing
+   - Group selection and management
+   - Status: STABLE ✅
+
+5. PAYMENT SYSTEM (Deposits/Withdrawals)
+   - NOWPayments integration
+   - /balance command works
+   - /pinigine command (Lithuanian alias)
+   - Deposit flow with QR codes
+   - SOLANA withdrawals
+   - Webhook notifications
+   - /setbalance, /addbalance, /removebalance (owner-only)
+   - Status: WORKING ⚠️ (needs webhook verification)
+
+6. ADMIN PANEL
+   - /admin command
+   - Points management
+   - Sellers/scammers management
+   - Claims review
+   - User lookup
+   - Status: STABLE ✅
+
+7. UI/UX
+   - All commands in Lithuanian
+   - HTML parsing for rich formatting
+   - Inline keyboards
+   - Status: STABLE ✅
+
+8. /barygos BANNERS
+   - 5 graffiti-style banners generated
+   - Auto-generation on first use
+   - Random selection
+   - Status: STABLE ✅
+
+================================================================================
+🐛 KNOWN BUGS (NEEDS FIXING)
+================================================================================
+
+BUG #1: CRYPTO GAMES - Second "Roll Dice" button doesn't work
+   Location: games.py - /dice, /basketball, /football, /bowling
+   Issue: After first player rolls, second player's button does nothing
+   Logs show: Button clicked but no roll handler triggered
+   Priority: 🔴 CRITICAL
+   Status: IN PROGRESS
+
+BUG #2: Webhook Balance Crediting
+   Location: payments_webhook.py
+   Issue: User deposited $12 but got $0.12 credited
+   Root Cause: NOWPayments sends pay_amount (crypto) vs price_amount (USD)
+   Fix Applied: Smart amount detection with logging
+   Priority: 🔴 CRITICAL
+   Status: NEEDS TESTING (waiting for next deposit)
+
+BUG #3: Game State Persistence
+   Location: games.py
+   Issue: If bot crashes during game, game state is lost
+   Solution Needed: Save active games to database
+   Priority: 🟡 MEDIUM
+   Status: NOT STARTED
+
+BUG #4: Challenge Username Input
+   Location: games.py - handle_game_challenge()
+   Issue: After clicking "Challenge", username prompt appears but validation fails
+   Fix Applied: Don't delete setup_key until after challenge created
+   Priority: 🟢 LOW (recently fixed)
+   Status: NEEDS TESTING
+
+================================================================================
+⚠️ ISSUES ATTEMPTED BUT NOT WORKING
+================================================================================
+
+ISSUE #1: 10-Minute Game Timeout
+   Goal: Auto-forfeit games if player doesn't respond for 10 minutes
+   Logic: Inactive player loses bet, active player gets refund
+   Status: NOT IMPLEMENTED
+   Reason: Needs background task with APScheduler
+   Priority: 🟡 MEDIUM
+
+ISSUE #2: Dice Roll Button (Second Click)
+   Attempts:
+   - Fixed indentation (roll handler was nested in setup block) ✅
+   - Fixed setup_key cleanup timing ✅
+   - Fixed message_id validation ✅
+   - Fixed callback handler conflicts ✅
+   Current Status: First player can roll, second player's button doesn't work
+   Next Steps: Debug why second player's button isn't triggering handler
+
+================================================================================
+🎯 CURRENT TASK: FIX CRYPTO GAMES
+================================================================================
+
+PRIORITY 1: Fix Second Player Roll Button
+   Files: games.py, OGbotas.py
+   Steps:
+   1. Add extensive logging to second player's button click
+   2. Check if game state is correct after first roll
+   3. Verify message_id is set correctly
+   4. Check if current_player switches properly
+   5. Test with fresh game (no old state)
+
+PRIORITY 2: Test Full Game Flow
+   Steps:
+   1. /cleargames (clear any stuck games)
+   2. /setbalance @user1 12.00
+   3. /setbalance @user2 12.00
+   4. /dice 2
+   5. Complete setup
+   6. Challenge opponent
+   7. Accept challenge
+   8. Player 1 rolls ✅
+   9. Player 2 rolls ❌ (BROKEN)
+   10. Continue until winner
+   11. Verify balance changes
+
+PRIORITY 3: Implement Game Timeout
+   Logic:
+   - Track last_activity_time for each game
+   - Background task checks every minute
+   - If inactive > 10 min on player's turn:
+     * Inactive player loses bet (house keeps it)
+     * Active player gets bet refunded
+     * Game ends
+
+================================================================================
+📋 FEATURES TO IMPLEMENT
+================================================================================
+
+1. Image-Based Bot Responses (Rich Cards)
+   - Generate rank cards with PIL
+   - Warning cards with user info
+   - Leaderboard cards
+   - Status: NOT STARTED
+
+2. Game History/Statistics
+   - Track all games played
+   - Win/loss records
+   - Biggest wins
+   - Status: NOT STARTED
+
+3. Leaderboard
+   - Top players by balance
+   - Top players by wins
+   - Top players by points
+   - Status: NOT STARTED
+
+================================================================================
+🔧 TECHNICAL DEBT
+================================================================================
+
+1. Error Handling
+   - Add try-except blocks to all game handlers
+   - Graceful degradation for API failures
+   - User-friendly error messages
+
+2. Database Optimization
+   - Add indexes for frequently queried columns
+   - Implement connection pooling
+   - Clean up old data periodically
+
+3. Code Organization
+   - Split large files (games.py is 980+ lines)
+   - Create separate modules for each game type
+   - Consolidate duplicate code
+
+4. Testing
+   - Unit tests for game logic
+   - Integration tests for payment flow
+   - Load testing for concurrent games
+
+================================================================================
+🚀 DEPLOYMENT NOTES
+================================================================================
+
+Environment Variables Required:
+- BOT_TOKEN
+- OWNER_ID
+- ADMIN_CHAT_ID
+- NOWPAYMENTS_API_KEY
+- NOWPAYMENTS_EMAIL
+- NOWPAYMENTS_PASSWORD
+- WEBHOOK_URL
+- BOT_USERNAME
+
+Render Deployment:
+- Python 3.13
+- Build command: pip install -r requirements.txt
+- Start command: python OGbotas.py
+- Port: 10000 (auto-detected)
+
+Database:
+- SQLite (bot_database.db)
+- Auto-creates tables on first run
+- Persistent across deployments
+
+================================================================================
+📝 CHANGELOG
+================================================================================
+
+2025-10-14:
+- ✅ Fixed fallback callback handler consuming all callbacks
+- ✅ Fixed roll handler indentation (was nested in setup block)
+- ✅ Fixed setup_key cleanup timing
+- ✅ Added /cleargames command
+- ✅ Improved webhook balance crediting with smart detection
+- ✅ Added /setbalance command for manual fixes
+- ✅ Restricted /addbalance to OWNER_ID only
+- ✅ Fixed Decimal/float type mismatches in games
+- ✅ Added /barygos command with 5 graffiti banners
+- ✅ Upgraded banners to 1920x1080 with depth effects
+- 🐛 Second player roll button still not working
+
+2025-10-13:
+- ✅ Fixed pending bans system
+- ✅ Fixed user resolution for private profiles
+- ✅ Added warn system from GroupHelpBot
+- ✅ Translated all commands to Lithuanian
+- ✅ Fixed balance vs points separation
+- ✅ Added /info command
+
+Earlier:
+- ✅ Implemented voting system
+- ✅ Implemented points games
+- ✅ Implemented crypto games
+- ✅ Implemented payment system
+- ✅ Implemented recurring messages
+
+================================================================================
+

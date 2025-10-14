@@ -527,7 +527,10 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
                 }
                 keyboard = [[InlineKeyboardButton(action_text[game_type], callback_data=f"{callback_prefix[game_type]}_{game['round_number']}")]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await context.bot.send_message(chat_id, f"{game['round_number']} raundas: Meskite dar kartą!", reply_markup=reply_markup)
+                new_msg = await context.bot.send_message(chat_id, f"{game['round_number']} raundas: Meskite dar kartą!", reply_markup=reply_markup)
+                # Update message_id for next roll
+                game['message_id'] = new_msg.message_id
+                logger.info(f"✅ ROLL DICE: Updated message_id to {new_msg.message_id} for same player's next roll")
             else:
                 other_player = 'player2' if player_key == 'player1' else 'player1'
                 game['current_player'] = other_player
@@ -547,11 +550,14 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
                 }
                 keyboard = [[InlineKeyboardButton(action_text[game_type], callback_data=f"{callback_prefix[game_type]}_{game['round_number']}")]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await context.bot.send_message(
+                new_msg = await context.bot.send_message(
                     chat_id,
                     f"{game['round_number']} raundas: @{other_username}, tavo eilė!",
                     reply_markup=reply_markup
                 )
+                # Update message_id so second player's button works!
+                game['message_id'] = new_msg.message_id
+                logger.info(f"✅ ROLL DICE: Updated message_id to {new_msg.message_id} for next player")
 
     # Handle challenge acceptance
     elif data.startswith(f"{game_type}_accept_"):
