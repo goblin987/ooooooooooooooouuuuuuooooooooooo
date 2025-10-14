@@ -589,10 +589,16 @@ def create_application():
         pattern="^(admin_|points_|seller_|scammer_|claim_)"
     ))
     
-    # Recurring messages callbacks (GroupHelpBot style)
+    # Recurring messages callbacks (GroupHelpBot style + old style)
     application.add_handler(CallbackQueryHandler(
         recurring_messages.handle_callback,
         pattern="^recur_"
+    ))
+    
+    # Old-style recurring message callbacks (hour_, minute_, repeat_, etc.)
+    application.add_handler(CallbackQueryHandler(
+        handle_recurring_callback,
+        pattern="^(hour_|minute_|repeat_|back_to_hour_selection|toggle_message_status|show_full_customize|delete_message|customize_message|set_time|set_repetition|set_text|set_media|set_url_buttons|save_message|start_recurring_now|back_to_config)"
     ))
     
     # Masked users callbacks
@@ -624,9 +630,6 @@ def create_application():
         payments.handle_payment_callback,
         pattern="^(deposit|withdraw|cancel_deposit_)"
     ))
-    
-    # Old recurring messages callbacks (fallback)
-    application.add_handler(CallbackQueryHandler(handle_recurring_callback))
     
     # Message handler (for private chat input and group messages)
     application.add_handler(MessageHandler(~filters.COMMAND, handle_message))

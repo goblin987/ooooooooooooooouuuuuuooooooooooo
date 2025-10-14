@@ -272,10 +272,13 @@ async def bowling_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle all game-related button callbacks"""
     query = update.callback_query
-    await query.answer()
     user_id = query.from_user.id
     chat_id = query.message.chat_id
     data = query.data
+    
+    logger.info(f"🎮 GAME BUTTON CLICKED: data={data}, user={user_id}, chat={chat_id}")
+    
+    await query.answer()
 
     # Determine which game this is for
     game_type = None
@@ -292,7 +295,10 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         game_type = 'bowling'
         emoji = '🎳'
     else:
+        logger.warning(f"❌ GAME BUTTON: Unknown game type for data={data}")
         return
+    
+    logger.info(f"✅ GAME BUTTON: Detected game_type={game_type}")
 
     setup_key = f'{game_type}_setup'
     
@@ -435,19 +441,31 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # Handle in-game phase
     elif data.startswith(f"{game_type}_roll_") or data.startswith(f"{game_type}_take_shot_") or data.startswith(f"{game_type}_take_kick_") or data.startswith(f"{game_type}_bowl_"):
+        logger.info(f"🎲 ROLL DICE: Starting roll handler for {game_type}")
+        
         game_key = context.bot_data.get('user_games', {}).get((chat_id, user_id))
+        logger.info(f"🔍 ROLL DICE: game_key={game_key}, user_games={context.bot_data.get('user_games', {})}")
+        
         if not game_key:
+            logger.error(f"❌ ROLL DICE: No game_key found for user {user_id} in chat {chat_id}")
             await query.answer("Žaidimas nerastas!")
             return
+        
         game = context.bot_data.get('games', {}).get(game_key)
+        logger.info(f"🎮 ROLL DICE: game={game}")
+        
         if not game:
+            logger.error(f"❌ ROLL DICE: No game data found for game_key {game_key}")
             await query.answer("Žaidimo duomenys dingo!")
             return
         
         # Only validate message_id if it's set (after first roll)
         if game.get('message_id') is not None and query.message.message_id != game['message_id']:
+            logger.warning(f"⚠️ ROLL DICE: Wrong message_id. Expected {game.get('message_id')}, got {query.message.message_id}")
             await query.answer("Šis mygtukas ne tau!")
             return
+        
+        logger.info(f"✅ ROLL DICE: All validations passed, proceeding with roll")
         if max(game['scores'].values()) >= game['points_to_win']:
             await context.bot.send_message(chat_id, "Žaidimas jau baigtas!")
             return
