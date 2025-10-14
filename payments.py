@@ -163,12 +163,18 @@ def get_user_by_username(username: str):
 # ============================================================================
 
 def get_currency_to_usd_price(currency: str) -> float:
-    """Get crypto price in USD"""
+    """Get crypto price in USD (with aggressive caching to avoid delays)"""
     try:
+        # Always check cache first
         if currency in price_cache:
             price, timestamp = price_cache[currency]
-            if datetime.now() - timestamp < timedelta(minutes=CACHE_EXPIRATION_MINUTES):
+            # Use cache if less than 5 minutes old
+            if datetime.now() - timestamp < timedelta(minutes=5):
                 logger.info(f"Using cached price for {currency}: ${price}")
+                return price
+            # Use stale cache if less than 30 minutes old (avoid delays)
+            elif datetime.now() - timestamp < timedelta(minutes=30):
+                logger.info(f"Using stale cached price for {currency}: ${price} (avoiding API delay)")
                 return price
 
         currency_map = {
@@ -181,12 +187,15 @@ def get_currency_to_usd_price(currency: str) -> float:
         }
         
         url = f"https://api.coingecko.com/api/v3/simple/price?ids={currency_map[currency]}&vs_currencies=usd"
-        response = requests.get(url)
+        response = requests.get(url, timeout=3)  # 3 second timeout
         
         if response.status_code == 429:
-            logger.warning("Rate limit exceeded, waiting 60 seconds")
-            time.sleep(60)
-            response = requests.get(url)
+            logger.warning("Rate limit exceeded, using cached price")
+            # Don't wait - immediately return cached value
+            if currency in price_cache:
+                price, _ = price_cache[currency]
+                return price
+            return 1.0
         
         response.raise_for_status()
         data = response.json()
@@ -198,6 +207,7 @@ def get_currency_to_usd_price(currency: str) -> float:
         logger.error(f"Failed to fetch {currency} price: {e}")
         if currency in price_cache:
             price, _ = price_cache[currency]
+            logger.info(f"Using cached price due to error: ${price}")
             return price
         return 1.0
 
@@ -507,10 +517,12 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
                 f"✅ <b>Mokėjimo patvirtinimas yra automatiškas per webhook po tinklo patvirtinimo.</b>\n\n"
                 f"❌ <b>Cancel Payment</b>\n\n"
                 f"📱 <b>Scan QR Code for Easy Payment</b>\n\n"
-                f"💰 <b>Amount:</b> {min_crypto:.8f} {currency.upper()}\n"
+                f"💵 <b>Minimalus įnešimas:</b> $12 USD\n"
+                f"💰 <b>Siūloma suma:</b> {min_crypto:.8f} {currency.upper()} (~$10)\n\n"
+                f"<i>Bet kokia suma virš $12 bus automatiškai pridėta į jūsų piniginę.</i>\n\n"
                 f"📍 <b>Address:</b>\n<code>{address}</code>\n\n"
-                f"⏰ <b>Valid for:</b> {expires_minutes} minutes\n\n"
-                f"⚠️ <b>Pay within {expires_minutes} minutes or invoice expires!</b>"
+                f"⏰ <b>Galioja:</b> {expires_minutes} minutes\n\n"
+                f"⚠️ <b>Sumokėkite per {expires_minutes} minutes, kitaip sąskaita nustos galioti!</b>"
             )
             
             # Create cancel button
