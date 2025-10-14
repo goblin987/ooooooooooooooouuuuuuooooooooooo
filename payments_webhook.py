@@ -34,7 +34,9 @@ async def handle_nowpayments_webhook(data: dict, bot=None) -> bool:
         price_amount = float(data.get('price_amount', 0))
         pay_currency = data.get('pay_currency', 'unknown')
         
-        logger.info(f"📥 Webhook: order_id={order_id}, status={payment_status}, amount=${price_amount}")
+        # Debug: Log full webhook data
+        logger.info(f"📥 Webhook RAW: {data}")
+        logger.info(f"📥 Webhook: order_id={order_id}, status={payment_status}, pay_amount={pay_amount} {pay_currency}, price_amount=${price_amount}")
         
         # Extract user_id from order_id (format: "deposit_12345_timestamp" or "user_12345")
         if not order_id:
