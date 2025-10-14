@@ -443,7 +443,9 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         if not game:
             await query.answer("Žaidimo duomenys dingo!")
             return
-        if query.message.message_id != game.get('message_id'):
+        
+        # Only validate message_id if it's set (after first roll)
+        if game.get('message_id') is not None and query.message.message_id != game['message_id']:
             await query.answer("Šis mygtukas ne tau!")
             return
         if max(game['scores'].values()) >= game['points_to_win']:
