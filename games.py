@@ -438,8 +438,8 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
                 chat_id=chat_id,
                 text="💬 Įveskite žaidėjo vardą (pvz., @vardas):"
             )
-
-    # Handle in-game phase
+    
+    # Handle in-game phase (MUST BE OUTSIDE setup_key block!)
     elif data.startswith(f"{game_type}_roll_") or data.startswith(f"{game_type}_take_shot_") or data.startswith(f"{game_type}_take_kick_") or data.startswith(f"{game_type}_bowl_"):
         logger.info(f"🎲 ROLL DICE: Starting roll handler for {game_type}")
         
