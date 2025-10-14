@@ -516,9 +516,11 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.bot_data.setdefault('user_games', {})[(chat_id, game['initiator'])] = game_key
         context.bot_data['user_games'][(chat_id, user_id)] = game_key
         
-        # Deduct bets
-        update_user_balance(game['initiator'], get_user_balance(game['initiator']) - game['bet'])
-        update_user_balance(user_id, get_user_balance(user_id) - game['bet'])
+        # Deduct bets (convert to Decimal to avoid type mismatch)
+        from decimal import Decimal
+        bet_amount = Decimal(str(game['bet']))
+        update_user_balance(game['initiator'], get_user_balance(game['initiator']) - bet_amount)
+        update_user_balance(user_id, get_user_balance(user_id) - bet_amount)
         
         player1_username = (await context.bot.get_chat_member(chat_id, game['initiator'])).user.username or "Žaidėjas1"
         player2_username = (await context.bot.get_chat_member(chat_id, user_id)).user.username or "Žaidėjas2"
@@ -716,7 +718,11 @@ async def evaluate_round(game, chat_id, game_key, context, game_type):
         house_cut = gross_prize * 0.05  # 5% house edge
         net_prize = gross_prize - house_cut
         
-        update_user_balance(winner_id, get_user_balance(winner_id) + net_prize + game['bet'])
+        # Convert to Decimal to avoid type mismatch
+        from decimal import Decimal
+        bet_amount = Decimal(str(game['bet']))
+        prize_amount = Decimal(str(net_prize))
+        update_user_balance(winner_id, get_user_balance(winner_id) + prize_amount + bet_amount)
         winner_username = player1_username if winner == 'player1' else player2_username
         
         text = (
