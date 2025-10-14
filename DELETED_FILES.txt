@@ -1,0 +1,52 @@
+=================================================================
+DELETED FILES BACKUP LIST
+=================================================================
+Date: 2025-10-14
+Reason: Cleanup unnecessary files as per CLEANUP_PLAN.md
+
+-----------------------------------------------------------------
+FILES TO BE DELETED:
+-----------------------------------------------------------------
+
+1. __pycache__/ (directory)
+   - Reason: Python bytecode cache, regenerates automatically
+   - Size: Multiple .pyc files
+   - Safe to delete: YES
+
+2. FIXED_TRACKER.txt
+   - Reason: Superseded by PROGRESS_TRACKER.txt
+   - Size: ~5KB
+   - Safe to delete: YES
+   - Backup: Content preserved in PROGRESS_TRACKER.txt
+
+3. add_warnings_table.py
+   - Reason: One-time database migration script, already executed
+   - Size: 45 lines
+   - Safe to delete: YES
+   - Note: Warnings table already exists in database
+
+4. admin.py
+   - Reason: NOT imported anywhere (checked with grep)
+   - Size: 235 lines
+   - Safe to delete: VERIFY FIRST
+   - Action: Check if it contains any unique logic not in admin_panel.py
+
+-----------------------------------------------------------------
+VERIFICATION CHECKLIST:
+-----------------------------------------------------------------
+[  ] Backup created: git commit before deletion
+[  ] admin.py checked for unique code
+[  ] Bot tested after deletion
+[  ] .gitignore updated
+[  ] Changes committed
+
+-----------------------------------------------------------------
+ROLLBACK PROCEDURE:
+-----------------------------------------------------------------
+If something breaks after deletion:
+1. git log --oneline (find commit hash)
+2. git revert <hash>
+3. Or restore specific file: git checkout <hash> -- <filename>
+
+-----------------------------------------------------------------
+

@@ -4,22 +4,22 @@ __pycache__/
 *$py.class
 *.so
 .Python
-*.egg-info/
-dist/
-build/
-*.egg
-
-# Virtual Environments
-venv/
 env/
+venv/
 ENV/
-.venv
-.env
+build/
+dist/
+*.egg-info/
 
-# Environment Variables
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Environment
 .env
 .env.local
-.env.*.local
 
 # IDE
 .vscode/
@@ -27,48 +27,22 @@ ENV/
 *.swp
 *.swo
 *~
-.DS_Store
 
-# Bot Data
-data/
-logs/
-*.db
-*.pkl
-
-# SQLite
-*.sqlite
-*.sqlite3
-*.db-journal
-
-# Backups
-*.bak
-*_backup_*
-OGbotas_backup_*.py
-
-# OS Files
+# OS
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# Temporary files
+# Logs
+*.log
+logs/
+
+# Temporary
 *.tmp
-*.temp
-.cache/
+*.bak
+*.old
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
+# Generated banners
+barygos_*.png
 
-# Documentation
-docs/_build/
-site/
-
-# Secrets
-*.pem
-*.key
-*.crt
-config_local.py
-secrets.json
-
+# Pickle files (data persistence)
+*.pkl
