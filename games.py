@@ -810,9 +810,9 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
         from database import database
         
         # Try to find user in database cache
-        challenged_id = database.get_user_by_username(username)
+        challenged_user = database.get_user_by_username(username)
         
-        if not challenged_id:
+        if not challenged_user:
             await update.message.reply_text(
                 "❌ Naudotojas nerastas!\n\n"
                 "Įsitikinkite, kad:\n"
@@ -822,6 +822,9 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
             )
             del context.user_data['expecting_username']
             return True
+        
+        # Extract user_id from the returned dict
+        challenged_id = challenged_user if isinstance(challenged_user, int) else challenged_user.get('user_id') if isinstance(challenged_user, dict) else challenged_user
         
         if challenged_id == user_id:
             await update.message.reply_text("❌ Negalite iššaukti savęs!")
