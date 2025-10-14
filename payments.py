@@ -215,7 +215,7 @@ def get_currency_to_usd_price(currency: str) -> float:
 def create_deposit_payment(user_id: int, currency: str = 'ltc'):
     """Create deposit payment via NOWPayments"""
     try:
-        min_deposit_usd = 10.0  # Increased to $10 to meet NOWPayments minimum
+        min_deposit_usd = 12.0  # Minimum deposit amount
         currency_price = get_currency_to_usd_price(currency)
         min_deposit_currency = min_deposit_usd / currency_price
         
@@ -491,8 +491,8 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
             
             add_pending_deposit(payment_id, user_id, currency)
             
-            # Calculate minimum amount in crypto
-            min_usd = 10.0
+            # Calculate minimum amount in crypto (must match create_deposit_payment)
+            min_usd = 12.0
             currency_price = get_currency_to_usd_price(currency)
             min_crypto = min_usd / currency_price
             
