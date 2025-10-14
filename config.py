@@ -18,6 +18,8 @@ if not BOT_TOKEN:
 
 # Payment system configuration (optional - for crypto deposits/withdrawals)
 NOWPAYMENTS_API_KEY = os.getenv('NOWPAYMENTS_API_KEY', '')
+NOWPAYMENTS_EMAIL = os.getenv('NOWPAYMENTS_EMAIL', '')
+NOWPAYMENTS_PASSWORD = os.getenv('NOWPAYMENTS_PASSWORD', '')
 BOT_USERNAME = os.getenv('BOT_USERNAME', 'your_bot')
 OWNER_ID = int(os.getenv('OWNER_ID', '0'))
 

@@ -19,9 +19,18 @@ from database import database
 
 # Try to import from config, use defaults if not available
 try:
-    from config import NOWPAYMENTS_API_KEY, WEBHOOK_URL, BOT_USERNAME, OWNER_ID
+    from config import (
+        NOWPAYMENTS_API_KEY, 
+        NOWPAYMENTS_EMAIL, 
+        NOWPAYMENTS_PASSWORD,
+        WEBHOOK_URL, 
+        BOT_USERNAME, 
+        OWNER_ID
+    )
 except ImportError:
     NOWPAYMENTS_API_KEY = os.environ.get("NOWPAYMENTS_API_KEY", "")
+    NOWPAYMENTS_EMAIL = os.environ.get("NOWPAYMENTS_EMAIL", "")
+    NOWPAYMENTS_PASSWORD = os.environ.get("NOWPAYMENTS_PASSWORD", "")
     WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
     BOT_USERNAME = os.environ.get("BOT_USERNAME", "your_bot")
     OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
@@ -253,12 +262,13 @@ def is_valid_ltc_address(address: str) -> bool:
 def get_jwt_token() -> str:
     """Get JWT token from NOWPayments"""
     url = "https://api.nowpayments.io/v1/auth"
-    email = os.environ.get("NOWPAYMENTS_EMAIL")
-    password = os.environ.get("NOWPAYMENTS_PASSWORD")
     
-    if not email or not password:
+    if not NOWPAYMENTS_EMAIL or not NOWPAYMENTS_PASSWORD:
         logger.error("NOWPAYMENTS_EMAIL or NOWPAYMENTS_PASSWORD not set")
         raise ValueError("Missing NOWPAYMENTS credentials")
+    
+    email = NOWPAYMENTS_EMAIL
+    password = NOWPAYMENTS_PASSWORD
     
     payload = {"email": email, "password": password}
     headers = {"Content-Type": "application/json"}
