@@ -630,6 +630,9 @@ def create_application():
 # HTTP SERVER FOR WEBHOOKS (NOWPayments)
 # ============================================================================
 
+# Global bot instance for webhooks
+BOT_INSTANCE = None
+
 async def webhook_handler(request):
     """Handle NOWPayments webhook callbacks"""
     try:
@@ -639,7 +642,7 @@ async def webhook_handler(request):
         
         # Process payment webhook
         import payments_webhook
-        result = await payments_webhook.handle_nowpayments_webhook(data)
+        result = await payments_webhook.handle_nowpayments_webhook(data, bot=BOT_INSTANCE)
         
         if result:
             return web.Response(text="OK", status=200)
@@ -684,10 +687,14 @@ async def start_http_server():
 
 async def main():
     """Run the bot with polling + HTTP server for webhooks"""
+    global BOT_INSTANCE
     logger.info("🚀 Starting OGbotas...")
     
     # Create and configure application
     application = create_application()
+    
+    # Set global bot instance for webhooks
+    BOT_INSTANCE = application.bot
     
     # Start HTTP server for NOWPayments webhooks
     logger.info("🌐 Starting HTTP server for webhooks...")

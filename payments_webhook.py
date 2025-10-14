@@ -11,7 +11,7 @@ from database import database
 logger = logging.getLogger(__name__)
 
 
-async def handle_nowpayments_webhook(data: dict) -> bool:
+async def handle_nowpayments_webhook(data: dict, bot=None) -> bool:
     """
     Handle NOWPayments webhook callback
     
@@ -53,9 +53,9 @@ async def handle_nowpayments_webhook(data: dict) -> bool:
             return False
         
         # Handle payment status
-        if payment_status == 'finished':
-            # Payment successful - add balance
-            logger.info(f"✅ Payment finished for user {user_id}: ${price_amount}")
+        if payment_status in ['finished', 'partially_paid']:
+            # Payment successful - add balance (accept partial payments too)
+            logger.info(f"✅ Payment {payment_status} for user {user_id}: ${price_amount}")
             
             conn = database.get_sync_connection()
             
@@ -80,18 +80,21 @@ async def handle_nowpayments_webhook(data: dict) -> bool:
             
             logger.info(f"✅ Balance updated: user {user_id} → ${new_balance}")
             
-            # TODO: Send notification to user
-            # await context.bot.send_message(
-            #     chat_id=user_id,
-            #     text=f"✅ Deposit successful!\n\n"
-            #          f"Amount: ${price_amount}\n"
-            #          f"New balance: ${new_balance}"
-            # )
+            # Send notification to user
+            if bot:
+                try:
+                    await bot.send_message(
+                        chat_id=user_id,
+                        text=f"✅ <b>Įnešimas sėkmingas!</b>\n\n"
+                             f"💰 Suma: ${price_amount:.2f}\n"
+                             f"📊 Naujas balansas: ${new_balance:.2f}\n\n"
+                             f"Ačiū! 🎉",
+                        parse_mode='HTML'
+                    )
+                    logger.info(f"✅ Sent notification to user {user_id}")
+                except Exception as e:
+                    logger.error(f"Failed to send notification: {e}")
             
-            return True
-            
-        elif payment_status == 'partially_paid':
-            logger.warning(f"⚠️ Partial payment for user {user_id}")
             return True
             
         elif payment_status in ['failed', 'expired', 'refunded']:
