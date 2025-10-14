@@ -436,7 +436,12 @@ async def remove_balance_command(update: Update, context: ContextTypes.DEFAULT_T
 async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle deposit/withdraw button callbacks"""
     query = update.callback_query
-    await query.answer()
+    
+    # Safely answer callback query (handle timeout errors)
+    try:
+        await query.answer()
+    except Exception as e:
+        logger.warning(f"Failed to answer callback query: {e}")
     
     data = query.data
     chat_id = query.message.chat_id
@@ -481,16 +486,45 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
             currency_price = get_currency_to_usd_price(currency)
             min_crypto = min_usd / currency_price
             
+            # Generate QR code for payment
+            import qrcode
+            from io import BytesIO
+            
+            qr = qrcode.QRCode(version=1, box_size=10, border=5)
+            qr.add_data(address)
+            qr.make(fit=True)
+            qr_img = qr.make_image(fill_color="black", back_color="white")
+            
+            # Convert to bytes
+            qr_bytes = BytesIO()
+            qr_img.save(qr_bytes, format='PNG')
+            qr_bytes.seek(0)
+            
+            # Get expiration in minutes
+            expires_minutes = expires_in.split(':')[1] if ':' in expires_in else "60"
+            
             text = (
-                f"💳 <b>Įnešimas {currency.upper()}</b>\n\n"
-                f"Perveskite bet kokią sumą (min. ${min_usd:.0f}) į šį adresą:\n\n"
-                f"<b>{currency.upper()} adresas:</b>\n<code>{address}</code>\n\n"
-                f"<b>Minimalus įnešimas:</b> ~{min_crypto:.4f} {currency.upper()} (${min_usd:.0f})\n"
-                f"<b>Galioja:</b> {expires_in}\n\n"
-                f"<i>💡 Adresas priima tik vieną mokėjimą ir galioja 1 valandą.</i>"
+                f"✅ <b>Mokėjimo patvirtinimas yra automatiškas per webhook po tinklo patvirtinimo.</b>\n\n"
+                f"❌ <b>Cancel Payment</b>\n\n"
+                f"📱 <b>Scan QR Code for Easy Payment</b>\n\n"
+                f"💰 <b>Amount:</b> {min_crypto:.8f} {currency.upper()}\n"
+                f"📍 <b>Address:</b>\n<code>{address}</code>\n\n"
+                f"⏰ <b>Valid for:</b> {expires_minutes} minutes\n\n"
+                f"⚠️ <b>Pay within {expires_minutes} minutes or invoice expires!</b>"
             )
             
-            await context.bot.send_message(chat_id=chat_id, text=text, parse_mode='HTML')
+            # Create cancel button
+            keyboard = [[InlineKeyboardButton("❌ Cancel Payment", callback_data=f"cancel_deposit_{payment_id}")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Send QR code with text
+            await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=qr_bytes,
+                caption=text,
+                parse_mode='HTML',
+                reply_markup=reply_markup
+            )
         except Exception as e:
             error_msg = str(e)
             if "401" in error_msg:
@@ -508,6 +542,18 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
             else:
                 await context.bot.send_message(chat_id=chat_id, text=f"❌ Nepavyko sugeneruoti adreso: {error_msg}")
     
+    elif data.startswith("cancel_deposit_"):
+        payment_id = data.replace("cancel_deposit_", "")
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ Mokėjimas atšauktas."
+        )
+        # Optionally delete the payment message
+        try:
+            await query.message.delete()
+        except:
+            pass
+    
     elif data == "withdraw":
         if update.effective_chat.type != 'private':
             await context.bot.send_message(
@@ -522,10 +568,10 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
             await context.bot.send_message(
                 chat_id=chat_id,
                 text="💸 <b>Išėmimas</b>\n\n"
-                     "Įveskite sumą USD ir savo LTC adresą:\n"
+                     "Įveskite sumą USD ir savo SOLANA adresą:\n"
                      "Formatas: <code>suma adresas</code>\n\n"
-                     "Pavyzdys: <code>9.87 LTC123...</code>\n\n"
-                     "<i>Pastaba: Palaikomi tik Litecoin išėmimai.</i>",
+                     "Pavyzdys: <code>10.00 GnTV2g5D6zqXTuoPCR2UNB9SDJSUx...</code>\n\n"
+                     "<i>Pastaba: Palaikomi tik SOLANA išėmimai.</i>",
                 parse_mode='HTML'
             )
 
@@ -540,16 +586,17 @@ async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_T
         try:
             parts = update.message.text.strip().split()
             if len(parts) < 2:
-                raise ValueError("❌ Įveskite 'suma adresas', pvz.: '9.87 LTC123...'")
+                raise ValueError("❌ Įveskite 'suma adresas', pvz.: '10.00 GnTV2g5D6...'")
             
             amount_usd = Decimal(parts[0])
             address = parts[1]
-            currency = 'ltc'
+            currency = 'sol'  # Changed to SOLANA
             
-            if not is_valid_ltc_address(address):
+            # Basic SOLANA address validation (32-44 characters, base58)
+            if not (32 <= len(address) <= 44):
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text="❌ Neteisingas LTC adresas. Patikrinkite ir bandykite dar kartą."
+                    text="❌ Neteisingas SOLANA adresas. Patikrinkite ir bandykite dar kartą."
                 )
                 return True
             
@@ -563,16 +610,16 @@ async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_T
                 )
                 return True
             
-            ltc_price_usd = get_currency_to_usd_price(currency)
-            if ltc_price_usd == 0:
+            sol_price_usd = get_currency_to_usd_price(currency)
+            if sol_price_usd == 0:
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text="❌ Nepavyko gauti LTC kainos. Bandykite vėliau."
+                    text="❌ Nepavyko gauti SOLANA kainos. Bandykite vėliau."
                 )
                 return True
             
-            ltc_amount = float(amount_usd / Decimal(str(ltc_price_usd)))
-            payout_response = initiate_payout(currency, ltc_amount, address)
+            sol_amount = float(amount_usd / Decimal(str(sol_price_usd)))
+            payout_response = initiate_payout(currency, sol_amount, address)
             
             if payout_response.get('status') == 'error':
                 error_msg = payout_response.get('message', 'Nežinoma klaida')

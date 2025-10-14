@@ -613,7 +613,7 @@ def create_application():
     # Payment callbacks (deposit/withdraw)
     application.add_handler(CallbackQueryHandler(
         payments.handle_payment_callback,
-        pattern="^(deposit|withdraw)"
+        pattern="^(deposit|withdraw|cancel_deposit_)"
     ))
     
     # Old recurring messages callbacks (fallback)
