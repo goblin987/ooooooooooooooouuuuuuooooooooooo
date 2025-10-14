@@ -347,6 +347,42 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
 
 
+async def setbalance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Owner-only: Set exact balance for user"""
+    if update.effective_user.id != OWNER_ID:
+        await update.message.reply_text(f"❌ Unauthorized")
+        return
+    
+    if len(context.args) != 2:
+        await update.message.reply_text("Usage: /setbalance @username 12.00")
+        return
+    
+    username = context.args[0].lstrip('@')
+    try:
+        amount = float(context.args[1])
+    except ValueError:
+        await update.message.reply_text("❌ Invalid amount")
+        return
+    
+    target_user = get_user_by_username(username)
+    if not target_user:
+        await update.message.reply_text(f"❌ User @{username} not found")
+        return
+    
+    target_user_id = target_user.get('user_id') if isinstance(target_user, dict) else target_user
+    
+    # Set balance directly
+    conn = database.get_sync_connection()
+    conn.execute(
+        "INSERT OR REPLACE INTO users (user_id, balance) VALUES (?, ?)",
+        (target_user_id, amount)
+    )
+    conn.commit()
+    conn.close()
+    
+    await update.message.reply_text(f"✅ Set balance for @{username}: ${amount:.2f}")
+
+
 async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner-only: Add balance to user"""
     # ONLY the owner can add balance (prevent abuse)

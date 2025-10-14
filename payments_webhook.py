@@ -32,11 +32,18 @@ async def handle_nowpayments_webhook(data: dict, bot=None) -> bool:
         order_id = data.get('order_id')
         pay_amount = float(data.get('pay_amount', 0))
         price_amount = float(data.get('price_amount', 0))
+        outcome_amount = float(data.get('outcome_amount', 0))
+        actually_paid = float(data.get('actually_paid', 0))
         pay_currency = data.get('pay_currency', 'unknown')
+        price_currency = data.get('price_currency', 'unknown')
         
         # Debug: Log full webhook data
         logger.info(f"📥 Webhook RAW: {data}")
-        logger.info(f"📥 Webhook: order_id={order_id}, status={payment_status}, pay_amount={pay_amount} {pay_currency}, price_amount=${price_amount}")
+        logger.info(f"📥 Webhook DETAILED: order_id={order_id}, status={payment_status}")
+        logger.info(f"   pay_amount={pay_amount} {pay_currency}")
+        logger.info(f"   price_amount={price_amount} {price_currency}")
+        logger.info(f"   outcome_amount={outcome_amount}")
+        logger.info(f"   actually_paid={actually_paid}")
         
         # Extract user_id from order_id (format: "deposit_12345_timestamp" or "user_12345")
         if not order_id:
@@ -56,8 +63,26 @@ async def handle_nowpayments_webhook(data: dict, bot=None) -> bool:
         
         # Handle payment status
         if payment_status in ['finished', 'partially_paid']:
+            # Determine the correct USD amount to credit
+            # Priority: outcome_amount (if in USD) > price_amount (if in USD) > convert pay_amount
+            credit_amount = 0.0
+            
+            if price_currency == 'usd' and price_amount > 0:
+                credit_amount = price_amount
+                logger.info(f"💰 Using price_amount: ${credit_amount}")
+            elif outcome_amount > 0:
+                credit_amount = outcome_amount
+                logger.info(f"💰 Using outcome_amount: ${credit_amount}")
+            elif actually_paid > 0:
+                credit_amount = actually_paid
+                logger.info(f"💰 Using actually_paid: ${credit_amount}")
+            else:
+                # Fallback: assume pay_amount might be in USD (rare case)
+                credit_amount = pay_amount
+                logger.warning(f"⚠️ Fallback to pay_amount: ${credit_amount}")
+            
             # Payment successful - add balance (accept partial payments too)
-            logger.info(f"✅ Payment {payment_status} for user {user_id}: ${price_amount}")
+            logger.info(f"✅ Payment {payment_status} for user {user_id}: ${credit_amount}")
             
             conn = database.get_sync_connection()
             
@@ -70,7 +95,7 @@ async def handle_nowpayments_webhook(data: dict, bot=None) -> bool:
             current_balance = result[0] if result else 0.0
             
             # Add payment amount
-            new_balance = current_balance + price_amount
+            new_balance = current_balance + credit_amount
             
             # Update balance
             conn.execute(
@@ -88,7 +113,7 @@ async def handle_nowpayments_webhook(data: dict, bot=None) -> bool:
                     await bot.send_message(
                         chat_id=user_id,
                         text=f"✅ <b>Įnešimas sėkmingas!</b>\n\n"
-                             f"💰 Suma: ${price_amount:.2f}\n"
+                             f"💰 Suma: ${credit_amount:.2f}\n"
                              f"📊 Naujas balansas: ${new_balance:.2f}\n\n"
                              f"Ačiū! 🎉",
                         parse_mode='HTML'

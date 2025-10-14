@@ -563,6 +563,7 @@ def create_application():
     # Payment commands (balance, deposit, withdraw)
     application.add_handler(CommandHandler("balance", payments.balance_command))
     application.add_handler(CommandHandler("pinigine", payments.balance_command))  # Lithuanian alias
+    application.add_handler(CommandHandler("setbalance", payments.setbalance_command))
     application.add_handler(CommandHandler("addbalance", payments.add_balance_command))
     application.add_handler(CommandHandler("removebalance", payments.remove_balance_command))
     
