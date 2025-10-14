@@ -10,7 +10,8 @@ optimized to look strong in Telegram image posts on mobile.
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import math, os, random
 
-W, H = 1280, 720
+# Higher resolution for cleaner Telegram compression
+W, H = 1920, 1080
 PRIMARY = "apsisaugok"
 SECONDARY = "crypto"
 
@@ -156,98 +157,184 @@ def small_tag(draw, text, x, y, fill=(0, 0, 0), bg=(255, 255, 255)):
     draw.text((x + pad, y + pad), text, font=font, fill=fill)
 
 
+def vignette(img, strength=0.6):
+    """Darken edges to create depth."""
+    mask = Image.new("L", (W, H), 255)
+    d = ImageDraw.Draw(mask)
+    r = int(max(W, H) * 0.65)
+    d.ellipse((W//2 - r, H//2 - r, W//2 + r, H//2 + r), fill=int(255 * (1 - strength)))
+    mask = mask.filter(ImageFilter.GaussianBlur(120))
+    dark = Image.new("RGB", (W, H), (10, 10, 15))
+    return Image.composite(img, dark, mask)
+
+
+def spray_noise_layer(alpha=70, scale=1.0):
+    """Simulate spray paint texture."""
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+    count = int(12000 * scale)
+    for _ in range(count):
+        x, y = random.randint(0, W - 1), random.randint(0, H - 1)
+        r = random.randint(1, 2)
+        a = random.randint(alpha // 3, alpha)
+        d.ellipse((x - r, y - r, x + r, y + r), fill=(255, 255, 255, a))
+    return ov.filter(ImageFilter.GaussianBlur(1))
+
+
+def brick_wall(bg_color=(28, 28, 32), mortar=(60, 60, 65), brick=(33, 33, 40)):
+    img = Image.new("RGB", (W, H), bg_color)
+    d = ImageDraw.Draw(img)
+    bw, bh = 180, 70
+    for row in range(0, H + bh, bh):
+        offset = (row // bh) % 2 * (bw // 2)
+        for col in range(-bw, W + bw, bw):
+            x1, y1 = col + offset, row
+            x2, y2 = x1 + bw - 2, y1 + bh - 2
+            d.rectangle((x1, y1, x2, y2), fill=brick)
+    # mortar lines
+    for y in range(0, H, bh):
+        d.line((0, y, W, y), fill=mortar, width=2)
+    for x in range(0, W, 180):
+        d.line((x, 0, x, H), fill=mortar, width=2)
+    return img.filter(ImageFilter.GaussianBlur(0.5))
+
+
+def paint_drips(draw, x, y, width=320, color=(255, 60, 90), count=6):
+    for _ in range(count):
+        sx = x + random.randint(0, max(1, width - 1))
+        length = random.randint(30, 140)
+        thickness = random.randint(4, 10)
+        draw.line((sx, y, sx, y + length), fill=color, width=thickness)
+
+
+def perspective_extrude_text(img, text, font, base_pos, depth=36, dx=1.6, dy=1.0, color_front=(255, 255, 255), color_side=(40, 40, 60)):
+    d = ImageDraw.Draw(img)
+    x, y = base_pos
+    # Side layers for depth
+    for i in range(depth, 0, -1):
+        c = (
+            int(color_side[0] + (color_front[0] - color_side[0]) * (i / depth)),
+            int(color_side[1] + (color_front[1] - color_side[1]) * (i / depth)),
+            int(color_side[2] + (color_front[2] - color_side[2]) * (i / depth)),
+        )
+        d.text((x + i * dx, y + i * dy), text, font=font, fill=c)
+    # Front face
+    d.text((x, y), text, font=font, fill=color_front)
+    return img
+
+
 def variant1():
-    img = radial_grad((5, 8, 20), (18, 10, 45))
-    img = add_grid(img, step=46, color=(120, 200, 255), alpha=22)
-    f1 = load_font(170)
-    f2 = load_font(74)
+    """Graffiti on brick wall with neon glow and drips."""
+    img = brick_wall()
+    img = vignette(img, 0.55)
+    img = Image.alpha_composite(img.convert("RGBA"), spray_noise_layer(alpha=55, scale=0.7)).convert("RGB")
+    f1 = load_font(200)
+    f2 = load_font(84)
     d = ImageDraw.Draw(img)
     x, y, tw, th = center_xy(d, PRIMARY.upper(), f1)
-    img = glow_layer(img, PRIMARY.upper(), f1, (x, y), color=(60, 220, 255), radius=18, passes=3, alpha=140)
+    y -= 80
+    img = glow_layer(img, PRIMARY.upper(), f1, (x, y), color=(255, 80, 120), radius=22, passes=3, alpha=160)
     d = ImageDraw.Draw(img)
-    stroke_text(d, (x, y), PRIMARY.upper(), f1, fill=(230, 255, 255), stroke_fill=(40, 120, 255), stroke_w=3)
+    stroke_text(d, (x, y), PRIMARY.upper(), f1, fill=(245, 245, 245), stroke_fill=(20, 20, 30), stroke_w=6)
+    paint_drips(d, x, y + th - 10, width=tw, color=(255, 60, 90), count=10)
     sx, sy, *_ = center_xy(d, SECONDARY.upper(), f2)
-    sy = y + th + 30
-    img = glow_layer(img, SECONDARY.upper(), f2, (sx, sy), color=(200, 120, 255), radius=10, passes=2, alpha=130)
-    d = ImageDraw.Draw(img)
-    d.text((sx, sy), SECONDARY.upper(), font=f2, fill=(245, 230, 255))
+    sy = y + th + 40
+    d.text((sx, sy), SECONDARY.upper(), font=f2, fill=(240, 220, 220))
     img.save("barygos_1.png")
 
 
 def variant2():
-    bg = linear_grad((10, 10, 12), (33, 33, 38))
-    bg = add_sparkles(bg, 70)
+    """Deep extrude with perspective and chrome highlight."""
+    bg = radial_grad((10, 12, 16), (0, 0, 0))
+    bg = add_sparkles(bg, 40)
+    f1 = load_font(220)
+    f2 = load_font(78)
     d = ImageDraw.Draw(bg)
-    f1 = load_font(160)
-    f2 = load_font(66)
-    gold = gold_gradient_text(PRIMARY.upper(), f1)
-    bg = Image.alpha_composite(bg.convert("RGBA"), gold).convert("RGB")
     x, y, tw, th = center_xy(d, PRIMARY.upper(), f1)
-    stroke_text(d, (x, y), PRIMARY.upper(), f1, fill=(255, 255, 255, 0), stroke_fill=(30, 18, 0), stroke_w=2)
+    y -= 40
+    bg = perspective_extrude_text(bg, PRIMARY.upper(), f1, (x, y), depth=50, dx=2.4, dy=1.5, color_front=(250, 250, 255), color_side=(30, 40, 75))
+    # Chrome highlight strip
+    hl = Image.new("L", (tw, th), 0)
+    hd = ImageDraw.Draw(hl)
+    hd.rectangle((0, 0, tw, th // 2), fill=180)
+    hl = hl.filter(ImageFilter.GaussianBlur(10))
+    fg = Image.new("RGBA", (tw, th), (255, 255, 255, 0))
+    fg.putalpha(hl)
+    bg.paste(fg, (x, y), fg)
+    d = ImageDraw.Draw(bg)
     sx, sy, *_ = center_xy(d, SECONDARY.upper(), f2)
-    sy = y + th + 36
-    stroke_text(d, (sx, sy), SECONDARY.upper(), f2, fill=(240, 210, 120), stroke_fill=(50, 35, 10), stroke_w=2)
+    sy = y + th + 10
+    stroke_text(d, (sx, sy), SECONDARY.upper(), f2, fill=(205, 240, 255), stroke_fill=(0, 0, 0), stroke_w=4)
+    bg = vignette(bg, 0.6)
     bg.save("barygos_2.png")
 
 
 def variant3():
-    base = linear_grad((5, 5, 6), (12, 16, 28))
+    """Neo-graffiti with RGB split and spray texture."""
+    base = linear_grad((12, 14, 26), (4, 6, 12))
+    base = add_grid(base, step=58, color=(80, 120, 160), alpha=18)
+    base = Image.alpha_composite(base.convert("RGBA"), spray_noise_layer(alpha=60, scale=1.1)).convert("RGB")
     d = ImageDraw.Draw(base)
-    f1 = load_font(176)
-    f2 = load_font(64)
+    f1 = load_font(210)
+    f2 = load_font(80)
     x, y, tw, th = center_xy(d, PRIMARY.upper(), f1)
-    y -= 10
-    stroke_text(d, (x, y), PRIMARY.upper(), f1, fill=(180, 255, 200), stroke_fill=(0, 0, 0), stroke_w=5)
+    y -= 30
+    # RGB split
+    for off, col in [(-4, (255, 60, 60)), (4, (60, 180, 255))]:
+        d.text((x + off, y), PRIMARY.upper(), font=f1, fill=col)
+    stroke_text(d, (x, y), PRIMARY.upper(), f1, fill=(240, 240, 240), stroke_fill=(0, 0, 0), stroke_w=5)
     sx, sy, *_ = center_xy(d, SECONDARY.upper(), f2)
-    sy = y + th + 28
-    stroke_text(d, (sx, sy), SECONDARY.upper(), f2, fill=(130, 220, 255), stroke_fill=(0, 0, 0), stroke_w=3)
-    out = glitch(base, strength=22, bands=22)
+    sy = y + th + 24
+    stroke_text(d, (sx, sy), SECONDARY.upper(), f2, fill=(210, 240, 255), stroke_fill=(0, 0, 0), stroke_w=3)
+    out = glitch(base, strength=16, bands=18)
+    out = vignette(out, 0.55)
     out.save("barygos_3.png")
 
 
 def variant4():
-    under = radial_grad((12, 12, 12), (4, 4, 4))
-    striped = diagonal_stripes(under, color1=(245, 205, 0), color2=(16, 16, 16), stripe_w=38)
-    ov = Image.new("RGBA", (W, H), (0, 0, 0, 150))
+    """Stencil warning + tape for street poster vibe."""
+    under = radial_grad((18, 18, 18), (0, 0, 0))
+    striped = diagonal_stripes(under, color1=(245, 205, 0), color2=(16, 16, 16), stripe_w=44)
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 160))
     img = Image.alpha_composite(striped.convert("RGBA"), ov).convert("RGB")
     d = ImageDraw.Draw(img)
-    f1 = load_font(150)
-    f2 = load_font(70)
+    f1 = load_font(190)
+    f2 = load_font(88)
     x, y, tw, th = center_xy(d, PRIMARY.upper(), f1)
-    stroke_text(d, (x, y), PRIMARY.upper(), f1, fill=(240, 240, 240), stroke_fill=(180, 0, 0), stroke_w=6)
+    stroke_text(d, (x, y), PRIMARY.upper(), f1, fill=(245, 245, 245), stroke_fill=(20, 20, 20), stroke_w=10)
     sx, sy, *_ = center_xy(d, SECONDARY.upper(), f2)
-    sy = y + th + 24
-    small_tag(d, SECONDARY.upper(), sx - 40, sy, fill=(10, 10, 10), bg=(245, 205, 0))
+    sy = y + th + 14
+    small_tag(d, SECONDARY.upper(), sx - 40, sy, fill=(15, 15, 15), bg=(245, 205, 0))
+    img = vignette(img, 0.65)
     img.save("barygos_4.png")
 
 
 def variant5():
+    """Vapor holographic glass with bloom and 3D offset shadow."""
     base = Image.new("RGB", (W, H))
     p = base.load()
     for y in range(H):
         for x in range(W):
-            t = (math.sin(x / 80) + math.cos(y / 90)) / 2 + 0.5
-            r = int(200 + 55 * math.sin((x + y) / 140))
-            g = int(120 + 90 * t)
-            b = int(220 + 30 * math.cos(x / 110))
-            p[x, y] = (
-                max(0, min(255, r)),
-                max(0, min(255, g)),
-                max(0, min(255, b)),
-            )
+            t = (math.sin(x / 90) + math.cos(y / 120)) / 2 + 0.5
+            r = int(220 + 35 * math.sin((x + y) / 160))
+            g = int(140 + 80 * t)
+            b = int(240 + 25 * math.cos(x / 140))
+            p[x, y] = (max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
     base = base.filter(ImageFilter.GaussianBlur(2))
     d = ImageDraw.Draw(base)
-    f1 = load_font(160)
-    f2 = load_font(70)
+    f1 = load_font(210)
+    f2 = load_font(86)
     x, y, tw, th = center_xy(d, PRIMARY.upper(), f1)
-    for i in range(10, 0, -1):
-        d.text((x + i, y + i), PRIMARY.upper(), font=f1, fill=(25, 25, 45))
-    base = glow_layer(base, PRIMARY.upper(), f1, (x, y), color=(255, 160, 240), radius=12, passes=2, alpha=140)
+    # Soft shadow offset
+    for i in range(18, 0, -2):
+        d.text((x + i, y + i), PRIMARY.upper(), font=f1, fill=(20, 20, 35))
+    base = glow_layer(base, PRIMARY.upper(), f1, (x, y), color=(255, 160, 240), radius=18, passes=2, alpha=150)
     d = ImageDraw.Draw(base)
     d.text((x, y), PRIMARY.upper(), font=f1, fill=(255, 255, 255))
     sx, sy, *_ = center_xy(d, SECONDARY.upper(), f2)
-    sy = y + th + 20
-    d.text((sx, sy), SECONDARY.upper(), font=f2, fill=(255, 240, 240))
+    sy = y + th + 14
+    d.text((sx, sy), SECONDARY.upper(), font=f2, fill=(250, 245, 255))
+    base = vignette(base, 0.55)
     base.save("barygos_5.png")
 
 
