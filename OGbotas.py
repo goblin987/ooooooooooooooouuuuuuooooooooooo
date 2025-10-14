@@ -542,6 +542,7 @@ def create_application():
     application.add_handler(ChatMemberHandler(moderation.handle_new_chat_member, ChatMemberHandler.CHAT_MEMBER))
     
     # Casino games commands (with real crypto)
+    application.add_handler(CommandHandler("cleargames", games.cleargames_command))
     application.add_handler(CommandHandler("dice", games.dice_command))
     application.add_handler(CommandHandler("basketball", games.basketball_command))
     application.add_handler(CommandHandler("football", games.football_command))

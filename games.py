@@ -9,11 +9,47 @@ Uses crypto balance from payments.py
 import logging
 import asyncio
 import random
+import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from payments import get_user_balance, update_user_balance, user_exists
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# UTILITY COMMANDS
+# ============================================================================
+
+async def cleargames_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command to clear stuck games for a user"""
+    from config import OWNER_ID
+    
+    if update.effective_user.id != OWNER_ID:
+        return
+    
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    
+    # Clear all games for this user
+    if 'user_games' in context.bot_data:
+        keys_to_remove = [k for k in context.bot_data['user_games'].keys() if k[1] == user_id]
+        for key in keys_to_remove:
+            game_key = context.bot_data['user_games'].pop(key, None)
+            if game_key and 'games' in context.bot_data:
+                context.bot_data['games'].pop(game_key, None)
+    
+    # Clear pending challenges
+    if 'pending_challenges' in context.bot_data:
+        challenges_to_remove = []
+        for chal_id, chal in context.bot_data['pending_challenges'].items():
+            if chal.get('initiator') == user_id or chal.get('challenged') == user_id:
+                challenges_to_remove.append(chal_id)
+        for chal_id in challenges_to_remove:
+            context.bot_data['pending_challenges'].pop(chal_id, None)
+    
+    await update.message.reply_text("✅ Visi jūsų žaidimai išvalyti!")
 
 
 # ============================================================================
@@ -901,6 +937,7 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
 
 # Export functions
 __all__ = [
+    'cleargames_command',
     'dice_command',
     'basketball_command',
     'football_command',
