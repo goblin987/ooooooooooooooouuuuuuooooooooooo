@@ -260,6 +260,16 @@ async def handle_recurring_callback(query, context):
     """Handle recurring messages callbacks"""
     data = query.data
     
+    # Only handle recurring message callbacks (early return for others)
+    recurring_prefixes = ("hour_", "minute_", "repeat_", "back_to_hour_selection", 
+                          "toggle_message_status", "show_full_customize", "delete_message",
+                          "customize_message", "set_time", "set_repetition", "set_text",
+                          "set_media", "set_url_buttons", "save_message", "start_recurring_now",
+                          "back_to_config")
+    
+    if not any(data.startswith(prefix) if isinstance(prefix, str) and "_" in prefix else data == prefix for prefix in recurring_prefixes):
+        return  # Not a recurring message callback, let other handlers process it
+    
     try:
         # Time selection callbacks
         if data.startswith("hour_"):
@@ -353,8 +363,6 @@ async def handle_recurring_callback(query, context):
             context.user_data['current_message_config'] = config
             await query.answer(f"🔄 Kartojimas nustatytas: Every {config['repetition']}")
             await recurring_messages.show_message_config(query, context)
-        else:
-            await query.answer("Unknown callback")
     
     except Exception as e:
         logger.error(f"Error in handle_recurring_callback: {e}")
