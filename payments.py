@@ -349,9 +349,9 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner-only: Add balance to user"""
-    # Allow owner or admin chat
-    if update.effective_user.id != OWNER_ID and update.effective_chat.id != ADMIN_CHAT_ID:
-        await update.message.reply_text(f"❌ Unauthorized (Your ID: {update.effective_user.id})")
+    # ONLY the owner can add balance (prevent abuse)
+    if update.effective_user.id != OWNER_ID:
+        await update.message.reply_text(f"❌ Unauthorized\n\nOnly the bot owner can add balance.\nYour ID: {update.effective_user.id}")
         return
     
     if len(context.args) != 2:
@@ -391,9 +391,9 @@ async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def remove_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner-only: Remove balance from user"""
-    # Allow owner or admin chat
-    if update.effective_user.id != OWNER_ID and update.effective_chat.id != ADMIN_CHAT_ID:
-        await update.message.reply_text(f"❌ Unauthorized (Your ID: {update.effective_user.id})")
+    # ONLY the owner can remove balance (prevent abuse)
+    if update.effective_user.id != OWNER_ID:
+        await update.message.reply_text(f"❌ Unauthorized\n\nOnly the bot owner can remove balance.\nYour ID: {update.effective_user.id}")
         return
     
     if len(context.args) != 2:
