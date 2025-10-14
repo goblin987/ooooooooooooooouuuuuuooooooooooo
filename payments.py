@@ -376,16 +376,24 @@ async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     target_user_id = get_user_by_username(username)
     if not target_user_id:
-        await update.message.reply_text(f"❌ User @{username} not found")
+        await update.message.reply_text(f"❌ User @{username} not found in cache.\n\nThey need to send at least one message in a group where the bot is present.")
         return
     
+    logger.info(f"Adding balance to user {target_user_id} (@{username})")
     current_balance = get_user_balance(target_user_id)
+    logger.info(f"Current balance for {target_user_id}: ${current_balance}")
     new_balance = current_balance + amount
     update_user_balance(target_user_id, new_balance)
+    logger.info(f"Updated balance for {target_user_id}: ${new_balance}")
+    
+    # Verify the update
+    verify_balance = get_user_balance(target_user_id)
+    logger.info(f"Verified balance for {target_user_id}: ${verify_balance}")
     
     await update.message.reply_text(
-        f"✅ Added ${amount:.2f} to @{username}\n"
-        f"New balance: ${new_balance:.2f}"
+        f"✅ Added ${amount:.2f} to @{username} (ID: {target_user_id})\n"
+        f"New balance: ${new_balance:.2f}\n\n"
+        f"Verified: ${verify_balance:.2f}"
     )
 
 
