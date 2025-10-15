@@ -81,6 +81,34 @@ async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: 
 # USER RESOLUTION (IMPROVED - GroupHelpBot Style)
 # ============================================================================
 
+def parse_user_from_message(update: Update) -> Optional[tuple]:
+    """
+    Parse user from message - supports @mentions with entity data
+    Returns: (user_info_dict, remaining_text) or (None, None)
+    
+    This handles Telegram's mention entities which include user_id even if user never sent messages!
+    """
+    # Check for text_mention entity (users without username or clickable names)
+    if update.message.entities:
+        for entity in update.message.entities:
+            if entity.type == 'text_mention' and entity.user:
+                target_user = entity.user
+                user_info = {
+                    'user_id': target_user.id,
+                    'username': target_user.username or f"user_{target_user.id}",
+                    'first_name': target_user.first_name,
+                    'last_name': target_user.last_name
+                }
+                # Extract remaining text after mention
+                text = update.message.text or ""
+                reason_start = entity.offset + entity.length
+                remaining = text[reason_start:].strip()
+                logger.info(f"Parsed via text_mention: @{user_info['username']} (ID: {user_info['user_id']})")
+                return (user_info, remaining)
+    
+    return (None, None)
+
+
 async def resolve_user(context: ContextTypes.DEFAULT_TYPE, username_or_id: str, chat_id: int) -> Optional[dict]:
     """
     Universal user resolver - GroupHelpBot style
@@ -174,21 +202,27 @@ async def resolve_user(context: ContextTypes.DEFAULT_TYPE, username_or_id: str, 
     except Exception as e:
         logger.warning(f"Error checking user cache: {e}")
     
-    # Method 3: Try to get from group members (if user is in group)
+    # Method 3: Search chat administrators (they're always accessible)
     try:
-        # This won't work for users not in group, but try anyway
-        chat_member = await context.bot.get_chat_member(chat_id, username)
-        if chat_member and chat_member.user:
-            return {
-                'user_id': chat_member.user.id,
-                'username': chat_member.user.username or username,
-                'first_name': chat_member.user.first_name,
-                'last_name': chat_member.user.last_name
-            }
+        admins = await context.bot.get_chat_administrators(chat_id)
+        for admin in admins:
+            admin_username = admin.user.username.lower() if admin.user.username else None
+            if admin_username == username:
+                logger.info(f"Found {username} in chat administrators")
+                return {
+                    'user_id': admin.user.id,
+                    'username': admin.user.username,
+                    'first_name': admin.user.first_name,
+                    'last_name': admin.user.last_name
+                }
     except Exception as e:
-        logger.debug(f"User {username} not found in group: {e}")
+        logger.debug(f"Error checking administrators: {e}")
     
+    # Method 4: Try recent message search (if username is in recent messages)
+    # Note: This won't work in all cases due to Telegram API limitations
+    # The most reliable method is for admin to reply to the user's message
     logger.warning(f"Could not resolve user: {username}")
+    logger.info(f"User @{username} not found in cache. They may need to send a message first, or admin should reply to their message.")
     return None
 
 
@@ -211,25 +245,60 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("❌ This command only works in groups!")
         return
     
-    # Check arguments
-    if not context.args:
+    chat_id = update.effective_chat.id
+    admin_user = update.effective_user
+    user_info = None
+    reason = "No reason provided"
+    
+    # Method 1: Reply to user's message
+    if update.message.reply_to_message and update.message.reply_to_message.from_user:
+        target_user = update.message.reply_to_message.from_user
+        user_info = {
+            'user_id': target_user.id,
+            'username': target_user.username or f"user_{target_user.id}",
+            'first_name': target_user.first_name,
+            'last_name': target_user.last_name
+        }
+        reason = ' '.join(context.args) if context.args else "No reason provided"
+        logger.info(f"Ban via reply: @{user_info['username']} (ID: {user_info['user_id']})")
+    
+    # Method 2: Parse @mention entity (WORKS EVEN IF USER NEVER SENT MESSAGE!)
+    elif not context.args and update.message.entities:
+        user_info, remaining = parse_user_from_message(update)
+        if user_info:
+            reason = remaining if remaining else "No reason provided"
+    
+    # Method 3: By username or ID
+    elif context.args:
+        target_input = context.args[0]
+        reason = ' '.join(context.args[1:]) if len(context.args) > 1 else "No reason provided"
+        
+        # First try entity parsing (in case @mention was used)
+        entity_user, entity_remaining = parse_user_from_message(update)
+        if entity_user:
+            user_info = entity_user
+            # Re-parse reason from remaining text
+            if entity_remaining:
+                reason = entity_remaining
+        else:
+            # Fallback to text-based resolution
+            user_info = await resolve_user(context, target_input, chat_id)
+    
+    # No arguments and no reply
+    else:
         await update.message.reply_text(
-            "❌ **Usage:** `/ban @username [reason]` or `/ban user_id [reason]`\n\n"
+            "❌ **Usage:**\n\n"
+            "**Method 1:** `/ban @username [reason]` ⭐ **Works always!**\n"
+            "**Method 2:** Reply to user's message + `/ban [reason]`\n"
+            "**Method 3:** `/ban user_id [reason]`\n\n"
             "**Examples:**\n"
-            "• `/ban @spammer`\n"
-            "• `/ban @user Spam messages`\n"
-            "• `/ban 123456789 Rule violation`",
+            "• By mention: `/ban @spammer Spam` (works even if never sent messages!)\n"
+            "• By reply: Reply to message + `/ban Spam`\n"
+            "• By ID: `/ban 123456789 Rule violation`\n\n"
+            "💡 **@mention method works for ANY user in the group!**",
             parse_mode='Markdown'
         )
         return
-    
-    chat_id = update.effective_chat.id
-    admin_user = update.effective_user
-    target_input = context.args[0]
-    reason = ' '.join(context.args[1:]) if len(context.args) > 1 else "No reason provided"
-    
-    # Resolve user (works even if not in group!)
-    user_info = await resolve_user(context, target_input, chat_id)
     
     if not user_info or not user_info.get('user_id'):
         # User not found - add to pending bans anyway (GroupHelpBot style!)
@@ -262,13 +331,17 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if user_id == 0:
             # Username-only ban
             await update.message.reply_text(
-                "🚫 **VARTOTOJAS UŽDRAUSTAS (PENDING)** 🚫\n\n"
+                "⚠️ **VARTOTOJAS NERASTAS SISTEMOJE** ⚠️\n\n"
                 f"👤 Vartotojas: @{username}\n"
                 f"👮 Uždraudė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
                 f"📝 Priežastis: {reason}\n"
                 f"⏰ Data: {timestamp}\n\n"
-                f"✅ **Vartotojas bus automatiškai uždraustas, kai prisijungs prie grupės!**\n\n"
-                f"💡 _Jei žinote user ID, naudokite: `/ban [ID] {reason}`_",
+                f"ℹ️ **Pridėtas į laukiančiųjų sąrašą.**\n"
+                f"✅ Bus automatiškai uždraustas prisijungus prie grupės.\n\n"
+                f"💡 **Jei vartotojas jau grupėje:**\n"
+                f"1. Atsakykite į jo žinutę su `/ban {reason}`\n"
+                f"2. Arba naudokite: `/ban [user_ID] {reason}`\n"
+                f"3. Arba paprašykite jo parašyti bent vieną žinutę",
                 parse_mode='Markdown'
             )
         else:

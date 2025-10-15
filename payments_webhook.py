@@ -28,6 +28,7 @@ async def handle_nowpayments_webhook(data: dict, bot=None) -> bool:
     }
     """
     try:
+        payment_id = data.get('payment_id')
         payment_status = data.get('payment_status')
         order_id = data.get('order_id')
         pay_amount = float(data.get('pay_amount', 0))
@@ -85,6 +86,41 @@ async def handle_nowpayments_webhook(data: dict, bot=None) -> bool:
             logger.info(f"✅ Payment {payment_status} for user {user_id}: ${credit_amount}")
             
             conn = database.get_sync_connection()
+            
+            # IDEMPOTENCY CHECK: Check if this payment_id was already processed
+            try:
+                conn.execute('''
+                    CREATE TABLE IF NOT EXISTS processed_payments (
+                        payment_id TEXT PRIMARY KEY,
+                        user_id INTEGER,
+                        amount REAL,
+                        processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                cursor = conn.execute(
+                    "SELECT COUNT(*) FROM processed_payments WHERE payment_id = ?",
+                    (payment_id,)
+                )
+                already_processed = cursor.fetchone()[0] > 0
+                
+                if already_processed:
+                    logger.warning(f"⚠️ DUPLICATE WEBHOOK: payment_id {payment_id} already processed, ignoring")
+                    conn.close()
+                    return True  # Return success but don't process again
+                    
+                # Mark as processed FIRST (before crediting balance)
+                conn.execute(
+                    "INSERT INTO processed_payments (payment_id, user_id, amount) VALUES (?, ?, ?)",
+                    (payment_id, user_id, credit_amount)
+                )
+                conn.commit()
+                logger.info(f"✅ Marked payment {payment_id} as processed")
+                
+            except Exception as e:
+                logger.error(f"❌ Idempotency check failed: {e}")
+                conn.close()
+                return False
             
             # Get current balance
             cursor = conn.execute(

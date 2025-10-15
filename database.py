@@ -187,6 +187,21 @@ class Database:
                 registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        
+        # Warnings table - for warn system
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS warnings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                username TEXT,
+                chat_id INTEGER NOT NULL,
+                warned_by INTEGER NOT NULL,
+                warned_by_username TEXT,
+                reason TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                reset_at TIMESTAMP
+            )
+        ''')
     
     def _create_indexes(self, conn):
         """Create database indexes for performance"""
@@ -206,7 +221,9 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_users_balance ON users(balance)",
             "CREATE INDEX IF NOT EXISTS idx_pending_bans_user_id ON pending_bans(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_pending_bans_chat_id ON pending_bans(chat_id)",
-            "CREATE INDEX IF NOT EXISTS idx_groups_chat_id ON groups(chat_id)"
+            "CREATE INDEX IF NOT EXISTS idx_groups_chat_id ON groups(chat_id)",
+            "CREATE INDEX IF NOT EXISTS idx_warnings_user_id ON warnings(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_warnings_chat_id ON warnings(chat_id)"
         ]
         
         for index_sql in indexes:

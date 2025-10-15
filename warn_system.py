@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timedelta
 from telegram import Update, ChatPermissions
 from telegram.ext import ContextTypes
-import database
+from database import database
 
 logger = logging.getLogger(__name__)
 
