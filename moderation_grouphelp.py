@@ -428,29 +428,29 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         reason = ' '.join(context.args) if context.args else "No reason provided"
         logger.info(f"Ban via reply: @{user_info['username']} (ID: {user_info['user_id']})")
     
-        # Method 2: Parse @mention entity (ALWAYS TRY THIS FIRST!)
-        # This works even if user never sent message IF Telegram included entity data
-        elif update.message.entities:
-            # DEBUG: Log all entities to understand what Telegram is sending
-            logger.info(f"📋 Message has {len(update.message.entities)} entities:")
-            for idx, entity in enumerate(update.message.entities):
-                logger.info(f"   Entity {idx}: type={entity.type}, offset={entity.offset}, length={entity.length}, user={entity.user if hasattr(entity, 'user') else 'None'}")
-            
-            entity_user, entity_remaining = parse_user_from_message(update)
-            if entity_user:
-                user_info = entity_user
-                # If there's remaining text after entity, use it as reason
-                if entity_remaining:
-                    reason = entity_remaining
-                # Otherwise use args if available
-                elif context.args and len(context.args) > 1:
-                    reason = ' '.join(context.args[1:])
-                logger.info(f"Ban via entity: @{user_info['username']} (ID: {user_info['user_id']})")
-            # If entity parsing failed, fall back to text-based resolution
-            elif context.args:
-                target_input = context.args[0]
-                reason = ' '.join(context.args[1:]) if len(context.args) > 1 else "No reason provided"
-                user_info = await resolve_user(context, target_input, chat_id)
+    # Method 2: Parse @mention entity (ALWAYS TRY THIS FIRST!)
+    # This works even if user never sent message IF Telegram included entity data
+    elif update.message.entities:
+        # DEBUG: Log all entities to understand what Telegram is sending
+        logger.info(f"📋 Message has {len(update.message.entities)} entities:")
+        for idx, entity in enumerate(update.message.entities):
+            logger.info(f"   Entity {idx}: type={entity.type}, offset={entity.offset}, length={entity.length}, user={entity.user if hasattr(entity, 'user') else 'None'}")
+        
+        entity_user, entity_remaining = parse_user_from_message(update)
+        if entity_user:
+            user_info = entity_user
+            # If there's remaining text after entity, use it as reason
+            if entity_remaining:
+                reason = entity_remaining
+            # Otherwise use args if available
+            elif context.args and len(context.args) > 1:
+                reason = ' '.join(context.args[1:])
+            logger.info(f"Ban via entity: @{user_info['username']} (ID: {user_info['user_id']})")
+        # If entity parsing failed, fall back to text-based resolution
+        elif context.args:
+            target_input = context.args[0]
+            reason = ' '.join(context.args[1:]) if len(context.args) > 1 else "No reason provided"
+            user_info = await resolve_user(context, target_input, chat_id)
     
     # Method 3: By username or ID (text-based, no entities)
     elif context.args:
