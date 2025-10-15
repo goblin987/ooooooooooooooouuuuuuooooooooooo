@@ -795,10 +795,9 @@ async def mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     except:
         pass
     
-    # Set permissions (restrict all)
+    # Set permissions (restrict all) - Updated for python-telegram-bot v20+
     permissions = ChatPermissions(
         can_send_messages=False,
-        can_send_media_messages=False,
         can_send_polls=False,
         can_send_other_messages=False,
         can_add_web_page_previews=False,
@@ -820,19 +819,16 @@ async def mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             until_date=until_date
         )
         
-        # Success message - GroupHelpBot style
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Success message - GroupHelp style
         duration_text = f"{duration_minutes} minutes" if duration_minutes else "indefinitely"
         
         await update.message.reply_text(
-            "🔇 **VARTOTOJAS NUTILDYTAS** 🔇\n\n"
-            f"👤 Vartotojas: {full_name} (@{username})\n"
-            f"🆔 ID: `{user_id}`\n"
-            f"👮 Nutildė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
-            f"⏱️ Trukmė: {duration_text}\n"
-            f"📝 Priežastis: {reason}\n"
-            f"⏰ Data: {timestamp}",
-            parse_mode='Markdown'
+            f"🔇 User Muted\n\n"
+            f"User: {full_name} (@{username})\n"
+            f"ID: {user_id}\n"
+            f"Muted by: {admin_user.first_name}\n"
+            f"Duration: {duration_text}\n"
+            f"Reason: {reason}"
         )
         
         logger.info(f"Muted user {user_id} in chat {chat_id} for {duration_text}")
@@ -859,8 +855,9 @@ async def unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     if not context.args:
         await update.message.reply_text(
-            "❌ **Usage:** `/unmute @username` or `/unmute user_id`",
-            parse_mode='Markdown'
+            "How to use /unmute:\n"
+            "• /unmute @username\n"
+            "• /unmute [user_id]"
         )
         return
     
@@ -879,10 +876,9 @@ async def unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     username = user_info.get('username', 'Unknown')
     full_name = f"{user_info.get('first_name', 'User')} {user_info.get('last_name', '')}".strip()
     
-    # Restore permissions
+    # Restore permissions - Updated for python-telegram-bot v20+
     permissions = ChatPermissions(
         can_send_messages=True,
-        can_send_media_messages=True,
         can_send_polls=True,
         can_send_other_messages=True,
         can_add_web_page_previews=True,
@@ -899,15 +895,12 @@ async def unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             permissions=permissions
         )
         
-        # Success message - GroupHelpBot style
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Success message - GroupHelp style
         await update.message.reply_text(
-            "✅ **VARTOTOJAS ATKURTAS** ✅\n\n"
-            f"👤 Vartotojas: {full_name} (@{username})\n"
-            f"🆔 ID: `{user_id}`\n"
-            f"👮 Atkūrė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
-            f"⏰ Data: {timestamp}",
-            parse_mode='Markdown'
+            f"✅ User Unmuted\n\n"
+            f"User: {full_name} (@{username})\n"
+            f"ID: {user_id}\n"
+            f"Unmuted by: {admin_user.first_name}"
         )
         
         logger.info(f"Unmuted user {user_id} in chat {chat_id}")
