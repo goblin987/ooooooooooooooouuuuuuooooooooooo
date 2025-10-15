@@ -435,11 +435,6 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Method 2: Parse @mention entity (ALWAYS TRY THIS FIRST!)
     # This works even if user never sent message IF Telegram included entity data
     elif update.message.entities:
-        # DEBUG: Log all entities to understand what Telegram is sending
-        logger.info(f"📋 Message has {len(update.message.entities)} entities:")
-        for idx, entity in enumerate(update.message.entities):
-            logger.info(f"   Entity {idx}: type={entity.type}, offset={entity.offset}, length={entity.length}, user={entity.user if hasattr(entity, 'user') else 'None'}")
-        
         entity_user, entity_remaining = parse_user_from_message(update)
         if entity_user:
             user_info = entity_user
@@ -462,19 +457,13 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         reason = ' '.join(context.args[1:]) if len(context.args) > 1 else "No reason provided"
         user_info = await resolve_user(context, target_input, chat_id)
     
-    # No arguments and no reply
+    # No arguments and no reply - GroupHelp style
     else:
         await update.message.reply_text(
-            "❌ **Usage:**\n\n"
-            "**Method 1:** `/ban @username [reason]` ⭐ **Works always!**\n"
-            "**Method 2:** Reply to user's message + `/ban [reason]`\n"
-            "**Method 3:** `/ban user_id [reason]`\n\n"
-            "**Examples:**\n"
-            "• By mention: `/ban @spammer Spam` (works even if never sent messages!)\n"
-            "• By reply: Reply to message + `/ban Spam`\n"
-            "• By ID: `/ban 123456789 Rule violation`\n\n"
-            "💡 **@mention method works for ANY user in the group!**",
-            parse_mode='Markdown'
+            "How to use /ban:\n"
+            "• Reply to user + /ban [reason]\n"
+            "• /ban @username [reason]\n"
+            "• /ban [user_id] [reason]"
         )
         return
     
@@ -559,19 +548,14 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         if user_id == 0:
-            # Username-only ban - SIMPLIFIED MESSAGE (no complex Markdown)
+            # Username-only ban - GroupHelp style (ultra-simple)
             message_text = (
-                f"⚠️ VARTOTOJAS NERASTAS SISTEMOJE\n\n"
-                f"👤 Vartotojas: @{username}\n"
-                f"👮 Uždraudė: {admin_user.first_name}\n"
-                f"📝 Priežastis: {reason}\n"
-                f"⏰ Data: {timestamp}\n\n"
-                f"✅ Pridėtas į laukiančiųjų sąrašą.\n"
-                f"✅ Bus automatiškai uždraustas prisijungus.\n\n"
-                f"Kaip uždrausti dabar:\n"
-                f"1. Atsakykite į jo žinutę su /ban {reason}\n"
-                f"2. Naudokite: /ban [user_ID] {reason}\n"
-                f"3. Arba: /cache @{username} ir tada /ban"
+                f"⚠️ User not found in group\n\n"
+                f"@{username} has been added to pending bans.\n"
+                f"They will be automatically banned when they join.\n\n"
+                f"To ban them now:\n"
+                f"1. Reply to their message + /ban\n"
+                f"2. Use: /cache @{username} then /ban"
             )
             await update.message.reply_text(message_text)
         else:
@@ -624,16 +608,13 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             reason=reason
         )
         
-        # Success message - GroupHelpBot style
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Success message - GroupHelp style (simple & clean)
         await update.message.reply_text(
-            "🚫 **VARTOTOJAS UŽDRAUSTAS** 🚫\n\n"
-            f"👤 Vartotojas: {full_name} (@{username})\n"
-            f"🆔 ID: `{user_id}`\n"
-            f"👮 Uždraudė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
-            f"📝 Priežastis: {reason}\n"
-            f"⏰ Data: {timestamp}",
-            parse_mode='Markdown'
+            f"🚫 User Banned\n\n"
+            f"User: {full_name} (@{username})\n"
+            f"ID: {user_id}\n"
+            f"Banned by: {admin_user.first_name}\n"
+            f"Reason: {reason}"
         )
         
         logger.info(f"Banned user {user_id} from chat {chat_id}. Reason: {reason}")
@@ -650,17 +631,14 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 reason=reason
             )
             
-            # Success message - GroupHelpBot style
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Success message - GroupHelp style
             await update.message.reply_text(
-                "⏳ **VARTOTOJAS PRIDĖTAS Į UŽDRAUDIMO SĄRAŠĄ** ⏳\n\n"
-                f"👤 Vartotojas: {full_name} (@{username})\n"
-                f"🆔 ID: `{user_id}`\n"
-                f"👮 Uždraudė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
-                f"📝 Priežastis: {reason}\n"
-                f"⏰ Data: {timestamp}\n\n"
-                f"✅ **Vartotojas bus automatiškai uždraustas, kai prisijungs prie grupės!**",
-                parse_mode='Markdown'
+                f"⏳ User Added to Pending Bans\n\n"
+                f"User: {full_name} (@{username})\n"
+                f"ID: {user_id}\n"
+                f"Banned by: {admin_user.first_name}\n"
+                f"Reason: {reason}\n\n"
+                f"✅ User will be automatically banned when they join the group."
             )
             
             logger.info(f"Added pending ban for {username} (ID: {user_id}) in chat {chat_id}")
