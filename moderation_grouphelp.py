@@ -267,8 +267,8 @@ async def cache_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     Force cache a user by username or ID
     Usage: /cache @username OR /cache 123456789
     
-    This is useful when you want to ban a user who has never sent a message.
-    First cache them, then ban them!
+    This is ESSENTIAL for large groups (10k+ members) where autocomplete doesn't work!
+    Use this to ban users who never sent messages.
     """
     if not is_admin(update):
         await update.message.reply_text("⛔ Ši komanda tik administratoriams!")
@@ -279,16 +279,17 @@ async def cache_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
     
     if not context.args:
-        await update.message.reply_text(
-            "💡 **Kaip naudoti:**\n\n"
-            "`/cache @username` - Užkešuoti vartotoją pagal vardą\n"
-            "`/cache 123456789` - Užkešuoti vartotoją pagal ID\n\n"
-            "**Pavyzdžiai:**\n"
-            "`/cache @blogas_useris`\n"
-            "`/cache 987654321`\n\n"
-            "ℹ️ Po to galėsite naudoti `/ban @username`",
-            parse_mode='Markdown'
+        message_text = (
+            "💡 KAIP NAUDOTI /cache\n\n"
+            "Naudokite dideliuose grupėse (10k+ narių)\n"
+            "kai reikia uždrausti tylų vartotoją!\n\n"
+            "Pavyzdžiai:\n"
+            "/cache @blogas_useris\n"
+            "/cache 987654321\n\n"
+            "Po to:\n"
+            "/ban @blogas_useris priežastis"
         )
+        await update.message.reply_text(message_text)
         return
     
     chat_id = update.effective_chat.id
@@ -298,14 +299,15 @@ async def cache_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     user_info = await resolve_user(context, target_input, chat_id)
     
     if user_info:
-        await update.message.reply_text(
-            f"✅ **VARTOTOJAS JAU UŽKEŠUOTAS**\n\n"
+        message_text = (
+            f"✅ VARTOTOJAS JAU UŽKEŠUOTAS\n\n"
             f"👤 Vardas: {user_info.get('first_name', 'N/A')}\n"
-            f"🆔 ID: `{user_info['user_id']}`\n"
+            f"🆔 ID: {user_info['user_id']}\n"
             f"📛 Username: @{user_info['username']}\n\n"
-            f"✅ Galite naudoti: `/ban @{user_info['username']} priežastis`",
-            parse_mode='Markdown'
+            f"✅ Galite naudoti:\n"
+            f"/ban @{user_info['username']} priežastis"
         )
+        await update.message.reply_text(message_text)
         return
     
     # If not found, try to fetch from Telegram API using getChatMember
@@ -333,15 +335,16 @@ async def cache_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                         member.user.last_name
                     )
                     
-                    await update.message.reply_text(
-                        f"✅ **VARTOTOJAS UŽKEŠUOTAS!**\n\n"
+                    message_text = (
+                        f"✅ VARTOTOJAS UŽKEŠUOTAS!\n\n"
                         f"👤 Vardas: {member.user.first_name}\n"
-                        f"🆔 ID: `{member.user.id}`\n"
+                        f"🆔 ID: {member.user.id}\n"
                         f"📛 Username: @{member.user.username or 'N/A'}\n"
                         f"📊 Statusas: {member.status}\n\n"
-                        f"✅ Dabar galite naudoti: `/ban @{member.user.username} priežastis`",
-                        parse_mode='Markdown'
+                        f"✅ Dabar galite naudoti:\n"
+                        f"/ban @{member.user.username} priežastis"
                     )
+                    await update.message.reply_text(message_text)
                     logger.info(f"✅ Successfully cached @{target_input} (ID: {member.user.id})")
                     return
             except Exception as e:
@@ -362,34 +365,35 @@ async def cache_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                 member.user.last_name
             )
             
-            await update.message.reply_text(
-                f"✅ **VARTOTOJAS UŽKEŠUOTAS!**\n\n"
+            message_text = (
+                f"✅ VARTOTOJAS UŽKEŠUOTAS!\n\n"
                 f"👤 Vardas: {member.user.first_name}\n"
-                f"🆔 ID: `{member.user.id}`\n"
+                f"🆔 ID: {member.user.id}\n"
                 f"📛 Username: @{member.user.username or 'N/A'}\n"
                 f"📊 Statusas: {member.status}\n\n"
-                f"✅ Dabar galite naudoti: `/ban @{member.user.username} priežastis`",
-                parse_mode='Markdown'
+                f"✅ Dabar galite naudoti:\n"
+                f"/ban @{member.user.username} priežastis"
             )
+            await update.message.reply_text(message_text)
             logger.info(f"✅ Successfully cached user {user_id}")
             return
             
     except Exception as e:
         logger.error(f"Failed to cache user {target_input}: {e}")
-        await update.message.reply_text(
-            f"❌ **NEPAVYKO UŽKEŠUOTI VARTOTOJO**\n\n"
-            f"👤 Įvestis: `{target_input}`\n"
+        message_text = (
+            f"❌ NEPAVYKO UŽKEŠUOTI VARTOTOJO\n\n"
+            f"👤 Įvestis: {target_input}\n"
             f"❌ Klaida: {str(e)}\n\n"
-            f"**Galimos priežastys:**\n"
+            f"Galimos priežastys:\n"
             f"• Vartotojas niekada nebuvo šioje grupėje\n"
             f"• Neteisingas username arba ID\n"
             f"• Vartotojas užblokavo botą\n\n"
-            f"💡 **Alternatyvos:**\n"
+            f"Alternatyvos:\n"
             f"• Paprašykite vartotojo parašyti bent vieną žinutę\n"
-            f"• Atsakykite į jo žinutę su `/ban`\n"
-            f"• Naudokite `/ban [user_id]` jei žinote ID",
-            parse_mode='Markdown'
+            f"• Atsakykite į jo žinutę su /ban\n"
+            f"• Naudokite /ban [user_id] jei žinote ID"
         )
+        await update.message.reply_text(message_text)
 
 
 # ============================================================================
@@ -555,39 +559,33 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         if user_id == 0:
-            # Username-only ban
-            await update.message.reply_text(
-                "⚠️ **VARTOTOJAS NERASTAS SISTEMOJE** ⚠️\n\n"
+            # Username-only ban - SIMPLIFIED MESSAGE (no complex Markdown)
+            message_text = (
+                f"⚠️ VARTOTOJAS NERASTAS SISTEMOJE\n\n"
                 f"👤 Vartotojas: @{username}\n"
-                f"👮 Uždraudė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
+                f"👮 Uždraudė: {admin_user.first_name}\n"
                 f"📝 Priežastis: {reason}\n"
                 f"⏰ Data: {timestamp}\n\n"
-                f"ℹ️ **Pridėtas į laukiančiųjų sąrašą.**\n"
-                f"✅ Bus automatiškai uždraustas prisijungus prie grupės.\n\n"
-                f"💡 **SVARBU - Jei vartotojas jau grupėje:**\n\n"
-                f"**1. NAUDOKITE @MENTION AUTOCOMPLETE:**\n"
-                f"   • Pradėkite rašyti `@{username}` ir **pasirinkite iš sąrašo**\n"
-                f"   • Tada parašykite `/ban {reason}`\n"
-                f"   • Autocomplete automatiškai įtrauks user_id!\n\n"
-                f"**2. ARBA atsakykite į jo žinutę:**\n"
-                f"   • Reply → `/ban {reason}` (veikia 100%!)\n\n"
-                f"**3. ARBA naudokite ID:**\n"
-                f"   • `/ban [user_ID] {reason}`\n\n"
-                f"ℹ️ **Kodėl neveikia?** Telegram API negali ieškoti vartotojų pagal username, jei jie niekada nerašė žinučių. Autocomplete tai išsprendžia!",
-                parse_mode='Markdown'
+                f"✅ Pridėtas į laukiančiųjų sąrašą.\n"
+                f"✅ Bus automatiškai uždraustas prisijungus.\n\n"
+                f"Kaip uždrausti dabar:\n"
+                f"1. Atsakykite į jo žinutę su /ban {reason}\n"
+                f"2. Naudokite: /ban [user_ID] {reason}\n"
+                f"3. Arba: /cache @{username} ir tada /ban"
             )
+            await update.message.reply_text(message_text)
         else:
-            # User ID ban
-            await update.message.reply_text(
-                "⏳ **VARTOTOJAS PRIDĖTAS Į UŽDRAUDIMO SĄRAŠĄ** ⏳\n\n"
+            # User ID ban - SIMPLIFIED MESSAGE
+            message_text = (
+                f"⏳ VARTOTOJAS PRIDĖTAS Į UŽDRAUDIMO SĄRAŠĄ\n\n"
                 f"👤 Vartotojas: @{username}\n"
-                f"🆔 ID: `{user_id}`\n"
-                f"👮 Uždraudė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
+                f"🆔 ID: {user_id}\n"
+                f"👮 Uždraudė: {admin_user.first_name}\n"
                 f"📝 Priežastis: {reason}\n"
                 f"⏰ Data: {timestamp}\n\n"
-                f"✅ **Vartotojas bus automatiškai uždraustas, kai prisijungs prie grupės!**",
-                parse_mode='Markdown'
+                f"✅ Vartotojas bus automatiškai uždraustas, kai prisijungs prie grupės!"
             )
+            await update.message.reply_text(message_text)
         
         logger.info(f"Added pending ban for @{username} (ID: {user_id}) in chat {chat_id} - user not found in any cache")
         return
