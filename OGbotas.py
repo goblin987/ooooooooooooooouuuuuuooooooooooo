@@ -153,6 +153,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(
         "🤖 **OGbotas Help**\n\n"
         "**Moderation:**\n"
+        "• `/cache @user` - Cache user before ban (if never sent message)\n"
         "• `/ban @user [reason]` - Ban user\n"
         "• `/unban @user` - Unban user\n"
         "• `/mute @user [minutes]` - Mute user\n"
@@ -531,6 +532,7 @@ def create_application():
     application.add_handler(CommandHandler("admin", admin_command))
     
     # Moderation commands (GroupHelpBot style with pending bans)
+    application.add_handler(CommandHandler("cache", moderation.cache_user))  # Manual user caching
     application.add_handler(CommandHandler("ban", moderation.ban_user))
     application.add_handler(CommandHandler("unban", moderation.unban_user))
     application.add_handler(CommandHandler("mute", moderation.mute_user))

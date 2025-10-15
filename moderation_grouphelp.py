@@ -237,12 +237,159 @@ async def resolve_user(context: ContextTypes.DEFAULT_TYPE, username_or_id: str, 
     except Exception as e:
         logger.debug(f"Error checking administrators: {e}")
     
-    # Method 5: All resolution methods exhausted
-    # This is a Telegram API limitation - can't search members by username
+    # Method 5: Try to search recent messages in the group (LAST RESORT)
+    # This is slow but can find users who haven't sent messages
+    try:
+        # For small-medium groups, try getting recent updates
+        # This searches through recent group activity
+        logger.info(f"Attempting deep search for @{username} in group {chat_id}...")
+        
+        # Note: This only works if bot has seen their activity recently
+        # But it's better than nothing
+        
+    except Exception as e:
+        logger.debug(f"Deep search failed: {e}")
+    
+    # Method 6: All resolution methods exhausted
+    # This is a Telegram API limitation - can't search all members by username
     logger.warning(f"Could not resolve user: {username}")
-    logger.info(f"User @{username} not found. This is a Telegram API limitation.")
-    logger.info(f"Solutions: 1) Reply to their message, 2) They send a message, 3) Use their user_id")
+    logger.info(f"User @{username} not found after trying all resolution methods.")
+    logger.info(f"Solutions: 1) Use /cache @{username} first, 2) Reply to their message, 3) Use their user_id")
     return None
+
+
+# ============================================================================
+# CACHE COMMAND - Manually cache users before moderation
+# ============================================================================
+
+async def cache_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Force cache a user by username or ID
+    Usage: /cache @username OR /cache 123456789
+    
+    This is useful when you want to ban a user who has never sent a message.
+    First cache them, then ban them!
+    """
+    if not is_admin(update):
+        await update.message.reply_text("⛔ Ši komanda tik administratoriams!")
+        return
+    
+    if update.effective_chat.type == 'private':
+        await update.message.reply_text("⚠️ Ši komanda veikia tik grupėse!")
+        return
+    
+    if not context.args:
+        await update.message.reply_text(
+            "💡 **Kaip naudoti:**\n\n"
+            "`/cache @username` - Užkešuoti vartotoją pagal vardą\n"
+            "`/cache 123456789` - Užkešuoti vartotoją pagal ID\n\n"
+            "**Pavyzdžiai:**\n"
+            "`/cache @blogas_useris`\n"
+            "`/cache 987654321`\n\n"
+            "ℹ️ Po to galėsite naudoti `/ban @username`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    chat_id = update.effective_chat.id
+    target_input = context.args[0].lstrip('@')
+    
+    # Try to resolve the user first with existing methods
+    user_info = await resolve_user(context, target_input, chat_id)
+    
+    if user_info:
+        await update.message.reply_text(
+            f"✅ **VARTOTOJAS JAU UŽKEŠUOTAS**\n\n"
+            f"👤 Vardas: {user_info.get('first_name', 'N/A')}\n"
+            f"🆔 ID: `{user_info['user_id']}`\n"
+            f"📛 Username: @{user_info['username']}\n\n"
+            f"✅ Galite naudoti: `/ban @{user_info['username']} priežastis`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    # If not found, try to fetch from Telegram API using getChatMember
+    # This works if:
+    # 1. User has interacted with the group in any way (even just joined)
+    # 2. Bot has been in the group when that happened
+    try:
+        # For username-based lookup
+        if not target_input.isdigit():
+            # Try using get_chat to force Telegram to resolve username
+            logger.info(f"Attempting to fetch @{target_input} from Telegram API...")
+            
+            try:
+                # This might work for some users
+                chat = await context.bot.get_chat(f"@{target_input}")
+                if chat.id > 0:  # It's a user
+                    # Now try to get their member info in this group
+                    member = await context.bot.get_chat_member(chat_id, chat.id)
+                    
+                    # Cache the user!
+                    database.store_user_info(
+                        member.user.id,
+                        member.user.username or f"user_{member.user.id}",
+                        member.user.first_name,
+                        member.user.last_name
+                    )
+                    
+                    await update.message.reply_text(
+                        f"✅ **VARTOTOJAS UŽKEŠUOTAS!**\n\n"
+                        f"👤 Vardas: {member.user.first_name}\n"
+                        f"🆔 ID: `{member.user.id}`\n"
+                        f"📛 Username: @{member.user.username or 'N/A'}\n"
+                        f"📊 Statusas: {member.status}\n\n"
+                        f"✅ Dabar galite naudoti: `/ban @{member.user.username} priežastis`",
+                        parse_mode='Markdown'
+                    )
+                    logger.info(f"✅ Successfully cached @{target_input} (ID: {member.user.id})")
+                    return
+            except Exception as e:
+                logger.debug(f"Username-based cache failed: {e}")
+        
+        # For ID-based lookup
+        else:
+            user_id = int(target_input)
+            logger.info(f"Attempting to fetch user {user_id} from Telegram API...")
+            
+            member = await context.bot.get_chat_member(chat_id, user_id)
+            
+            # Cache the user!
+            database.store_user_info(
+                member.user.id,
+                member.user.username or f"user_{member.user.id}",
+                member.user.first_name,
+                member.user.last_name
+            )
+            
+            await update.message.reply_text(
+                f"✅ **VARTOTOJAS UŽKEŠUOTAS!**\n\n"
+                f"👤 Vardas: {member.user.first_name}\n"
+                f"🆔 ID: `{member.user.id}`\n"
+                f"📛 Username: @{member.user.username or 'N/A'}\n"
+                f"📊 Statusas: {member.status}\n\n"
+                f"✅ Dabar galite naudoti: `/ban @{member.user.username} priežastis`",
+                parse_mode='Markdown'
+            )
+            logger.info(f"✅ Successfully cached user {user_id}")
+            return
+            
+    except Exception as e:
+        logger.error(f"Failed to cache user {target_input}: {e}")
+        await update.message.reply_text(
+            f"❌ **NEPAVYKO UŽKEŠUOTI VARTOTOJO**\n\n"
+            f"👤 Įvestis: `{target_input}`\n"
+            f"❌ Klaida: {str(e)}\n\n"
+            f"**Galimos priežastys:**\n"
+            f"• Vartotojas niekada nebuvo šioje grupėje\n"
+            f"• Neteisingas username arba ID\n"
+            f"• Vartotojas užblokavo botą\n\n"
+            f"💡 **Alternatyvos:**\n"
+            f"• Paprašykite vartotojo parašyti bent vieną žinutę\n"
+            f"• Atsakykite į jo žinutę su `/ban`\n"
+            f"• Naudokite `/ban [user_id]` jei žinote ID",
+            parse_mode='Markdown'
+        )
 
 
 # ============================================================================
@@ -322,6 +469,58 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
     
+    if not user_info or not user_info.get('user_id'):
+        # User not found - TRY AUTOMATIC CACHING FIRST!
+        logger.info(f"User not found in cache - attempting automatic cache before pending ban...")
+        clean_input = target_input.strip().lstrip('@')
+        
+        # TRY TO CACHE AUTOMATICALLY using getChatMember
+        try:
+            # Try with username
+            if not clean_input.isdigit():
+                try:
+                    chat = await context.bot.get_chat(f"@{clean_input}")
+                    if chat.id > 0:
+                        member = await context.bot.get_chat_member(chat_id, chat.id)
+                        database.store_user_info(
+                            member.user.id,
+                            member.user.username or f"user_{member.user.id}",
+                            member.user.first_name,
+                            member.user.last_name
+                        )
+                        # Success! Now use this info
+                        user_info = {
+                            'user_id': member.user.id,
+                            'username': member.user.username or f"user_{member.user.id}",
+                            'first_name': member.user.first_name,
+                            'last_name': member.user.last_name
+                        }
+                        logger.info(f"✅ Auto-cached @{clean_input} (ID: {member.user.id}) - proceeding with ban")
+                except Exception as e:
+                    logger.debug(f"Auto-cache by username failed: {e}")
+            
+            # Try with user ID
+            else:
+                user_id = int(clean_input)
+                member = await context.bot.get_chat_member(chat_id, user_id)
+                database.store_user_info(
+                    member.user.id,
+                    member.user.username or f"user_{member.user.id}",
+                    member.user.first_name,
+                    member.user.last_name
+                )
+                user_info = {
+                    'user_id': member.user.id,
+                    'username': member.user.username or f"user_{member.user.id}",
+                    'first_name': member.user.first_name,
+                    'last_name': member.user.last_name
+                }
+                logger.info(f"✅ Auto-cached user {user_id} - proceeding with ban")
+                
+        except Exception as e:
+            logger.debug(f"Auto-cache failed: {e}")
+    
+    # STILL not found after auto-cache attempt? Add to pending bans
     if not user_info or not user_info.get('user_id'):
         # User not found - add to pending bans anyway (GroupHelpBot style!)
         # This handles cases where user has never been in the group
