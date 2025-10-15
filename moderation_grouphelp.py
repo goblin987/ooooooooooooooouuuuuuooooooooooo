@@ -806,10 +806,26 @@ async def lookup_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 # ============================================================================
 
 async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle new chat members - auto-ban if in pending list"""
+    """
+    Handle new chat members - cache them and auto-ban if in pending list
+    THIS IS THE KEY: Cache users when they JOIN so we can find them by username later!
+    """
     try:
         new_member = update.chat_member.new_chat_member.user
         chat_id = update.effective_chat.id
+        
+        # CRITICAL: Cache the user immediately when they join!
+        # This allows /ban @username to work even if they never sent a message
+        try:
+            database.store_user_info(
+                new_member.id,
+                new_member.username or f"user_{new_member.id}",
+                new_member.first_name,
+                new_member.last_name
+            )
+            logger.info(f"✅ Cached new member: @{new_member.username or new_member.id} (ID: {new_member.id})")
+        except Exception as e:
+            logger.error(f"Failed to cache new member: {e}")
         
         # Check if user is in pending ban list by user_id OR username
         pending_ban = None

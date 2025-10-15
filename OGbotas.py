@@ -744,12 +744,34 @@ async def main():
         logger.info("📅 Loading scheduled recurring messages...")
         recurring_messages.load_scheduled_jobs_from_db(application.bot)
         
+        # Cache administrators from all registered groups
+        # This helps with user resolution for existing members
+        logger.info("👥 Caching group administrators...")
+        try:
+            groups = database.get_all_groups()
+            for group in groups:
+                try:
+                    admins = await application.bot.get_chat_administrators(group['chat_id'])
+                    for admin in admins:
+                        database.store_user_info(
+                            admin.user.id,
+                            admin.user.username or f"user_{admin.user.id}",
+                            admin.user.first_name,
+                            admin.user.last_name
+                        )
+                    logger.info(f"   Cached {len(admins)} admins from {group['title']}")
+                except Exception as e:
+                    logger.warning(f"   Could not cache admins from {group.get('title', 'Unknown')}: {e}")
+        except Exception as e:
+            logger.warning(f"   Administrator caching failed: {e}")
+        
         await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
         
         logger.info("✅ Bot is fully operational!")
         logger.info("   - Polling: Receiving Telegram updates")
         logger.info("   - HTTP Server: Ready for payment webhooks")
         logger.info("   - Scheduled messages: Loaded from database")
+        logger.info("   - User cache: Administrators cached")
         
         # Keep running forever
         import asyncio
