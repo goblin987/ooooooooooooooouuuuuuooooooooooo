@@ -202,7 +202,26 @@ async def resolve_user(context: ContextTypes.DEFAULT_TYPE, username_or_id: str, 
     except Exception as e:
         logger.warning(f"Error checking user cache: {e}")
     
-    # Method 3: Search chat administrators (they're always accessible)
+    # Method 3: Try to resolve username via Telegram API directly
+    # This sometimes works for users with public profiles
+    try:
+        # Try @username format
+        try:
+            chat_info = await context.bot.get_chat(f"@{username}")
+            if chat_info and chat_info.type == 'private':
+                logger.info(f"Found {username} via get_chat API")
+                return {
+                    'user_id': chat_info.id,
+                    'username': chat_info.username or username,
+                    'first_name': chat_info.first_name,
+                    'last_name': chat_info.last_name
+                }
+        except Exception as e:
+            logger.debug(f"get_chat failed for @{username}: {e}")
+    except Exception as e:
+        logger.debug(f"Error trying get_chat: {e}")
+    
+    # Method 4: Search chat administrators (they're always accessible)
     try:
         admins = await context.bot.get_chat_administrators(chat_id)
         for admin in admins:
@@ -218,11 +237,11 @@ async def resolve_user(context: ContextTypes.DEFAULT_TYPE, username_or_id: str, 
     except Exception as e:
         logger.debug(f"Error checking administrators: {e}")
     
-    # Method 4: Try recent message search (if username is in recent messages)
-    # Note: This won't work in all cases due to Telegram API limitations
-    # The most reliable method is for admin to reply to the user's message
+    # Method 5: All resolution methods exhausted
+    # This is a Telegram API limitation - can't search members by username
     logger.warning(f"Could not resolve user: {username}")
-    logger.info(f"User @{username} not found in cache. They may need to send a message first, or admin should reply to their message.")
+    logger.info(f"User @{username} not found. This is a Telegram API limitation.")
+    logger.info(f"Solutions: 1) Reply to their message, 2) They send a message, 3) Use their user_id")
     return None
 
 
@@ -250,7 +269,7 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_info = None
     reason = "No reason provided"
     
-    # Method 1: Reply to user's message
+    # Method 1: Reply to user's message (HIGHEST PRIORITY)
     if update.message.reply_to_message and update.message.reply_to_message.from_user:
         target_user = update.message.reply_to_message.from_user
         user_info = {
@@ -262,27 +281,30 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         reason = ' '.join(context.args) if context.args else "No reason provided"
         logger.info(f"Ban via reply: @{user_info['username']} (ID: {user_info['user_id']})")
     
-    # Method 2: Parse @mention entity (WORKS EVEN IF USER NEVER SENT MESSAGE!)
-    elif not context.args and update.message.entities:
-        user_info, remaining = parse_user_from_message(update)
-        if user_info:
-            reason = remaining if remaining else "No reason provided"
-    
-    # Method 3: By username or ID
-    elif context.args:
-        target_input = context.args[0]
-        reason = ' '.join(context.args[1:]) if len(context.args) > 1 else "No reason provided"
-        
-        # First try entity parsing (in case @mention was used)
+    # Method 2: Parse @mention entity (ALWAYS TRY THIS FIRST!)
+    # This works even if user never sent message IF Telegram included entity data
+    elif update.message.entities:
         entity_user, entity_remaining = parse_user_from_message(update)
         if entity_user:
             user_info = entity_user
-            # Re-parse reason from remaining text
+            # If there's remaining text after entity, use it as reason
             if entity_remaining:
                 reason = entity_remaining
-        else:
-            # Fallback to text-based resolution
+            # Otherwise use args if available
+            elif context.args and len(context.args) > 1:
+                reason = ' '.join(context.args[1:])
+            logger.info(f"Ban via entity: @{user_info['username']} (ID: {user_info['user_id']})")
+        # If entity parsing failed, fall back to text-based resolution
+        elif context.args:
+            target_input = context.args[0]
+            reason = ' '.join(context.args[1:]) if len(context.args) > 1 else "No reason provided"
             user_info = await resolve_user(context, target_input, chat_id)
+    
+    # Method 3: By username or ID (text-based, no entities)
+    elif context.args:
+        target_input = context.args[0]
+        reason = ' '.join(context.args[1:]) if len(context.args) > 1 else "No reason provided"
+        user_info = await resolve_user(context, target_input, chat_id)
     
     # No arguments and no reply
     else:
