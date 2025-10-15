@@ -270,7 +270,7 @@ async def cache_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     This is ESSENTIAL for large groups (10k+ members) where autocomplete doesn't work!
     Use this to ban users who never sent messages.
     """
-    if not is_admin(update):
+    if not await is_admin(update, context):
         await update.message.reply_text("⛔ Ši komanda tik administratoriams!")
         return
     
