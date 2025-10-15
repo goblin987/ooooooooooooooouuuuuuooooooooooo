@@ -689,8 +689,9 @@ async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     
     if not context.args:
         await update.message.reply_text(
-            "❌ **Usage:** `/unban @username` or `/unban user_id`",
-            parse_mode='Markdown'
+            "How to use /unban:\n"
+            "• /unban @username\n"
+            "• /unban [user_id]"
         )
         return
     
@@ -717,22 +718,12 @@ async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             only_if_banned=True
         )
         
-        # Update database
-        database.record_unban(
-            chat_id=chat_id,
-            user_id=user_id,
-            unbanned_by=admin_user.username or str(admin_user.id)
-        )
-        
-        # Success message - GroupHelpBot style
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Success message - GroupHelp style
         await update.message.reply_text(
-            "✅ **VARTOTOJAS ATKURTAS** ✅\n\n"
-            f"👤 Vartotojas: {full_name} (@{username})\n"
-            f"🆔 ID: `{user_id}`\n"
-            f"👮 Atkūrė: {admin_user.first_name} (@{admin_user.username or 'admin'})\n"
-            f"⏰ Data: {timestamp}",
-            parse_mode='Markdown'
+            f"✅ User Unbanned\n\n"
+            f"User: {full_name} (@{username})\n"
+            f"ID: {user_id}\n"
+            f"Unbanned by: {admin_user.first_name}"
         )
         
         logger.info(f"Unbanned user {user_id} from chat {chat_id}")
