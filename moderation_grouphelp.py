@@ -237,18 +237,37 @@ async def resolve_user(context: ContextTypes.DEFAULT_TYPE, username_or_id: str, 
     except Exception as e:
         logger.debug(f"Error checking administrators: {e}")
     
-    # Method 5: Try to search recent messages in the group (LAST RESORT)
-    # This is slow but can find users who haven't sent messages
+    # Method 5: Try get_chat_member with username (AGGRESSIVE FETCH)
+    # This is what GroupHelp probably uses!
     try:
-        # For small-medium groups, try getting recent updates
-        # This searches through recent group activity
-        logger.info(f"Attempting deep search for @{username} in group {chat_id}...")
-        
-        # Note: This only works if bot has seen their activity recently
-        # But it's better than nothing
-        
+        logger.info(f"Attempting get_chat_member for @{username}...")
+        # Try to get member info from the chat directly
+        # This works if user is CURRENTLY in the group
+        try:
+            # First try to resolve the username to an ID
+            chat = await context.bot.get_chat(f"@{username}")
+            if chat.id > 0:  # It's a user (not a channel/group)
+                # Now try to get their membership in THIS group
+                member = await context.bot.get_chat_member(chat_id, chat.id)
+                if member:
+                    # Cache for future use
+                    database.store_user_info(
+                        member.user.id,
+                        member.user.username or f"user_{member.user.id}",
+                        member.user.first_name,
+                        member.user.last_name
+                    )
+                    logger.info(f"✅ Found @{username} in group via get_chat_member!")
+                    return {
+                        'user_id': member.user.id,
+                        'username': member.user.username or f"user_{member.user.id}",
+                        'first_name': member.user.first_name,
+                        'last_name': member.user.last_name
+                    }
+        except Exception as e:
+            logger.debug(f"get_chat_member failed for @{username}: {e}")
     except Exception as e:
-        logger.debug(f"Deep search failed: {e}")
+        logger.debug(f"Member fetch failed: {e}")
     
     # Method 6: All resolution methods exhausted
     # This is a Telegram API limitation - can't search all members by username
