@@ -35,6 +35,9 @@ class Database:
             self._create_tables(conn)
             self._create_indexes(conn)
             
+            # Run migrations for existing databases
+            self._run_migrations(conn)
+            
             conn.commit()
             logger.info("Database initialized successfully")
             
@@ -199,7 +202,8 @@ class Database:
                 warned_by_username TEXT,
                 reason TEXT,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                reset_at TIMESTAMP
+                reset_at TIMESTAMP,
+                is_active INTEGER DEFAULT 1
             )
         ''')
     
@@ -232,6 +236,21 @@ class Database:
             except sqlite3.OperationalError as e:
                 if "already exists" not in str(e).lower():
                     logger.warning(f"Error creating index: {e}")
+    
+    def _run_migrations(self, conn):
+        """Run database migrations for existing databases"""
+        try:
+            # Migration 1: Add is_active column to warnings table if it doesn't exist
+            cursor = conn.execute("PRAGMA table_info(warnings)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'is_active' not in columns:
+                logger.info("Running migration: Adding is_active column to warnings table")
+                conn.execute("ALTER TABLE warnings ADD COLUMN is_active INTEGER DEFAULT 1")
+                logger.info("✅ Migration completed: is_active column added")
+        except Exception as e:
+            logger.error(f"Migration error: {e}")
+            # Don't raise - let app continue if migration fails
     
     @asynccontextmanager
     async def get_connection(self):
