@@ -1883,7 +1883,10 @@ async def send_recurring_message(bot, chat_id: int, message_id: int):
         conn.close()
         
     except Exception as e:
-        logger.error(f"Error sending recurring message {message_id}: {e}")
+        logger.error(f"❌ Error sending recurring message {message_id} to chat {chat_id}: {e}")
+        logger.exception(e)
+        if conn:
+            conn.close()
 
 
 # ============================================================================
@@ -2200,10 +2203,21 @@ def load_scheduled_jobs_from_db(bot):
             try:
                 # Create new job
                 if rep_type == 'interval':
-                    trigger = IntervalTrigger(
-                        hours=interval,
-                        timezone=pytz.timezone('Europe/Vilnius')
-                    )
+                    if interval < 1:
+                        # It's in minutes (fractional hours)
+                        minutes = int(interval * 60)
+                        trigger = IntervalTrigger(
+                            minutes=minutes,
+                            timezone=pytz.timezone('Europe/Vilnius')
+                        )
+                        logger.info(f"Loaded {minutes}-minute interval job for message {msg_id}")
+                    else:
+                        # It's in hours
+                        trigger = IntervalTrigger(
+                            hours=int(interval),
+                            timezone=pytz.timezone('Europe/Vilnius')
+                        )
+                        logger.info(f"Loaded {int(interval)}-hour interval job for message {msg_id}")
                 # TODO: Recreate cron triggers for days_of_week/days_of_month
                 
                 job_id = f"recur_{chat_id}_{msg_id}"
