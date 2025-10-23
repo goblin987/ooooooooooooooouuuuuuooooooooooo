@@ -16,6 +16,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from database import database
 from moderation_grouphelp import is_admin
+from config import VOTING_GROUP_CHAT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -1682,17 +1683,17 @@ async def edit_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: in
 
 async def send_recurring_message(bot, chat_id: int, message_id: int):
     """
-    Send a recurring message - with pin/delete support
-    This is the actual function that sends messages on schedule
+    BROADCAST recurring message to ALL groups (except voting group)
+    Simple version - supports text, media, buttons (NO pin/delete for broadcasts)
     """
+    conn = None
     try:
-        logger.info(f"📤 send_recurring_message called: chat_id={chat_id}, message_id={message_id}")
+        logger.info(f"📤 send_recurring_message called: message_id={message_id} (BROADCAST MODE)")
         
         # Get message config from database
         conn = database.get_sync_connection()
         cursor = conn.execute(
-            '''SELECT message_text, message_media, message_buttons, pin_message, delete_last_message, 
-               last_message_id, message_type FROM scheduled_messages WHERE id = ?''',
+            '''SELECT message_text, message_media, message_buttons, message_type FROM scheduled_messages WHERE id = ?''',
             (message_id,)
         )
         result = cursor.fetchone()
@@ -1702,18 +1703,24 @@ async def send_recurring_message(bot, chat_id: int, message_id: int):
             conn.close()
             return
         
-        text, media, buttons_json, pin, delete_last, last_msg_id, msg_type = result
+        text, media, buttons_json, msg_type = result
         logger.info(f"📋 Retrieved message config: text_len={len(text) if text else 0}, has_media={bool(media)}, type={msg_type}")
         
-        # Delete last message if enabled
-        if delete_last and last_msg_id:
-            try:
-                await bot.delete_message(chat_id, last_msg_id)
-                logger.info(f"Deleted previous recurring message {last_msg_id}")
-            except Exception as e:
-                logger.warning(f"Could not delete last message: {e}")
+        # Get all groups EXCEPT voting group
+        cursor = conn.execute('SELECT chat_id, title FROM groups')
+        all_groups = cursor.fetchall()
         
-        # Parse buttons
+        # Filter out voting group
+        target_groups = [g for g in all_groups if g[0] != VOTING_GROUP_CHAT_ID]
+        
+        if not target_groups:
+            logger.warning(f"❌ No target groups found for broadcast!")
+            conn.close()
+            return
+        
+        logger.info(f"📢 Broadcasting message {message_id} to {len(target_groups)} groups (excluding voting group)")
+        
+        # Parse buttons (once, for all groups)
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
         import json
         
@@ -1728,165 +1735,110 @@ async def send_recurring_message(bot, chat_id: int, message_id: int):
             except Exception as e:
                 logger.error(f"Error parsing buttons: {e}")
         
-        # Send new message
-        sent_message = None
+        # Broadcast to each group
+        success_count = 0
+        failed_groups = []
         
-        # Prioritize media if it exists
-        if media:
-            # Handle media messages (photo, video, GIF, document, etc.)
+        for group in target_groups:
+            target_chat_id = group[0]
+            group_title = group[1] or f"Group {target_chat_id}"
+            
             try:
-                if media.startswith('http://') or media.startswith('https://'):
-                    # It's a URL - detect media type from URL or try different methods
-                    logger.info(f"📷 Sending media message to chat {chat_id}: {media[:50]}...")
-                    
-                    # Try to detect media type from URL
-                    media_lower = media.lower()
-                    
-                    if any(ext in media_lower for ext in ['.mp4', '.mov', '.avi', '.mkv', 'video']):
-                        # Video
-                        logger.info(f"🎥 Detected video format")
-                        sent_message = await bot.send_video(
-                            chat_id=chat_id,
-                            video=media,
-                            caption=text if text else None,
-                            parse_mode='Markdown',
-                            reply_markup=reply_markup
-                        )
-                    elif any(ext in media_lower for ext in ['.gif', 'giphy.com', 'tenor.com']):
-                        # GIF/Animation
-                        logger.info(f"🎬 Detected GIF/animation format")
-                        sent_message = await bot.send_animation(
-                            chat_id=chat_id,
-                            animation=media,
-                            caption=text if text else None,
-                            parse_mode='Markdown',
-                            reply_markup=reply_markup
-                        )
-                    elif any(ext in media_lower for ext in ['.jpg', '.jpeg', '.png', '.webp', 'photo', 'image']):
-                        # Photo
-                        logger.info(f"🖼️ Detected photo format")
-                        sent_message = await bot.send_photo(
-                            chat_id=chat_id,
-                            photo=media,
-                            caption=text if text else None,
-                            parse_mode='Markdown',
-                            reply_markup=reply_markup
-                        )
-                    else:
-                        # Try as photo first, fallback to document
-                        logger.info(f"❓ Unknown format, trying as photo first")
-                        try:
-                            sent_message = await bot.send_photo(
-                                chat_id=chat_id,
-                                photo=media,
-                                caption=text if text else None,
-                                parse_mode='Markdown',
-                                reply_markup=reply_markup
-                            )
-                        except Exception as photo_error:
-                            logger.warning(f"Failed as photo, trying as document: {photo_error}")
-                            sent_message = await bot.send_document(
-                                chat_id=chat_id,
-                                document=media,
-                                caption=text if text else None,
-                                parse_mode='Markdown',
-                                reply_markup=reply_markup
-                            )
-                    
-                    logger.info(f"✅ Media message sent successfully: message_id={sent_message.message_id}")
-                else:
-                    # It's a file_id (from Telegram)
-                    logger.info(f"📎 Sending media by file_id to chat {chat_id}")
-                    # Try as photo first, then video, then animation, then document
+                logger.debug(f"  📤 Sending to {group_title} ({target_chat_id})")
+                sent_message = None
+                
+                # Send media or text
+                if media:
+                    # Try sending as photo first (most common)
                     try:
                         sent_message = await bot.send_photo(
-                            chat_id=chat_id,
+                            chat_id=target_chat_id,
                             photo=media,
                             caption=text if text else None,
                             parse_mode='Markdown',
                             reply_markup=reply_markup
                         )
-                        logger.info(f"✅ Sent as photo")
-                    except Exception as e1:
-                        logger.debug(f"Not a photo: {e1}")
+                    except Exception:
+                        # Try as video
                         try:
                             sent_message = await bot.send_video(
-                                chat_id=chat_id,
+                                chat_id=target_chat_id,
                                 video=media,
                                 caption=text if text else None,
                                 parse_mode='Markdown',
                                 reply_markup=reply_markup
                             )
-                            logger.info(f"✅ Sent as video")
-                        except Exception as e2:
-                            logger.debug(f"Not a video: {e2}")
+                        except Exception:
+                            # Try as animation/GIF
                             try:
                                 sent_message = await bot.send_animation(
-                                    chat_id=chat_id,
+                                    chat_id=target_chat_id,
                                     animation=media,
                                     caption=text if text else None,
                                     parse_mode='Markdown',
                                     reply_markup=reply_markup
                                 )
-                                logger.info(f"✅ Sent as animation/GIF")
-                            except Exception as e3:
-                                logger.debug(f"Not an animation: {e3}")
-                                sent_message = await bot.send_document(
-                                    chat_id=chat_id,
-                                    document=media,
-                                    caption=text if text else None,
-                                    parse_mode='Markdown',
-                                    reply_markup=reply_markup
-                                )
-                                logger.info(f"✅ Sent as document")
-                    logger.info(f"✅ Media message sent successfully: message_id={sent_message.message_id}")
-            except Exception as e:
-                logger.error(f"❌ Error sending media: {e}", exc_info=True)
-                # Fallback to text-only if media fails
-                if text:
-                    logger.info(f"⚠️ Falling back to text-only message")
+                            except Exception:
+                                # Last resort: document
+                                try:
+                                    sent_message = await bot.send_document(
+                                        chat_id=target_chat_id,
+                                        document=media,
+                                        caption=text if text else None,
+                                        parse_mode='Markdown',
+                                        reply_markup=reply_markup
+                                    )
+                                except Exception:
+                                    # Media failed completely, send text only
+                                    if text:
+                                        sent_message = await bot.send_message(
+                                            chat_id=target_chat_id,
+                                            text=text,
+                                            parse_mode='Markdown',
+                                            reply_markup=reply_markup
+                                        )
+                elif text:
+                    # Text-only message
                     sent_message = await bot.send_message(
-                        chat_id=chat_id,
+                        chat_id=target_chat_id,
                         text=text,
                         parse_mode='Markdown',
                         reply_markup=reply_markup
                     )
-        elif text:
-            # Text-only message (no media)
-            logger.info(f"📨 Sending text-only message to chat {chat_id}")
-            sent_message = await bot.send_message(
-                chat_id=chat_id,
-                text=text,
-                parse_mode='Markdown',
-                reply_markup=reply_markup
-            )
-            logger.info(f"✅ Message sent successfully: message_id={sent_message.message_id}")
+                
+                if sent_message:
+                    success_count += 1
+                    logger.debug(f"  ✅ Sent to {group_title}")
+                else:
+                    failed_groups.append(group_title)
+                    logger.warning(f"  ❌ Failed to send to {group_title}: No message sent")
+                    
+            except Exception as e:
+                failed_groups.append(group_title)
+                logger.warning(f"  ❌ Failed to send to {group_title}: {e}")
+                continue
         
-        if sent_message:
-            # Pin message if enabled
-            if pin:
-                try:
-                    await bot.pin_chat_message(chat_id, sent_message.message_id, disable_notification=True)
-                    logger.info(f"Pinned recurring message {sent_message.message_id}")
-                except Exception as e:
-                    logger.warning(f"Could not pin message: {e}")
-            
-            # Update last_message_id in database
-            conn.execute(
-                '''UPDATE scheduled_messages SET last_message_id = ?, last_sent = CURRENT_TIMESTAMP 
-                   WHERE id = ?''',
-                (sent_message.message_id, message_id)
-            )
-            conn.commit()
-            logger.info(f"Sent recurring message {message_id} to chat {chat_id}")
+        # Update last_sent timestamp
+        conn.execute(
+            '''UPDATE scheduled_messages SET last_sent = CURRENT_TIMESTAMP WHERE id = ?''',
+            (message_id,)
+        )
+        conn.commit()
+        
+        # Log summary
+        logger.info(f"✅ Broadcast complete: {success_count}/{len(target_groups)} groups successful")
+        if failed_groups:
+            logger.warning(f"❌ Failed groups: {', '.join(failed_groups)}")
         
         conn.close()
         
     except Exception as e:
-        logger.error(f"❌ Error sending recurring message {message_id} to chat {chat_id}: {e}")
+        logger.error(f"❌ Error in broadcast: {e}")
         logger.exception(e)
         if conn:
             conn.close()
+
+
 
 
 # ============================================================================
