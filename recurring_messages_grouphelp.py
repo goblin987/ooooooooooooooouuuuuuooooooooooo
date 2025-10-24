@@ -1497,7 +1497,7 @@ async def resume_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: 
                 
                 init_scheduler()
                 scheduler.add_job(
-                    send_recurring_message,
+                    send_recurring_message_sync,
                     trigger=trigger,
                     args=[query.message.chat_id, message_id],
                     id=job_id,
@@ -1682,7 +1682,35 @@ async def edit_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: in
 # CORE FUNCTIONALITY - SEND RECURRING MESSAGE
 # ============================================================================
 
-async def send_recurring_message(chat_id: int, message_id: int):
+def send_recurring_message_sync(chat_id: int, message_id: int):
+    """
+    Synchronous wrapper for send_recurring_message that APScheduler can call
+    Creates an event loop to run the async function
+    """
+    import asyncio
+    
+    logger.info(f"🔔 SCHEDULER TRIGGERED: Starting send_recurring_message_sync for message_id={message_id}")
+    
+    try:
+        # Get or create event loop
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # Run the async function
+        loop.run_until_complete(_send_recurring_message_async(chat_id, message_id))
+        logger.info(f"✅ SCHEDULER COMPLETED: message_id={message_id}")
+        
+    except Exception as e:
+        logger.error(f"❌ SCHEDULER ERROR: Failed to send recurring message {message_id}: {e}", exc_info=True)
+
+
+async def _send_recurring_message_async(chat_id: int, message_id: int):
     """
     BROADCAST recurring message to ALL groups (except voting group)
     Simple version - supports text, media, buttons (NO pin/delete for broadcasts)
@@ -2044,7 +2072,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 job_ids.append(job_id)
                 
                 scheduler.add_job(
-                    send_recurring_message,
+                    send_recurring_message_sync,
                     trigger=trigger,
                     args=[chat_id, message_id],
                     id=job_id,
@@ -2064,7 +2092,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             
             logger.info(f"🔧 Creating scheduler job: job_id={job_id}, trigger={trigger}, chat_id={chat_id}")
             scheduler.add_job(
-                send_recurring_message,
+                send_recurring_message_sync,
                 trigger=trigger,
                 args=[chat_id, message_id],
                 id=job_id,
@@ -2228,7 +2256,7 @@ def load_scheduled_jobs_from_db(bot):
                 job_id = f"recur_{chat_id}_{msg_id}"
                 
                 scheduler.add_job(
-                    send_recurring_message,
+                    send_recurring_message_sync,
                     trigger=trigger,
                     args=[chat_id, msg_id],
                     id=job_id,
