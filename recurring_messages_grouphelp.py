@@ -34,7 +34,7 @@ def init_scheduler():
     
     with _scheduler_lock:
         if scheduler is None:
-            scheduler = AsyncIOScheduler(timezone=pytz.timezone('Europe/Vilnius'))
+            scheduler = AsyncIOScheduler(timezone=pytz.UTC)
             scheduler.start()
             logger.info("Recurring messages scheduler initialized")
 
@@ -1882,7 +1882,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 day_of_week=days,
                 hour=hour,
                 minute=minute,
-                timezone=pytz.timezone('Europe/Vilnius')
+                timezone=pytz.UTC
             )
             rep_text = f"Days: {', '.join(msg_config['days_of_week'])}"
             
@@ -1893,7 +1893,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 day=days,
                 hour=hour,
                 minute=minute,
-                timezone=pytz.timezone('Europe/Vilnius')
+                timezone=pytz.UTC
             )
             rep_text = f"Dates: {days} of each month"
             
@@ -2005,7 +2005,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 trigger = CronTrigger(
                     hour=hour,
                     minute=minute,
-                    timezone=pytz.timezone('Europe/Vilnius')
+                    timezone=pytz.UTC
                 )
                 
                 job_id = f"recur_{chat_id}_{message_id}_{i}"
