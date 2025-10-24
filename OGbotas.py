@@ -61,9 +61,10 @@ import voting
 # Telegram imports
 import telegram
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from aiohttp import web
+from datetime import datetime
 
 # Initialize scheduler
 recurring_messages.init_scheduler()
@@ -160,9 +161,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/unmute @user` - Unmute user\n\n"
         "**Recurring Messages:**\n"
         "• `/recurring` - Manage recurring messages\n\n"
+        "**Scammer Protection:**\n"
+        "• `/patikra @user` - Check if user is scammer\n"
+        "• `/vagis @user reason` - Report a scammer\n\n"
         "**Utilities:**\n"
-        "• `/lookup @user` - Lookup user info\n"
-        "• `/patikra @user` - Check if user is scammer\n\n"
+        "• `/lookup @user` - Lookup user info\n\n"
         "**Admin Panel:**\n"
         "• `/admin` - Interactive admin panel\n"
         "  - 💰 Points, ⭐ Sellers, 🚨 Scammers\n"
@@ -200,8 +203,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Check if user is scammer command.
-    Currently a placeholder until full scammer database integration.
+    Check if user is a scammer - shows confirmed/pending/legit status
     """
     if not context.args:
         await update.message.reply_text(
@@ -213,17 +215,193 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     username = context.args[0].lstrip('@')
     
-    # Placeholder response until full integration with readonly_scammer_bot
+    # Load latest data
+    confirmed_scammers = data_manager.load_data('confirmed_scammers.pkl', {})
+    pending_scammer_reports = data_manager.load_data('pending_scammer_reports.pkl', {})
+    
+    # Check if user is confirmed scammer
+    if username in confirmed_scammers:
+        scammer_data = confirmed_scammers[username]
+        reports_count = len(scammer_data.get('reports', []))
+        confirmed_date = scammer_data.get('confirmed_date', 'Unknown')
+        
+        # Get first report reason if available
+        first_reason = "N/A"
+        if scammer_data.get('reports'):
+            first_reason = scammer_data['reports'][0].get('reason', 'N/A')
+        
+        await update.message.reply_text(
+            f"🚫 **SCAMMER CONFIRMED**\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"**User:** @{username}\n"
+            f"**Status:** ⛔️ Confirmed Scammer\n"
+            f"**Reports:** {reports_count}\n"
+            f"**Confirmed Date:** {confirmed_date}\n\n"
+            f"**First Report Reason:**\n{first_reason}\n\n"
+            f"⚠️ **WARNING:** This user has been reported and confirmed as a scammer. "
+            f"Exercise extreme caution when dealing with them!",
+            parse_mode='Markdown'
+        )
+        return
+    
+    # Check if user has pending reports
+    pending_count = 0
+    pending_reasons = []
+    for report_id, report in pending_scammer_reports.items():
+        if report.get('reported_username') == username:
+            pending_count += 1
+            pending_reasons.append(report.get('reason', 'No reason'))
+    
+    if pending_count > 0:
+        reasons_text = "\n• ".join(pending_reasons[:3])  # Show max 3 reasons
+        more_text = f"\n...and {pending_count - 3} more" if pending_count > 3 else ""
+        
+        await update.message.reply_text(
+            f"⚠️ **PENDING INVESTIGATION**\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"**User:** @{username}\n"
+            f"**Status:** 🔍 Under Investigation\n"
+            f"**Pending Reports:** {pending_count}\n\n"
+            f"**Reported Reasons:**\n• {reasons_text}{more_text}\n\n"
+            f"⚠️ This user has been reported but not yet confirmed. "
+            f"Proceed with caution!",
+            parse_mode='Markdown'
+        )
+        return
+    
+    # User is clean
     await update.message.reply_text(
-        f"🔍 **Scammer Check: @{username}**\n\n"
-        "⚙️ Scammer database integration is in progress.\n\n"
-        "**Current Status:**\n"
-        "• Database: Ready\n"
-        "• API Sync: In Development\n"
-        "• Full Integration: Coming Soon\n\n"
-        "💡 This feature will be fully functional after integration with the scammer database API.",
+        f"✅ **USER IS LEGIT**\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"**User:** @{username}\n"
+        f"**Status:** ✅ No Reports Found\n\n"
+        f"This user has no scammer reports.\n\n"
+        f"💡 If you suspect this user is a scammer, use `/vagis @{username} reason` to report them.",
         parse_mode='Markdown'
     )
+
+async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Report a scammer - /vagis @username reason
+    Auto-approved if already confirmed scammer, otherwise goes to admin for review
+    """
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text(
+            "❌ **Usage:** `/vagis @username reason`\n\n"
+            "**Example:** `/vagis @baduser Didn't send item after payment`\n\n"
+            "Report a user as a scammer. Your report will be reviewed by admins.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    # Parse username and reason
+    username = context.args[0].lstrip('@')
+    reason = ' '.join(context.args[1:])
+    
+    # Get reporter info
+    reporter_id = update.effective_user.id
+    reporter_username = update.effective_user.username or f"user_{reporter_id}"
+    reporter_name = update.effective_user.first_name or "Unknown"
+    
+    # Load latest data
+    confirmed_scammers = data_manager.load_data('confirmed_scammers.pkl', {})
+    pending_scammer_reports = data_manager.load_data('pending_scammer_reports.pkl', {})
+    
+    # Check if user is already a confirmed scammer
+    if username in confirmed_scammers:
+        # AUTO-APPROVE: Add report directly to confirmed scammer's record
+        report_data = {
+            'reported_username': username,
+            'reporter_id': reporter_id,
+            'reporter_username': reporter_username,
+            'reporter_name': reporter_name,
+            'reason': reason,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'auto_approved': True
+        }
+        
+        confirmed_scammers[username]['reports'].append(report_data)
+        data_manager.save_data(confirmed_scammers, 'confirmed_scammers.pkl')
+        
+        total_reports = len(confirmed_scammers[username]['reports'])
+        
+        await update.message.reply_text(
+            f"✅ **REPORT ADDED (AUTO-APPROVED)**\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"**Reported User:** @{username}\n"
+            f"**Your Reason:** {reason}\n\n"
+            f"⚠️ This user is already confirmed as a scammer.\n"
+            f"Your report has been automatically added to their record.\n\n"
+            f"**Total Reports:** {total_reports}",
+            parse_mode='Markdown'
+        )
+        
+        # Notify admin
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_CHAT_ID,
+                text=f"📊 **AUTO-APPROVED REPORT**\n\n"
+                     f"@{reporter_username} reported @{username} (already confirmed scammer)\n\n"
+                     f"**Reason:** {reason}\n"
+                     f"**Total Reports:** {total_reports}",
+                parse_mode='Markdown'
+            )
+        except Exception as e:
+            logger.error(f"Failed to notify admin about auto-approved report: {e}")
+        
+        return
+    
+    # NEW REPORT: Send to admin for review
+    # Generate unique report ID
+    report_id = f"scam_{int(datetime.now().timestamp())}_{reporter_id}"
+    
+    report_data = {
+        'reported_username': username,
+        'reporter_id': reporter_id,
+        'reporter_username': reporter_username,
+        'reporter_name': reporter_name,
+        'reason': reason,
+        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    pending_scammer_reports[report_id] = report_data
+    data_manager.save_data(pending_scammer_reports, 'pending_scammer_reports.pkl')
+    
+    await update.message.reply_text(
+        f"📝 **REPORT SUBMITTED**\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"**Reported User:** @{username}\n"
+        f"**Your Reason:** {reason}\n\n"
+        f"✅ Your report has been submitted to admins for review.\n"
+        f"You will be notified when a decision is made.\n\n"
+        f"**Report ID:** `{report_id}`",
+        parse_mode='Markdown'
+    )
+    
+    # Notify admin with review buttons
+    try:
+        keyboard = [
+            [InlineKeyboardButton("✅ Confirm Scammer", callback_data=f"claim_confirm_{report_id}")],
+            [InlineKeyboardButton("❌ Dismiss Report", callback_data=f"claim_dismiss_{report_id}")],
+            [InlineKeyboardButton("🔍 View Details", callback_data=f"claim_review_{report_id}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await context.bot.send_message(
+            chat_id=ADMIN_CHAT_ID,
+            text=f"🚨 **NEW SCAMMER REPORT**\n"
+                 f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                 f"**Reported User:** @{username}\n"
+                 f"**Reported By:** @{reporter_username} ({reporter_name})\n"
+                 f"**Reason:** {reason}\n"
+                 f"**Time:** {report_data['timestamp']}\n\n"
+                 f"**Report ID:** `{report_id}`\n\n"
+                 f"**Action Required:** Review and approve/dismiss this report.",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        logger.error(f"Failed to notify admin about new scammer report: {e}")
 
 async def recurring_messages_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Main recurring messages menu - GroupHelpBot style"""
@@ -542,6 +720,7 @@ def create_application():
     application.add_handler(CommandHandler("lookup", moderation.lookup_user))
     application.add_handler(CommandHandler("info", moderation.info_user))
     application.add_handler(CommandHandler("patikra", patikra_command))
+    application.add_handler(CommandHandler("vagis", vagis_command))
     
     # Warn system commands (GroupHelpBot style)
     application.add_handler(CommandHandler("warn", warn_system.warn_user))
