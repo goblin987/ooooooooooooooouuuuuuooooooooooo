@@ -42,6 +42,10 @@ price_cache = {}
 CACHE_EXPIRATION_MINUTES = 10
 FEE_ADJUSTMENT = 0.015  # 1.5% to cover NOWPayments fees
 
+# Withdrawal settings
+from utils import data_manager
+withdrawals_enabled = data_manager.load_data('withdrawals_enabled.pkl', True)  # Default: enabled
+
 # ============================================================================
 # DATABASE FUNCTIONS
 # ============================================================================
@@ -335,15 +339,24 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     
     balance = get_user_balance(user_id)
-    text = f"💰 <b>Jūsų balansas:</b> ${balance:.2f}\n\n" \
-          f"<i>Pasirinkite veiksmą apačioje:</i>"
     
-    keyboard = [
-        [InlineKeyboardButton("💵 Įnešti", callback_data="deposit"),
-         InlineKeyboardButton("💸 Išimti", callback_data="withdraw")]
-    ]
+    # Check if withdrawals are enabled
+    if withdrawals_enabled:
+        text = f"💰 <b>Jūsų balansas:</b> ${balance:.2f}\n\n" \
+              f"<i>Pasirinkite veiksmą apačioje:</i>"
+        keyboard = [
+            [InlineKeyboardButton("💵 Įnešti", callback_data="deposit"),
+             InlineKeyboardButton("💸 Išimti", callback_data="withdraw")]
+        ]
+    else:
+        text = f"💰 <b>Jūsų balansas:</b> ${balance:.2f}\n\n" \
+              f"⚠️ <i>Išėmimai laikinai sustabdyti</i>\n" \
+              f"<i>Įnešimai veikia įprastai</i>"
+        keyboard = [
+            [InlineKeyboardButton("💵 Įnešti", callback_data="deposit")]
+        ]
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
     await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
 
 
@@ -481,6 +494,26 @@ async def remove_balance_command(update: Update, context: ContextTypes.DEFAULT_T
     )
     
     logger.info(f"Admin removed ${amount:.2f} from @{username}. New balance: ${new_balance:.2f}")
+
+
+async def toggle_withdrawals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Owner-only: Enable/disable withdrawals"""
+    if update.effective_user.id != OWNER_ID:
+        await update.message.reply_text(f"❌ Unauthorized\n\nOnly the bot owner can toggle withdrawals.")
+        return
+    
+    global withdrawals_enabled
+    withdrawals_enabled = not withdrawals_enabled
+    data_manager.save_data(withdrawals_enabled, 'withdrawals_enabled.pkl')
+    
+    status = "✅ ĮJUNGTI" if withdrawals_enabled else "🚫 IŠJUNGTI"
+    await update.message.reply_text(
+        f"💰 Išėmimai dabar {status}\n\n"
+        f"Statusas: {'Vartotojai gali išimti lėšas' if withdrawals_enabled else 'Išėmimai laikinai sustabdyti'}\n\n"
+        f"Naudokite `/togglewithdrawals` dar kartą perjungti."
+    )
+    
+    logger.info(f"Withdrawals toggled: {withdrawals_enabled}")
 
 
 # ============================================================================
@@ -638,6 +671,17 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
 async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Handle withdrawal text input"""
     if update.effective_chat.type == 'private' and context.user_data.get('expecting_withdrawal_details'):
+        # Check if withdrawals are enabled
+        if not withdrawals_enabled:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="🚫 Išėmimai laikinai sustabdyti\n\n"
+                     "Administratoriai laikinai išjungė išėmimus.\n"
+                     "Bandykite vėliau arba susisiekite su palaikymu."
+            )
+            context.user_data.pop('expecting_withdrawal_details', None)
+            return True
+        
         try:
             parts = update.message.text.strip().split()
             if len(parts) < 2:
@@ -715,6 +759,7 @@ __all__ = [
     'balance_command',
     'add_balance_command',
     'remove_balance_command',
+    'toggle_withdrawals_command',
     'handle_payment_callback',
     'handle_withdrawal_text'
 ]

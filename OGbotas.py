@@ -191,6 +191,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "**Admin Commands:**\n"
         "• `/addbalance @user amount` - Add funds\n"
         "• `/removebalance @user amount` - Remove funds\n"
+        "• `/togglewithdrawals` - Enable/disable withdrawals\n"
         "• `/updatevoting` - Update voting buttons\n\n"
         "**Note:** Admin permissions required for most commands.",
         parse_mode='Markdown'
@@ -793,6 +794,7 @@ def create_application():
     application.add_handler(CommandHandler("setbalance", payments.setbalance_command))
     application.add_handler(CommandHandler("addbalance", payments.add_balance_command))
     application.add_handler(CommandHandler("removebalance", payments.remove_balance_command))
+    application.add_handler(CommandHandler("togglewithdrawals", payments.toggle_withdrawals_command))
 
     # Voting commands (PRESERVED from old bot - keeps 3 months of data!)
     application.add_handler(CommandHandler("balsuoti", voting.balsuoti_command))
