@@ -313,28 +313,28 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         if data == f"{game_type}_mode_guide":
             guide_text = {
                 'dice': (
-                    "🎲 **Normalus**: Metimas vienu kauliuku, aukštesnis skaičius laimi raundą.\n\n"
-                    "🎲 **Dvigubas**: Du metimai, didesnė suma laimi raundą.\n\n"
-                    "🎲 **Beprotiškas**: Vienas metimas, mažesnis skaičius laimi (apversta: 6=1, 1=6)."
+                    "🎲 Normalus: Metimas vienu kauliuku, aukštesnis skaičius laimi raundą.\n\n"
+                    "🎲 Dvigubas: Du metimai, didesnė suma laimi raundą.\n\n"
+                    "🎲 Beprotiškas: Vienas metimas, mažesnis skaičius laimi (apversta: 6=1, 1=6)."
                 ),
                 'basketball': (
-                    "🏀 **Normalus**: Vienas metimas, aukštesnis skaičius (≥4) laimi raundą.\n\n"
-                    "🏀 **Dvigubas**: Du metimai, didesnė sėkmingų metimų (≥4) suma laimi.\n\n"
-                    "🏀 **Beprotiškas**: Vienas metimas, tik 1 taškas skaičiuojasi."
+                    "🏀 Normalus: Vienas metimas, aukštesnis skaičius (≥4) laimi raundą.\n\n"
+                    "🏀 Dvigubas: Du metimai, didesnė sėkmingų metimų (≥4) suma laimi.\n\n"
+                    "🏀 Beprotiškas: Vienas metimas, tik 1 taškas skaičiuojasi."
                 ),
                 'football': (
-                    "⚽ **Normalus**: Vienas smūgis, aukštesnis skaičius (≥4) laimi raundą.\n\n"
-                    "⚽ **Dvigubas**: Du smūgiai, didesnė sėkmingų smūgių (≥4) suma laimi.\n\n"
-                    "⚽ **Beprotiškas**: Vienas smūgis, tik 1 taškas skaičiuojasi."
+                    "⚽ Normalus: Vienas smūgis, aukštesnis skaičius (≥4) laimi raundą.\n\n"
+                    "⚽ Dvigubas: Du smūgiai, didesnė sėkmingų smūgių (≥4) suma laimi.\n\n"
+                    "⚽ Beprotiškas: Vienas smūgis, tik 1 taškas skaičiuojasi."
                 ),
                 'bowling': (
-                    "🎳 **Normalus**: Vienas metimas, daugiau kėglių (≥4) laimi raundą.\n\n"
-                    "🎳 **Dvigubas**: Du metimai, didesnė sėkmingų metimų (≥4) suma laimi.\n\n"
-                    "🎳 **Beprotiškas**: Vienas metimas, tik 1 kėglis skaičiuojasi."
+                    "🎳 Normalus: Vienas metimas, daugiau kėglių (≥4) laimi raundą.\n\n"
+                    "🎳 Dvigubas: Du metimai, didesnė sėkmingų metimų (≥4) suma laimi.\n\n"
+                    "🎳 Beprotiškas: Vienas metimas, tik 1 kėglis skaičiuojasi."
                 )
             }
             keyboard = [[InlineKeyboardButton("🔙 Atgal", callback_data=f"{game_type}_back")]]
-            await query.edit_message_text(guide_text[game_type], reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+            await query.edit_message_text(guide_text[game_type], reply_markup=InlineKeyboardMarkup(keyboard))
             return
 
         # Back button
@@ -385,7 +385,7 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
                 [InlineKeyboardButton("✅ Confirm", callback_data=f"{game_type}_confirm_setup"),
                  InlineKeyboardButton("❌ Cancel", callback_data=f"{game_type}_cancel")]
             ]
-            await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+            await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard))
 
         # Confirm setup
         elif data == f"{game_type}_confirm_setup":
@@ -420,9 +420,9 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
             game_names = {'dice': 'Kauliukai', 'basketball': 'Krepšinis', 'football': 'Futbolas', 'bowling': 'Boulingas'}
             mode_names = {'Normal': 'Normalus', 'Double': 'Dvigubas', 'Crazy': 'Beprotiškas'}
             text = (
-                f"{emoji} {username} nori žaisti {game_names[game_type]}!\n\n"
+                f"{emoji} {username} nori žaisti {game_names[game_type]}\n\n"
                 f"💰 Statymas: ${bet:.2f}\n"
-                f"📈 Laimėjimo koef.: 1.90x (po 10% mokesčio)\n"
+                f"📈 Koeficientas: 1.90x\n"
                 f"🎯 Režimas: Iki {points} tšk\n\n"
                 f"⚙️ {mode_names.get(mode, mode)}: {mode_descriptions[game_type][context.user_data[f'{game_type}_mode']]}"
             )
@@ -614,10 +614,10 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         }
         
         text = (
-            f"{emoji} **Žaidimas prasideda!**\n\n"
+            f"{emoji} Žaidimas prasideda!\n\n"
             f"👤 Žaidėjas 1: @{player1_username}\n"
             f"👤 Žaidėjas 2: @{player2_username}\n\n"
-            f"**1 raundas:** @{player1_username}, tavo eilė!"
+            f"1 raundas: @{player1_username}, tavo eilė!"
         )
         keyboard = [[InlineKeyboardButton(action_text[game_type], callback_data=f"{callback_prefix[game_type]}_1")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -767,11 +767,11 @@ async def evaluate_round(game, chat_id, game_key, context, game_type):
     mode_names = {'normal': 'Normalus', 'double': 'Dvigubas', 'crazy': 'Beprotiškas'}
     # Round results
     text = (
-        f"{emoji} **Raundo rezultatai**\n\n"
+        f"{emoji} Raundo rezultatai\n\n"
         f"⚙️ Režimas: {mode_names.get(mode, mode)}\n"
-        f"🎲 @{player1_username}: {rolls1} → **{score1}**\n"
-        f"🎲 @{player2_username}: {rolls2} → **{score2}**\n\n"
-        f"📊 **Rezultatai:**\n"
+        f"🎲 @{player1_username}: {rolls1} → {score1}\n"
+        f"🎲 @{player2_username}: {rolls2} → {score2}\n\n"
+        f"📊 Rezultatai:\n"
         f"@{player1_username}: {game['scores']['player1']}\n"
         f"@{player2_username}: {game['scores']['player2']}"
     )
@@ -801,16 +801,15 @@ async def evaluate_round(game, chat_id, game_key, context, game_type):
         winner_username = player1_username if winner == 'player1' else player2_username
         
         text = (
-            f"{emoji} **Galutiniai rezultatai**\n\n"
+            f"{emoji} Galutiniai rezultatai\n\n"
             f"⚙️ Režimas: {mode_names.get(mode, mode)}\n"
-            f"🎲 @{player1_username}: {rolls1} → **{score1}**\n"
-            f"🎲 @{player2_username}: {rolls2} → **{score2}**\n\n"
-            f"📊 **Baigiamasis rezultatas:**\n"
+            f"🎲 @{player1_username}: {rolls1} → {score1}\n"
+            f"🎲 @{player2_username}: {rolls2} → {score2}\n\n"
+            f"📊 Baigiamasis rezultatas:\n"
             f"@{player1_username}: {game['scores']['player1']}\n"
             f"@{player2_username}: {game['scores']['player2']}\n\n"
-            f"🏆 **Žaidimas baigtas!**\n"
-            f"🎉 @{winner_username} laimi **${net_prize:.2f}**!\n"
-            f"_Mokestis (10%): ${house_cut:.2f}_"
+            f"🏆 Žaidimas baigtas!\n"
+            f"🎉 @{winner_username} laimi ${net_prize:.2f}!"
         )
         
         player1_balance = get_user_balance(game['player1'])
@@ -853,7 +852,7 @@ async def evaluate_round(game, chat_id, game_key, context, game_type):
             'bowling': 'bowling_bowl'
         }
         
-        text += f"\n\n**{game['round_number']} raundas:** @{player1_username}, tavo eilė!"
+        text += f"\n\n{game['round_number']} raundas: @{player1_username}, tavo eilė!"
         keyboard = [[InlineKeyboardButton(action_text[game_type], callback_data=f"{callback_prefix[game_type]}_{game['round_number']}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         message = await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
@@ -951,9 +950,9 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
         points = context.user_data[f'{game_type}_points']
         
         text = (
-            f"{emoji} **{initiator_username}** išsūkis **@{username}** žaidimui **{game_names[game_type]}**!\n\n"
+            f"{emoji} {initiator_username} iššaukia @{username} - {game_names[game_type]}\n\n"
             f"💰 Statymas: ${setup['bet']:.2f}\n"
-            f"📈 Laimėjimo koef.: 1.90x\n"
+            f"📈 Koeficientas: 1.90x\n"
             f"⚙️ Režimas: {mode_names.get(mode, mode)}\n"
             f"🎯 Iki {points} tšk\n\n"
             f"@{username}, ar priimi?"
