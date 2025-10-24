@@ -11,7 +11,7 @@ from datetime import datetime, time
 from typing import Optional, Dict, Any
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from database import database
@@ -35,9 +35,9 @@ def init_scheduler():
     
     with _scheduler_lock:
         if scheduler is None:
-            scheduler = AsyncIOScheduler(timezone=pytz.UTC)
+            scheduler = BackgroundScheduler(timezone=pytz.UTC)
             scheduler.start()
-            logger.info("Recurring messages scheduler initialized")
+            logger.info("✅ Recurring messages scheduler initialized (BackgroundScheduler)")
 
 def set_bot_instance(bot):
     """Store bot instance for scheduler jobs"""
