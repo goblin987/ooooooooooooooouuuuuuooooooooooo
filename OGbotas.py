@@ -857,6 +857,49 @@ def create_application():
     
     application.add_handler(CommandHandler("reloadjobs", reload_scheduler_jobs))
     
+    # Fix broken recurring messages in database (owner only)
+    async def fix_recurring_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Fix recurring messages that have is_active = 0 or NULL"""
+        if update.effective_user.id != OWNER_ID:
+            return
+        
+        await update.message.reply_text("🔧 Fixing recurring messages in database...")
+        
+        try:
+            import database as db
+            conn = db.database.get_sync_connection()
+            
+            # Find messages with status='active' but is_active != 1
+            cursor = conn.execute('''
+                SELECT id, chat_id, message_text FROM scheduled_messages 
+                WHERE status = 'active' AND (is_active IS NULL OR is_active != 1)
+            ''')
+            broken_messages = cursor.fetchall()
+            
+            if not broken_messages:
+                await update.message.reply_text("✅ No broken messages found! All messages are properly configured.")
+                conn.close()
+                return
+            
+            # Fix them
+            fixed_count = 0
+            for msg_id, chat_id, text in broken_messages:
+                conn.execute('UPDATE scheduled_messages SET is_active = 1 WHERE id = ?', (msg_id,))
+                fixed_count += 1
+            
+            conn.commit()
+            conn.close()
+            
+            text = f"✅ Fixed {fixed_count} recurring messages!\n\n"
+            text += "Now run /reloadjobs to reload them into the scheduler."
+            
+            await update.message.reply_text(text)
+            
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error: {e}")
+    
+    application.add_handler(CommandHandler("fixrecurring", fix_recurring_messages))
+    
     # Voting commands (PRESERVED from old bot - keeps 3 months of data!)
     application.add_handler(CommandHandler("balsuoti", voting.balsuoti_command))
     application.add_handler(CommandHandler("barygos", voting.barygos_command))  # Scoreboard leaderboard

@@ -1974,8 +1974,8 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 INSERT INTO scheduled_messages (
                     chat_id, message_text, message_media, message_buttons, message_type, 
                     repetition_type, interval_hours, pin_message, delete_last_message, 
-                    status, created_by, created_by_username
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    status, is_active, created_by, created_by_username
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 chat_id,
                 msg_config.get('text', ''),
@@ -1987,12 +1987,28 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 msg_config.get('pin_message', False),
                 msg_config.get('delete_last', False),
                 'active',
+                1,  # is_active = 1
                 user.id,
                 user.username or user.first_name
             ))
             message_id = cursor.lastrowid
+            logger.info(f"✅ Saved recurring message to database: message_id={message_id}, status=active, is_active=1")
         
         conn.commit()
+        
+        # Verify the message was saved with is_active = 1
+        cursor = conn.execute(
+            'SELECT status, is_active FROM scheduled_messages WHERE id = ?',
+            (message_id,)
+        )
+        verify_result = cursor.fetchone()
+        if verify_result:
+            status, is_active = verify_result
+            logger.info(f"🔍 Verified database save: status={status}, is_active={is_active}")
+            if status != 'active' or is_active != 1:
+                logger.error(f"❌ CRITICAL: Message saved with wrong status! status={status}, is_active={is_active}")
+        else:
+            logger.error(f"❌ CRITICAL: Could not find saved message {message_id} in database!")
         
         # Create APScheduler job(s)
         init_scheduler()  # Ensure scheduler is initialized
