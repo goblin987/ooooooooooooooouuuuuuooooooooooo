@@ -287,10 +287,8 @@ async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """
     if not context.args or len(context.args) < 2:
         await update.message.reply_text(
-            "❌ **Usage:** `/vagis @username reason`\n\n"
-            "**Example:** `/vagis @baduser Didn't send item after payment`\n\n"
-            "Report a user as a scammer. Your report will be reviewed by admins.",
-            parse_mode='Markdown'
+            "❌ Naudojimas: /vagis @username priežastis\n\n"
+            "Pavyzdys: /vagis @vagis Neišsiuntė prekės po apmokėjimo"
         )
         return
     
@@ -326,24 +324,19 @@ async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         total_reports = len(confirmed_scammers[username]['reports'])
         
         await update.message.reply_text(
-            f"✅ **REPORT ADDED (AUTO-APPROVED)**\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"**Reported User:** @{username}\n"
-            f"**Your Reason:** {reason}\n\n"
-            f"⚠️ This user is already confirmed as a scammer.\n"
-            f"Your report has been automatically added to their record.\n\n"
-            f"**Total Reports:** {total_reports}",
-            parse_mode='Markdown'
+            f"✅ Pranešimas pridėtas\n\n"
+            f"@{username} jau patvirtintas kaip vagis.\n"
+            f"Bendrai pranešimų: {total_reports}"
         )
         
         # Notify admin
         try:
             await context.bot.send_message(
                 chat_id=ADMIN_CHAT_ID,
-                text=f"📊 **AUTO-APPROVED REPORT**\n\n"
-                     f"@{reporter_username} reported @{username} (already confirmed scammer)\n\n"
-                     f"**Reason:** {reason}\n"
-                     f"**Total Reports:** {total_reports}",
+                text=f"📊 AUTO-PATVIRTINTAS PRANEŠIMAS\n\n"
+                     f"@{reporter_username} pranešė apie @{username}\n"
+                     f"Priežastis: {reason}\n"
+                     f"Bendrai pranešimų: {total_reports}",
                 parse_mode='Markdown'
             )
         except Exception as e:
@@ -368,37 +361,31 @@ async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     data_manager.save_data(pending_scammer_reports, 'pending_scammer_reports.pkl')
     
     await update.message.reply_text(
-        f"📝 **REPORT SUBMITTED**\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"**Reported User:** @{username}\n"
-        f"**Your Reason:** {reason}\n\n"
-        f"✅ Your report has been submitted to admins for review.\n"
-        f"You will be notified when a decision is made.\n\n"
-        f"**Report ID:** `{report_id}`",
-        parse_mode='Markdown'
+        f"✅ Pranešimas išsiųstas\n\n"
+        f"Vartotojas: @{username}\n"
+        f"Priežastis: {reason}\n\n"
+        f"Administratoriai peržiūrės ir praneš apie sprendimą."
     )
     
     # Notify admin with review buttons
     try:
         keyboard = [
-            [InlineKeyboardButton("✅ Confirm Scammer", callback_data=f"claim_confirm_{report_id}")],
-            [InlineKeyboardButton("❌ Dismiss Report", callback_data=f"claim_dismiss_{report_id}")],
-            [InlineKeyboardButton("🔍 View Details", callback_data=f"claim_review_{report_id}")]
+            [InlineKeyboardButton("✅ Patvirtinti vagį", callback_data=f"claim_confirm_{report_id}")],
+            [InlineKeyboardButton("❌ Atmesti pranešimą", callback_data=f"claim_dismiss_{report_id}")],
+            [InlineKeyboardButton("🔍 Peržiūrėti", callback_data=f"claim_review_{report_id}")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await context.bot.send_message(
             chat_id=ADMIN_CHAT_ID,
-            text=f"🚨 **NEW SCAMMER REPORT**\n"
+            text=f"🚨 NAUJAS PRANEŠIMAS APIE VAGĮ\n"
                  f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                 f"**Reported User:** @{username}\n"
-                 f"**Reported By:** @{reporter_username} ({reporter_name})\n"
-                 f"**Reason:** {reason}\n"
-                 f"**Time:** {report_data['timestamp']}\n\n"
-                 f"**Report ID:** `{report_id}`\n\n"
-                 f"**Action Required:** Review and approve/dismiss this report.",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
+                 f"Pranešė: @{reporter_username} ({reporter_name})\n"
+                 f"Apie: @{username}\n"
+                 f"Priežastis: {reason}\n"
+                 f"Laikas: {report_data['timestamp']}\n\n"
+                 f"ID: {report_id}",
+            reply_markup=reply_markup
         )
     except Exception as e:
         logger.error(f"Failed to notify admin about new scammer report: {e}")

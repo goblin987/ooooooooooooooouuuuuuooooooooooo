@@ -520,11 +520,12 @@ async def show_claim_detail(query, context: ContextTypes.DEFAULT_TYPE, report_id
 async def confirm_claim(query, context: ContextTypes.DEFAULT_TYPE, report_id: str) -> None:
     """Confirm a claim and add user to scammer list"""
     if report_id not in pending_scammer_reports:
-        await query.answer("❌ Report not found!")
+        await query.answer("❌ Pranešimas nerastas!")
         return
     
     report = pending_scammer_reports[report_id]
     username = report.get('reported_username')
+    reporter_id = report.get('reporter_id')
     
     # Add to confirmed scammers
     if username not in confirmed_scammers:
@@ -543,29 +544,39 @@ async def confirm_claim(query, context: ContextTypes.DEFAULT_TYPE, report_id: st
     data_manager.save_data(confirmed_scammers, 'confirmed_scammers.pkl')
     data_manager.save_data(pending_scammer_reports, 'pending_scammer_reports.pkl')
     
+    # Notify reporter about confirmation
+    try:
+        await context.bot.send_message(
+            chat_id=reporter_id,
+            text=f"✅ Jūsų pranešimas patvirtintas\n\n"
+                 f"@{username} pridėtas į vagių sąrašą."
+        )
+    except Exception as e:
+        logger.error(f"Failed to notify reporter {reporter_id}: {e}")
+    
     text = (
-        "✅ **CLAIM CONFIRMED**\n"
+        "✅ PRANEŠIMAS PATVIRTINTAS\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"User @{username} has been added to the scammer list.\n\n"
-        f"**Total Reports:** {len(confirmed_scammers[username]['reports'])}\n"
-        f"**Status:** Confirmed Scammer 🚫"
+        f"@{username} pridėtas į vagių sąrašą.\n\n"
+        f"Bendrai pranešimų: {len(confirmed_scammers[username]['reports'])}"
     )
     
-    keyboard = [[InlineKeyboardButton("🔙 Back to Claims", callback_data="admin_claims")]]
+    keyboard = [[InlineKeyboardButton("🔙 Atgal", callback_data="admin_claims")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-    await query.answer("✅ User added to scammer list!")
+    await query.edit_message_text(text, reply_markup=reply_markup)
+    await query.answer("✅ Vagis patvirtintas!")
 
 
 async def dismiss_claim(query, context: ContextTypes.DEFAULT_TYPE, report_id: str) -> None:
     """Dismiss a false report"""
     if report_id not in pending_scammer_reports:
-        await query.answer("❌ Report not found!")
+        await query.answer("❌ Pranešimas nerastas!")
         return
     
     report = pending_scammer_reports[report_id]
     username = report.get('reported_username')
+    reporter_id = report.get('reporter_id')
     
     # Remove from pending
     del pending_scammer_reports[report_id]
@@ -573,18 +584,28 @@ async def dismiss_claim(query, context: ContextTypes.DEFAULT_TYPE, report_id: st
     # Save data
     data_manager.save_data(pending_scammer_reports, 'pending_scammer_reports.pkl')
     
+    # Notify reporter about dismissal
+    try:
+        await context.bot.send_message(
+            chat_id=reporter_id,
+            text=f"❌ Jūsų pranešimas atmestas\n\n"
+                 f"Pranešimas apie @{username} atmestas dėl nepakankamų įrodymų."
+        )
+    except Exception as e:
+        logger.error(f"Failed to notify reporter {reporter_id}: {e}")
+    
     text = (
-        "❌ **CLAIM DISMISSED**\n"
+        "❌ PRANEŠIMAS ATMESTAS\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"Report against @{username} has been dismissed as false or insufficient evidence.\n\n"
-        f"**Remaining Pending Reports:** {len(pending_scammer_reports)}"
+        f"Pranešimas apie @{username} atmestas.\n\n"
+        f"Liko laukiančių: {len(pending_scammer_reports)}"
     )
     
-    keyboard = [[InlineKeyboardButton("🔙 Back to Claims", callback_data="admin_claims")]]
+    keyboard = [[InlineKeyboardButton("🔙 Atgal", callback_data="admin_claims")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-    await query.answer("❌ Report dismissed!")
+    await query.edit_message_text(text, reply_markup=reply_markup)
+    await query.answer("❌ Pranešimas atmestas!")
 
 
 # ============================================================================
