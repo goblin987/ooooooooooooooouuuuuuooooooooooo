@@ -571,30 +571,9 @@ def create_application():
     application.add_handler(CommandHandler("addbalance", payments.add_balance_command))
     application.add_handler(CommandHandler("removebalance", payments.remove_balance_command))
 
-    # Barygos banners command
-    from barygos_banners import generate_all as _gen_banners
-    async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        import os, random
-        paths = [f"barygos_{i}.png" for i in range(1,6)]
-        existing = [p for p in paths if os.path.exists(p)]
-        if not existing:
-            try:
-                _gen_banners()
-                existing = [p for p in paths if os.path.exists(p)]
-            except Exception:
-                existing = []
-        if not existing:
-            await update.message.reply_text("❌ Nerasta banerių ir nepavyko sugeneruoti.")
-            return
-        path = random.choice(existing)
-        with open(path, "rb") as img:
-            await context.bot.send_photo(chat_id=update.effective_chat.id, photo=img, caption="🔒 Apsisaugok • CRYPTO")
-
-    application.add_handler(CommandHandler("barygos", barygos_command))
-    
     # Voting commands (PRESERVED from old bot - keeps 3 months of data!)
     application.add_handler(CommandHandler("balsuoti", voting.balsuoti_command))
-    application.add_handler(CommandHandler("barygos", voting.barygos_command))
+    application.add_handler(CommandHandler("barygos", voting.barygos_command))  # Scoreboard leaderboard
     application.add_handler(CommandHandler("updatevoting", voting.updatevoting_command))
     application.add_handler(CommandHandler("resetvotes", voting.reset_voting_cooldowns_command))
     
