@@ -39,7 +39,7 @@ logging.basicConfig(
 # Reduce noise from external libraries (keep these at WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger('httpcore').setLevel(logging.WARNING)
-logging.getLogger('apscheduler').setLevel(logging.WARNING)
+logging.getLogger('apscheduler').setLevel(logging.INFO)  # Enable scheduler logging for debugging
 logging.getLogger('telegram').setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
@@ -775,6 +775,37 @@ def create_application():
     application.add_handler(CommandHandler("addbalance", payments.add_balance_command))
     application.add_handler(CommandHandler("removebalance", payments.remove_balance_command))
     application.add_handler(CommandHandler("togglewithdrawals", payments.toggle_withdrawals_command))
+    
+    # Debug command for scheduler status (owner only)
+    async def check_scheduler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Check scheduler status and list all jobs"""
+        if update.effective_user.id != OWNER_ID:
+            return
+        
+        from recurring_messages_grouphelp import scheduler
+        
+        if scheduler is None:
+            await update.message.reply_text("❌ Scheduler not initialized!")
+            return
+        
+        jobs = scheduler.get_jobs()
+        
+        if not jobs:
+            await update.message.reply_text("📋 No scheduled jobs found")
+            return
+        
+        text = f"📋 Scheduler Status\n\n"
+        text += f"Running: {scheduler.running}\n"
+        text += f"Jobs: {len(jobs)}\n\n"
+        
+        for job in jobs:
+            text += f"Job: {job.id}\n"
+            text += f"  Next run: {job.next_run_time}\n"
+            text += f"  Trigger: {job.trigger}\n\n"
+        
+        await update.message.reply_text(text)
+    
+    application.add_handler(CommandHandler("checkscheduler", check_scheduler))
 
     # Voting commands (PRESERVED from old bot - keeps 3 months of data!)
     application.add_handler(CommandHandler("balsuoti", voting.balsuoti_command))
