@@ -267,15 +267,45 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
     
-    # User is clean
-    await update.message.reply_text(
-        f"✅ PATIKIMAS\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"Vartotojas: @{username}\n"
-        f"Statusas: ✅ Pranešimų nėra\n\n"
-        f"Apie šį vartotoją pranešimų nėra.\n\n"
-        f"💡 Jei įtariate, kad tai vagis, naudokite: /vagis @{username} priežastis"
-    )
+    # User is clean - check if trusted seller
+    trusted_sellers = data_manager.load_data('trusted_sellers.pkl', {})
+    
+    # Check if user is trusted seller (handle both list and dict formats)
+    is_trusted = False
+    if isinstance(trusted_sellers, list):
+        is_trusted = username in trusted_sellers or f"@{username}" in trusted_sellers
+    elif isinstance(trusted_sellers, dict):
+        is_trusted = username in trusted_sellers or f"@{username}" in trusted_sellers
+    
+    if is_trusted:
+        # Load vote data
+        votes_weekly = data_manager.load_data('votes_weekly.pkl', {})
+        votes_alltime = data_manager.load_data('votes_alltime.pkl', {})
+        
+        # Get vote counts (check both with and without @)
+        weekly_votes = votes_weekly.get(username, 0) or votes_weekly.get(f"@{username}", 0)
+        alltime_votes = votes_alltime.get(username, 0) or votes_alltime.get(f"@{username}", 0)
+        
+        await update.message.reply_text(
+            f"⭐ PATIKIMAS PARDAVĖJAS\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Vartotojas: @{username}\n"
+            f"Statusas: ⭐ Patikimas pardavėjas\n\n"
+            f"📊 Balsai:\n"
+            f"• Šią savaitę: {weekly_votes}\n"
+            f"• Viso laiko: {alltime_votes}\n\n"
+            f"✅ Šis vartotojas yra patvirtintas patikimas pardavėjas.\n"
+            f"Pranešimų apie vagystes nėra."
+        )
+    else:
+        await update.message.reply_text(
+            f"✅ PATIKIMAS\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Vartotojas: @{username}\n"
+            f"Statusas: ✅ Pranešimų nėra\n\n"
+            f"Apie šį vartotoją pranešimų nėra.\n\n"
+            f"💡 Jei įtariate, kad tai vagis, naudokite: /vagis @{username} priežastis"
+        )
 
 async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
