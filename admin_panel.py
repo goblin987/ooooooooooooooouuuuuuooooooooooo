@@ -808,17 +808,28 @@ async def process_seller_add(update: Update, context: ContextTypes.DEFAULT_TYPE,
 
 async def process_seller_remove(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
     """Process removing trusted seller"""
-    username = text.lstrip('@').strip()
+    username = text.strip()
     
-    if username not in trusted_sellers:
-        await update.message.reply_text(f"❌ @{username} is not in the trusted sellers list!")
+    # Normalize: check both with and without @ symbol
+    username_with_at = username if username.startswith('@') else f'@{username}'
+    username_without_at = username.lstrip('@')
+    
+    # Find which format is used in the list
+    actual_username = None
+    if username_with_at in trusted_sellers:
+        actual_username = username_with_at
+    elif username_without_at in trusted_sellers:
+        actual_username = username_without_at
+    
+    if not actual_username:
+        await update.message.reply_text(f"❌ {username_with_at} is not in the trusted sellers list!")
         return
     
     # Remove (handle both list and dict)
     if isinstance(trusted_sellers, dict):
-        del trusted_sellers[username]
+        del trusted_sellers[actual_username]
     else:
-        trusted_sellers.remove(username)
+        trusted_sellers.remove(actual_username)
     
     # Save
     data_manager.save_data(trusted_sellers, 'trusted_sellers.pkl')
@@ -838,40 +849,66 @@ async def process_seller_rename(update: Update, context: ContextTypes.DEFAULT_TY
             await update.message.reply_text("❌ Invalid format. Use: `@old_username @new_username`", parse_mode='Markdown')
             return
         
-        old_username = parts[0].lstrip('@').strip()
-        new_username = parts[1].lstrip('@').strip()
+        old_input = parts[0].strip()
+        new_input = parts[1].strip()
         
-        if not old_username or not new_username:
-            await update.message.reply_text("❌ Both usernames are required!")
+        # Normalize: check both with and without @ symbol for old username
+        old_with_at = old_input if old_input.startswith('@') else f'@{old_input}'
+        old_without_at = old_input.lstrip('@')
+        
+        # Find which format is used in the list for old username
+        old_username = None
+        if old_with_at in trusted_sellers:
+            old_username = old_with_at
+        elif old_without_at in trusted_sellers:
+            old_username = old_without_at
+        
+        if not old_username:
+            await update.message.reply_text(f"❌ {old_with_at} is not in the trusted sellers list!")
             return
         
-        if old_username not in trusted_sellers:
-            await update.message.reply_text(f"❌ @{old_username} is not in the trusted sellers list!")
-            return
+        # Determine format for new username (match the format of the list)
+        # If old username has @, new username should have @ too
+        if old_username.startswith('@'):
+            new_username = new_input if new_input.startswith('@') else f'@{new_input}'
+        else:
+            new_username = new_input.lstrip('@')
         
-        if new_username in trusted_sellers and new_username != old_username:
-            await update.message.reply_text(f"❌ @{new_username} is already in the trusted sellers list!")
+        # Check if new username already exists
+        new_with_at = new_username if new_username.startswith('@') else f'@{new_username}'
+        new_without_at = new_username.lstrip('@')
+        
+        if (new_with_at in trusted_sellers or new_without_at in trusted_sellers) and new_username != old_username:
+            await update.message.reply_text(f"❌ {new_with_at} is already in the trusted sellers list!")
             return
         
         # Load voting data from voting.py
         import voting
         
-        # Transfer votes from old name to new name
+        # Transfer votes from old name to new name (check both formats)
         # Weekly votes
-        if old_username in voting.votes_weekly:
-            voting.votes_weekly[new_username] = voting.votes_weekly.pop(old_username, 0)
+        for old_format in [old_username, old_with_at, old_without_at]:
+            if old_format in voting.votes_weekly:
+                voting.votes_weekly[new_username] = voting.votes_weekly.pop(old_format, 0)
+                break
         
         # Monthly votes
-        if old_username in voting.votes_monthly:
-            voting.votes_monthly[new_username] = voting.votes_monthly.pop(old_username, [])
+        for old_format in [old_username, old_with_at, old_without_at]:
+            if old_format in voting.votes_monthly:
+                voting.votes_monthly[new_username] = voting.votes_monthly.pop(old_format, [])
+                break
         
         # All-time votes
-        if old_username in voting.votes_alltime:
-            voting.votes_alltime[new_username] = voting.votes_alltime.pop(old_username, 0)
+        for old_format in [old_username, old_with_at, old_without_at]:
+            if old_format in voting.votes_alltime:
+                voting.votes_alltime[new_username] = voting.votes_alltime.pop(old_format, 0)
+                break
         
         # Vote history
-        if old_username in voting.vote_history:
-            voting.vote_history[new_username] = voting.vote_history.pop(old_username, [])
+        for old_format in [old_username, old_with_at, old_without_at]:
+            if old_format in voting.vote_history:
+                voting.vote_history[new_username] = voting.vote_history.pop(old_format, [])
+                break
         
         # Update trusted sellers list (handle both list and dict)
         if isinstance(trusted_sellers, dict):
