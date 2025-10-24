@@ -926,20 +926,20 @@ async def process_seller_rename(update: Update, context: ContextTypes.DEFAULT_TY
                 if new_username not in trusted_sellers:
                     trusted_sellers.append(new_username)
         
-        # Save all changes
+        # Update voting.py's module-level trusted_sellers BEFORE saving
+        # (both admin_panel.py and voting.py need the same updated list)
+        voting.trusted_sellers = trusted_sellers
+        
+        # Save all changes (save once, not twice!)
         data_manager.save_data(voting.votes_weekly, 'votes_weekly.pkl')
         data_manager.save_data(voting.votes_monthly, 'votes_monthly.pkl')
         data_manager.save_data(voting.votes_alltime, 'votes_alltime.pkl')
         data_manager.save_data(voting.vote_history, 'vote_history.pkl')
-        data_manager.save_data(trusted_sellers, 'trusted_sellers.pkl')
-        data_manager.save_data(voting.trusted_sellers, 'trusted_sellers.pkl')  # voting.py also has this
+        data_manager.save_data(trusted_sellers, 'trusted_sellers.pkl')  # Save updated list
         
         # Get vote counts for confirmation
         weekly_votes = voting.votes_weekly.get(new_username, 0)
         alltime_votes = voting.votes_alltime.get(new_username, 0)
-        
-        # Reload trusted_sellers in voting.py (it's imported at module level)
-        voting.trusted_sellers = data_manager.load_data('trusted_sellers.pkl', [])
         
         # Automatically update voting buttons
         try:
