@@ -379,7 +379,7 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
                 f"First to {points} points\n"
                 f"Mode: {mode} Mode\n"
                 f"Your bet: ${bet:.2f}\n"
-                f"Win multiplier: 1.824x (after 5% house fee)"
+                f"Win multiplier: 1.90x (after 10% house fee)"
             )
             keyboard = [
                 [InlineKeyboardButton("✅ Confirm", callback_data=f"{game_type}_confirm_setup"),
@@ -422,7 +422,7 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
             text = (
                 f"{emoji} {username} nori žaisti {game_names[game_type]}!\n\n"
                 f"💰 Statymas: ${bet:.2f}\n"
-                f"📈 Laimėjimo koef.: 1.824x (po 5% mokesčio)\n"
+                f"📈 Laimėjimo koef.: 1.90x (po 10% mokesčio)\n"
                 f"🎯 Režimas: Iki {points} tšk\n\n"
                 f"⚙️ {mode_names.get(mode, mode)}: {mode_descriptions[game_type][context.user_data[f'{game_type}_mode']]}"
             )
@@ -788,10 +788,10 @@ async def evaluate_round(game, chat_id, game_key, context, game_type):
         winner = 'player1' if game['scores']['player1'] > game['scores']['player2'] else 'player2'
         winner_id = game[winner]
         
-        # Calculate winnings with 5% house edge
-        gross_prize = game['bet'] * 1.92
-        house_cut = gross_prize * 0.05  # 5% house edge
-        net_prize = gross_prize - house_cut
+        # Calculate winnings with 10% house edge
+        gross_prize = game['bet'] * 2.0  # Total pot (both players' bets)
+        house_cut = gross_prize * 0.10  # 10% house edge
+        net_prize = gross_prize - house_cut  # Winner gets 1.90x their bet
         
         # Convert to Decimal to avoid type mismatch
         from decimal import Decimal
@@ -810,7 +810,7 @@ async def evaluate_round(game, chat_id, game_key, context, game_type):
             f"@{player2_username}: {game['scores']['player2']}\n\n"
             f"🏆 **Žaidimas baigtas!**\n"
             f"🎉 @{winner_username} laimi **${net_prize:.2f}**!\n"
-            f"_Mokestis (5%): ${house_cut:.2f}_"
+            f"_Mokestis (10%): ${house_cut:.2f}_"
         )
         
         player1_balance = get_user_balance(game['player1'])
@@ -953,7 +953,7 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
         text = (
             f"{emoji} **{initiator_username}** išsūkis **@{username}** žaidimui **{game_names[game_type]}**!\n\n"
             f"💰 Statymas: ${setup['bet']:.2f}\n"
-            f"📈 Laimėjimo koef.: 1.92x\n"
+            f"📈 Laimėjimo koef.: 1.90x\n"
             f"⚙️ Režimas: {mode_names.get(mode, mode)}\n"
             f"🎯 Iki {points} tšk\n\n"
             f"@{username}, ar priimi?"
