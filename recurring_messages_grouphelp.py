@@ -2124,7 +2124,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
         # Send the message immediately (first time)
         try:
             logger.info(f"🚀 Attempting to send initial recurring message: chat_id={chat_id}, message_id={message_id}")
-            await send_recurring_message(chat_id, message_id)
+            await _send_recurring_message_async(chat_id, message_id)
             logger.info(f"✅ Successfully sent initial recurring message for chat {chat_id}, message_id {message_id}")
         except Exception as e:
             logger.error(f"❌ Error sending initial recurring message: {e}", exc_info=True)
