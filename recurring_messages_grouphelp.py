@@ -20,9 +20,10 @@ from config import VOTING_GROUP_CHAT_ID
 
 logger = logging.getLogger(__name__)
 
-# Global scheduler
+# Global scheduler and bot instance
 scheduler = None
 _scheduler_lock = None
+_bot_instance = None
 
 def init_scheduler():
     """Initialize scheduler (thread-safe)"""
@@ -37,6 +38,12 @@ def init_scheduler():
             scheduler = AsyncIOScheduler(timezone=pytz.UTC)
             scheduler.start()
             logger.info("Recurring messages scheduler initialized")
+
+def set_bot_instance(bot):
+    """Store bot instance for scheduler jobs"""
+    global _bot_instance
+    _bot_instance = bot
+    logger.info("Bot instance stored for recurring messages")
 
 
 # ============================================================================
@@ -1492,7 +1499,7 @@ async def resume_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: 
                 scheduler.add_job(
                     send_recurring_message,
                     trigger=trigger,
-                    args=[context.bot, query.message.chat_id, message_id],
+                    args=[query.message.chat_id, message_id],
                     id=job_id,
                     replace_existing=True
                 )
@@ -1675,11 +1682,19 @@ async def edit_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: in
 # CORE FUNCTIONALITY - SEND RECURRING MESSAGE
 # ============================================================================
 
-async def send_recurring_message(bot, chat_id: int, message_id: int):
+async def send_recurring_message(chat_id: int, message_id: int):
     """
     BROADCAST recurring message to ALL groups (except voting group)
     Simple version - supports text, media, buttons (NO pin/delete for broadcasts)
+    Uses global bot instance stored via set_bot_instance()
     """
+    global _bot_instance
+    
+    if _bot_instance is None:
+        logger.error(f"❌ CRITICAL: Bot instance not set! Cannot send recurring message {message_id}")
+        return
+    
+    bot = _bot_instance
     conn = None
     try:
         logger.info(f"📤 send_recurring_message called: message_id={message_id} (BROADCAST MODE)")
@@ -2011,6 +2026,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"❌ CRITICAL: Could not find saved message {message_id} in database!")
         
         # Create APScheduler job(s)
+        set_bot_instance(context.bot)  # Store bot instance for jobs
         init_scheduler()  # Ensure scheduler is initialized
         
         if repetition_type == 'multiple_times' and msg_config.get('multiple_times'):
@@ -2030,7 +2046,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 scheduler.add_job(
                     send_recurring_message,
                     trigger=trigger,
-                    args=[context.bot, chat_id, message_id],
+                    args=[chat_id, message_id],
                     id=job_id,
                     replace_existing=True
                 )
@@ -2050,7 +2066,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
             scheduler.add_job(
                 send_recurring_message,
                 trigger=trigger,
-                args=[context.bot, chat_id, message_id],
+                args=[chat_id, message_id],
                 id=job_id,
                 replace_existing=True,
                 misfire_grace_time=3600  # 1 hour grace time for misfires
@@ -2080,7 +2096,7 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
         # Send the message immediately (first time)
         try:
             logger.info(f"🚀 Attempting to send initial recurring message: chat_id={chat_id}, message_id={message_id}")
-            await send_recurring_message(context.bot, chat_id, message_id)
+            await send_recurring_message(chat_id, message_id)
             logger.info(f"✅ Successfully sent initial recurring message for chat {chat_id}, message_id {message_id}")
         except Exception as e:
             logger.error(f"❌ Error sending initial recurring message: {e}", exc_info=True)
@@ -2154,6 +2170,10 @@ def load_scheduled_jobs_from_db(bot):
     """
     try:
         logger.info("🔄 Starting to load scheduled jobs from database...")
+        
+        # Store bot instance globally for scheduler jobs
+        set_bot_instance(bot)
+        
         init_scheduler()
         
         # Verify scheduler is running
@@ -2210,7 +2230,7 @@ def load_scheduled_jobs_from_db(bot):
                 scheduler.add_job(
                     send_recurring_message,
                     trigger=trigger,
-                    args=[bot, chat_id, msg_id],
+                    args=[chat_id, msg_id],
                     id=job_id,
                     replace_existing=True,
                     misfire_grace_time=3600  # 1 hour grace time for misfires
@@ -2249,6 +2269,7 @@ def load_scheduled_jobs_from_db(bot):
 # Export functions
 __all__ = [
     'init_scheduler',
+    'set_bot_instance',
     'show_main_menu',
     'handle_callback',
     'handle_text_input',
