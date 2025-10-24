@@ -244,10 +244,16 @@ async def show_sellers_menu(query, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"**Current Trusted Sellers:** {len(trusted_sellers)}\n\n"
     )
     
-    # Show list of trusted sellers
+    # Show list of trusted sellers (handle both list and dict formats)
     if trusted_sellers:
         text += "**Current List:**\n"
-        for username in list(trusted_sellers.keys())[:5]:
+        # Handle both list and dict formats
+        if isinstance(trusted_sellers, dict):
+            seller_list = list(trusted_sellers.keys())[:5]
+        else:
+            seller_list = list(trusted_sellers)[:5]
+        
+        for username in seller_list:
             text += f"✅ @{username}\n"
         
         if len(trusted_sellers) > 5:
@@ -326,10 +332,19 @@ async def show_all_sellers(query, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     
     if trusted_sellers:
-        for username, data in trusted_sellers.items():
-            added_date = data.get('added_date', 'Unknown')
-            text += f"✅ @{username}\n"
-            text += f"   Added: {added_date}\n\n"
+        # Handle both list and dict formats
+        if isinstance(trusted_sellers, dict):
+            for username, data in trusted_sellers.items():
+                if isinstance(data, dict):
+                    added_date = data.get('added_date', 'Unknown')
+                else:
+                    added_date = 'Unknown'
+                text += f"✅ @{username}\n"
+                text += f"   Added: {added_date}\n\n"
+        else:
+            # It's a list
+            for username in trusted_sellers:
+                text += f"✅ @{username}\n\n"
     else:
         text += "_No trusted sellers in the system._\n"
     
@@ -772,11 +787,14 @@ async def process_seller_add(update: Update, context: ContextTypes.DEFAULT_TYPE,
         await update.message.reply_text(f"ℹ️ @{username} is already a trusted seller!")
         return
     
-    # Add to trusted sellers
-    trusted_sellers[username] = {
-        'added_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'added_by': update.effective_user.username or str(update.effective_user.id)
-    }
+    # Add to trusted sellers (handle both list and dict)
+    if isinstance(trusted_sellers, dict):
+        trusted_sellers[username] = {
+            'added_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'added_by': update.effective_user.username or str(update.effective_user.id)
+        }
+    else:
+        trusted_sellers.append(username)
     
     # Save
     data_manager.save_data(trusted_sellers, 'trusted_sellers.pkl')
@@ -796,8 +814,11 @@ async def process_seller_remove(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text(f"❌ @{username} is not in the trusted sellers list!")
         return
     
-    # Remove
-    del trusted_sellers[username]
+    # Remove (handle both list and dict)
+    if isinstance(trusted_sellers, dict):
+        del trusted_sellers[username]
+    else:
+        trusted_sellers.remove(username)
     
     # Save
     data_manager.save_data(trusted_sellers, 'trusted_sellers.pkl')
@@ -852,14 +873,21 @@ async def process_seller_rename(update: Update, context: ContextTypes.DEFAULT_TY
         if old_username in voting.vote_history:
             voting.vote_history[new_username] = voting.vote_history.pop(old_username, [])
         
-        # Update trusted sellers list
-        if old_username in trusted_sellers:
-            seller_data = trusted_sellers.pop(old_username, None)
-            if seller_data:
-                trusted_sellers[new_username] = seller_data
-            else:
-                # It was a simple list, just add the new username
-                trusted_sellers[new_username] = {"added_date": datetime.now().strftime("%Y-%m-%d")}
+        # Update trusted sellers list (handle both list and dict)
+        if isinstance(trusted_sellers, dict):
+            # It's a dict
+            if old_username in trusted_sellers:
+                seller_data = trusted_sellers.pop(old_username, None)
+                if isinstance(seller_data, dict):
+                    trusted_sellers[new_username] = seller_data
+                else:
+                    trusted_sellers[new_username] = {"added_date": datetime.now().strftime("%Y-%m-%d")}
+        else:
+            # It's a list - convert to dict with new username
+            if old_username in trusted_sellers:
+                trusted_sellers.remove(old_username)
+                if new_username not in trusted_sellers:
+                    trusted_sellers.append(new_username)
         
         # Save all changes
         data_manager.save_data(voting.votes_weekly, 'votes_weekly.pkl')
