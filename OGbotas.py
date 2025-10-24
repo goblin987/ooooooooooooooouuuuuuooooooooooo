@@ -231,16 +231,15 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             first_reason = scammer_data['reports'][0].get('reason', 'N/A')
         
         await update.message.reply_text(
-            f"🚫 **SCAMMER CONFIRMED**\n"
+            f"🚫 PATVIRTINTAS VAGIS\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"**User:** @{username}\n"
-            f"**Status:** ⛔️ Confirmed Scammer\n"
-            f"**Reports:** {reports_count}\n"
-            f"**Confirmed Date:** {confirmed_date}\n\n"
-            f"**First Report Reason:**\n{first_reason}\n\n"
-            f"⚠️ **WARNING:** This user has been reported and confirmed as a scammer. "
-            f"Exercise extreme caution when dealing with them!",
-            parse_mode='Markdown'
+            f"Vartotojas: @{username}\n"
+            f"Statusas: ⛔️ Patvirtintas vagis\n"
+            f"Pranešimų: {reports_count}\n"
+            f"Patvirtinta: {confirmed_date}\n\n"
+            f"Pirmas pranešimas:\n{first_reason}\n\n"
+            f"⚠️ DĖMESIO: Šis vartotojas patvirtintas kaip vagis. "
+            f"Būkite ypač atsargūs su juo bendraudami!"
         )
         return
     
@@ -254,30 +253,28 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     if pending_count > 0:
         reasons_text = "\n• ".join(pending_reasons[:3])  # Show max 3 reasons
-        more_text = f"\n...and {pending_count - 3} more" if pending_count > 3 else ""
+        more_text = f"\n...dar {pending_count - 3}" if pending_count > 3 else ""
         
         await update.message.reply_text(
-            f"⚠️ **PENDING INVESTIGATION**\n"
+            f"⚠️ TIKRINAMA\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"**User:** @{username}\n"
-            f"**Status:** 🔍 Under Investigation\n"
-            f"**Pending Reports:** {pending_count}\n\n"
-            f"**Reported Reasons:**\n• {reasons_text}{more_text}\n\n"
-            f"⚠️ This user has been reported but not yet confirmed. "
-            f"Proceed with caution!",
-            parse_mode='Markdown'
+            f"Vartotojas: @{username}\n"
+            f"Statusas: 🔍 Tikrinama\n"
+            f"Laukiančių pranešimų: {pending_count}\n\n"
+            f"Priežastys:\n• {reasons_text}{more_text}\n\n"
+            f"⚠️ Šis vartotojas praneštas, bet dar nepatvirtintas. "
+            f"Būkite atsargūs!"
         )
         return
     
     # User is clean
     await update.message.reply_text(
-        f"✅ **USER IS LEGIT**\n"
+        f"✅ PATIKIMAS\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"**User:** @{username}\n"
-        f"**Status:** ✅ No Reports Found\n\n"
-        f"This user has no scammer reports.\n\n"
-        f"💡 If you suspect this user is a scammer, use `/vagis @{username} reason` to report them.",
-        parse_mode='Markdown'
+        f"Vartotojas: @{username}\n"
+        f"Statusas: ✅ Pranešimų nėra\n\n"
+        f"Apie šį vartotoją pranešimų nėra.\n\n"
+        f"💡 Jei įtariate, kad tai vagis, naudokite: /vagis @{username} priežastis"
     )
 
 async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -304,6 +301,26 @@ async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Load latest data
     confirmed_scammers = data_manager.load_data('confirmed_scammers.pkl', {})
     pending_scammer_reports = data_manager.load_data('pending_scammer_reports.pkl', {})
+    
+    # CHECK FOR DUPLICATE REPORT: Has this user already reported this person?
+    # Check in confirmed scammers
+    if username in confirmed_scammers:
+        for existing_report in confirmed_scammers[username].get('reports', []):
+            if existing_report.get('reporter_id') == reporter_id:
+                await update.message.reply_text(
+                    f"⚠️ Jūs jau pranešėte apie @{username}\n\n"
+                    f"Kiekvienas vartotojas gali pranešti tik vieną kartą."
+                )
+                return
+    
+    # Check in pending reports
+    for report in pending_scammer_reports.values():
+        if report.get('reported_username') == username and report.get('reporter_id') == reporter_id:
+            await update.message.reply_text(
+                f"⚠️ Jūs jau pranešėte apie @{username}\n\n"
+                f"Jūsų pranešimas dar laukia administratorių peržiūros."
+            )
+            return
     
     # Check if user is already a confirmed scammer
     if username in confirmed_scammers:

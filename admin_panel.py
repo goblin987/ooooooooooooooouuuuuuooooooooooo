@@ -410,12 +410,13 @@ async def scammer_add_start(query, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def scammer_remove_start(query, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start process to remove scammer"""
     text = (
-        "➖ **REMOVE FROM SCAMMER LIST**\n"
+        "➖ PAŠALINTI IŠ VAGIŲ SĄRAŠO\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "Please send the username to remove:\n"
+        "Įveskite vartotojo vardą:\n"
         "`@username`\n\n"
-        "**Warning:** This will remove all reports for this user.\n\n"
-        "Or reply with /cancel to go back."
+        "⚠️ **DĖMESIO:** Tai pašalins visus pranešimus apie šį vartotoją.\n"
+        "Naudokite tik jei vartotojas buvo klaidingai pažymėtas.\n\n"
+        "Arba atsakykite /cancel kad grįžti."
     )
     
     context.user_data['admin_action'] = 'scammer_remove'
@@ -1026,8 +1027,11 @@ async def process_scammer_remove(update: Update, context: ContextTypes.DEFAULT_T
     username = text.lstrip('@').strip()
     
     if username not in confirmed_scammers:
-        await update.message.reply_text(f"❌ @{username} is not in the scammer list!")
+        await update.message.reply_text(f"❌ @{username} nėra vagių sąraše!")
         return
+    
+    # Get report count before removing
+    reports_count = len(confirmed_scammers[username].get('reports', []))
     
     # Remove
     del confirmed_scammers[username]
@@ -1036,10 +1040,9 @@ async def process_scammer_remove(update: Update, context: ContextTypes.DEFAULT_T
     data_manager.save_data(confirmed_scammers, 'confirmed_scammers.pkl')
     
     await update.message.reply_text(
-        f"✅ **Removed from Scammer List!**\n\n"
-        f"@{username} has been removed from the scammer list.\n"
-        f"All reports have been cleared.",
-        parse_mode='Markdown'
+        f"✅ Pašalinta iš vagių sąrašo\n\n"
+        f"@{username} pašalintas iš vagių sąrašo.\n"
+        f"Visi pranešimai ({reports_count}) ištrinti."
     )
 
 
