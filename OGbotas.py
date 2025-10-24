@@ -398,6 +398,8 @@ async def handle_admin_callback(update: Update, context: ContextTypes.DEFAULT_TY
         await admin_panel.seller_add_start(query, context)
     elif data == "seller_remove":
         await admin_panel.seller_remove_start(query, context)
+    elif data == "seller_rename":
+        await admin_panel.seller_rename_start(query, context)
     elif data == "seller_list":
         await admin_panel.show_all_sellers(query, context)
     

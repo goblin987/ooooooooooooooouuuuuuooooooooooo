@@ -128,7 +128,21 @@ def get_admin_stats() -> Dict[str, int]:
 # ============================================================================
 
 async def show_points_menu(query, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show points management menu"""
+    """Show points management menu - reads LIVE data from database"""
+    # Get live stats from database (not cached pickle)
+    try:
+        conn = database.get_sync_connection()
+        cursor = conn.execute("SELECT COUNT(*), SUM(points) FROM users WHERE points > 0")
+        result = cursor.fetchone()
+        conn.close()
+        
+        users_with_points = result[0] if result[0] else 0
+        total_points = result[1] if result[1] else 0
+    except Exception as e:
+        logger.error(f"Error getting points stats: {e}")
+        users_with_points = 0
+        total_points = 0
+    
     text = (
         "💰 **POINTS MANAGEMENT**\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -136,7 +150,7 @@ async def show_points_menu(query, context: ContextTypes.DEFAULT_TYPE) -> None:
         "**Total Points Distributed:** {}\n"
         "**Users with Points:** {}\n\n"
         "**Select an action:**"
-    ).format(sum(user_points.values()), len(user_points))
+    ).format(int(total_points), users_with_points)
     
     keyboard = [
         [InlineKeyboardButton("➕ Add Points to User", callback_data="points_add")],
@@ -245,6 +259,7 @@ async def show_sellers_menu(query, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     keyboard = [
         [InlineKeyboardButton("➕ Add Trusted Seller", callback_data="seller_add")],
+        [InlineKeyboardButton("✏️ Rename Seller Button", callback_data="seller_rename")],
         [InlineKeyboardButton("➖ Remove Trusted Seller", callback_data="seller_remove")],
         [InlineKeyboardButton("📋 View All Sellers", callback_data="seller_list")],
         [InlineKeyboardButton("🔍 Check Seller Status", callback_data="seller_check")],
@@ -280,6 +295,26 @@ async def seller_remove_start(query, context: ContextTypes.DEFAULT_TYPE) -> None
     )
     
     context.user_data['admin_action'] = 'seller_remove'
+    await query.edit_message_text(text, parse_mode='Markdown')
+
+
+async def seller_rename_start(query, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Start process to rename seller button (keeps votes!)"""
+    text = (
+        "✏️ **RENAME SELLER BUTTON**\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Change the button text WITHOUT losing votes!\n\n"
+        "Send in format:\n"
+        "`@old_username @new_username`\n\n"
+        "**Example:** `@johndoe @john_new`\n\n"
+        "⚠️ This updates:\n"
+        "• Voting button text in group\n"
+        "• `/barygos` leaderboard display\n"
+        "• Keeps ALL existing votes\n\n"
+        "Or reply with /cancel to go back."
+    )
+    
+    context.user_data['admin_action'] = 'seller_rename'
     await query.edit_message_text(text, parse_mode='Markdown')
 
 
@@ -628,6 +663,8 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await process_seller_add(update, context, text)
     elif action == 'seller_remove':
         await process_seller_remove(update, context, text)
+    elif action == 'seller_rename':
+        await process_seller_rename(update, context, text)
     elif action == 'scammer_add':
         await process_scammer_add(update, context, text)
     elif action == 'scammer_remove':
@@ -770,6 +807,86 @@ async def process_seller_remove(update: Update, context: ContextTypes.DEFAULT_TY
         f"@{username} has been removed from trusted sellers.",
         parse_mode='Markdown'
     )
+
+
+async def process_seller_rename(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+    """Process renaming seller button (keeps all votes!)"""
+    try:
+        parts = text.split()
+        if len(parts) != 2:
+            await update.message.reply_text("❌ Invalid format. Use: `@old_username @new_username`", parse_mode='Markdown')
+            return
+        
+        old_username = parts[0].lstrip('@').strip()
+        new_username = parts[1].lstrip('@').strip()
+        
+        if not old_username or not new_username:
+            await update.message.reply_text("❌ Both usernames are required!")
+            return
+        
+        if old_username not in trusted_sellers:
+            await update.message.reply_text(f"❌ @{old_username} is not in the trusted sellers list!")
+            return
+        
+        if new_username in trusted_sellers and new_username != old_username:
+            await update.message.reply_text(f"❌ @{new_username} is already in the trusted sellers list!")
+            return
+        
+        # Load voting data from voting.py
+        import voting
+        
+        # Transfer votes from old name to new name
+        # Weekly votes
+        if old_username in voting.votes_weekly:
+            voting.votes_weekly[new_username] = voting.votes_weekly.pop(old_username, 0)
+        
+        # Monthly votes
+        if old_username in voting.votes_monthly:
+            voting.votes_monthly[new_username] = voting.votes_monthly.pop(old_username, [])
+        
+        # All-time votes
+        if old_username in voting.votes_alltime:
+            voting.votes_alltime[new_username] = voting.votes_alltime.pop(old_username, 0)
+        
+        # Vote history
+        if old_username in voting.vote_history:
+            voting.vote_history[new_username] = voting.vote_history.pop(old_username, [])
+        
+        # Update trusted sellers list
+        if old_username in trusted_sellers:
+            seller_data = trusted_sellers.pop(old_username, None)
+            if seller_data:
+                trusted_sellers[new_username] = seller_data
+            else:
+                # It was a simple list, just add the new username
+                trusted_sellers[new_username] = {"added_date": datetime.now().strftime("%Y-%m-%d")}
+        
+        # Save all changes
+        data_manager.save_data(voting.votes_weekly, 'votes_weekly.pkl')
+        data_manager.save_data(voting.votes_monthly, 'votes_monthly.pkl')
+        data_manager.save_data(voting.votes_alltime, 'votes_alltime.pkl')
+        data_manager.save_data(voting.vote_history, 'vote_history.pkl')
+        data_manager.save_data(trusted_sellers, 'trusted_sellers.pkl')
+        data_manager.save_data(voting.trusted_sellers, 'trusted_sellers.pkl')  # voting.py also has this
+        
+        # Get vote counts for confirmation
+        weekly_votes = voting.votes_weekly.get(new_username, 0)
+        alltime_votes = voting.votes_alltime.get(new_username, 0)
+        
+        await update.message.reply_text(
+            f"✅ **Seller Renamed Successfully!**\n\n"
+            f"Old name: @{old_username}\n"
+            f"New name: @{new_username}\n\n"
+            f"📊 **Votes Preserved:**\n"
+            f"• Weekly: {weekly_votes}\n"
+            f"• All-time: {alltime_votes}\n\n"
+            f"⚠️ **Important:** Run `/updatevoting` in voting group to update buttons!",
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error renaming seller: {e}")
+        await update.message.reply_text("❌ Error renaming seller. Please try again.")
 
 
 async def process_scammer_add(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
