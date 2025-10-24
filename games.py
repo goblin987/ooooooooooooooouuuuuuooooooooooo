@@ -63,7 +63,7 @@ async def dice_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
 
     if not user_exists(user_id):
-        await update.message.reply_text("❌ Naudokite /balance registracijai.")
+        await update.message.reply_text("❌ Naudokite /pinigine registracijai.")
         return
 
     if not args:
@@ -117,7 +117,7 @@ async def basketball_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     args = context.args
 
     if not user_exists(user_id):
-        await update.message.reply_text("❌ Naudokite /balance registracijai.")
+        await update.message.reply_text("❌ Naudokite /pinigine registracijai.")
         return
 
     if len(args) != 1:
@@ -170,7 +170,7 @@ async def football_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
 
     if not user_exists(user_id):
-        await update.message.reply_text("❌ Naudokite /balance registracijai.")
+        await update.message.reply_text("❌ Naudokite /pinigine registracijai.")
         return
 
     if len(args) != 1:
@@ -223,7 +223,7 @@ async def bowling_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
 
     if not user_exists(user_id):
-        await update.message.reply_text("❌ Naudokite /balance registracijai.")
+        await update.message.reply_text("❌ Naudokite /pinigine registracijai.")
         return
 
     if len(args) != 1:

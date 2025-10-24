@@ -157,8 +157,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/patikra @vartotojas` - Patikrinti ar vagis\n"
         "• `/vagis @vartotojas priežastis` - Pranešti apie vagį\n\n"
         "**Pinigai ir balansas:**\n"
-        "• `/pinigine` - Peržiūrėti balansą\n"
-        "• `/balance` - Įnešti/išimti lėšas\n\n"
+        "• `/pinigine` - Peržiūrėti balansą, įnešti/išimti lėšas\n\n"
         "**Žaidimai (kripto):**\n"
         "• `/dice <suma>` - 🎲 Kauliukai (1.90x)\n"
         "• `/basketball <suma>` - 🏀 Krepšinis (1.90x)\n"
@@ -169,8 +168,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/points` - Peržiūrėti savo taškus\n\n"
         "**Balsavimas:**\n"
         "• `/balsuoti` - Nuoroda į balsavimų grupę\n"
-        "• `/barygos` - Patikimiausių pardavėjų reitingai\n\n"
-        "💡 **Patarimas:** Naudokite `/pinigine` pradėti žaisti!",
+        "• `/barygos` - Patikimiausių pardavėjų reitingai",
         parse_mode='Markdown'
     )
 
@@ -772,8 +770,7 @@ def create_application():
     application.add_handler(CommandHandler("points", points_games.points_command))
     
     # Payment commands (balance, deposit, withdraw)
-    application.add_handler(CommandHandler("balance", payments.balance_command))
-    application.add_handler(CommandHandler("pinigine", payments.balance_command))  # Lithuanian alias
+    application.add_handler(CommandHandler("pinigine", payments.balance_command))  # Wallet command
     application.add_handler(CommandHandler("setbalance", payments.setbalance_command))
     application.add_handler(CommandHandler("addbalance", payments.add_balance_command))
     application.add_handler(CommandHandler("removebalance", payments.remove_balance_command))
