@@ -541,78 +541,88 @@ async def handle_admin_callback(update: Update, context: ContextTypes.DEFAULT_TY
     await safe_answer_callback(query)
     
     data = query.data
+    logger.info(f"🔔 Admin callback received: {data}")
     
-    # Main menu
-    if data == "admin_main":
-        await admin_panel.show_admin_panel(update, context)
+    try:
+        # Main menu
+        if data == "admin_main":
+            await admin_panel.show_admin_panel(update, context)
+        
+        # Points management
+        elif data == "admin_points":
+            await admin_panel.show_points_menu(query, context)
+        elif data == "points_add":
+            await admin_panel.points_add_start(query, context)
+        elif data == "points_remove":
+            await admin_panel.points_remove_start(query, context)
+        elif data == "points_leaderboard":
+            await admin_panel.show_points_leaderboard(query, context)
+        
+        # Sellers management
+        elif data == "admin_sellers":
+            await admin_panel.show_sellers_menu(query, context)
+        elif data == "seller_add":
+            await admin_panel.seller_add_start(query, context)
+        elif data == "seller_remove":
+            await admin_panel.seller_remove_start(query, context)
+        elif data == "seller_rename":
+            await admin_panel.seller_rename_start(query, context)
+        elif data == "seller_list":
+            await admin_panel.show_all_sellers(query, context)
+        
+        # Scammers management
+        elif data == "admin_scammers":
+            await admin_panel.show_scammers_menu(query, context)
+        elif data == "scammer_add":
+            await admin_panel.scammer_add_start(query, context)
+        elif data == "scammer_remove":
+            await admin_panel.scammer_remove_start(query, context)
+        elif data == "scammer_list":
+            await admin_panel.show_all_scammers(query, context)
+        
+        # Claims review
+        elif data == "admin_claims":
+            await admin_panel.show_claims_menu(query, context)
+        elif data.startswith("claim_review_"):
+            report_id = data.replace("claim_review_", "")
+            logger.info(f"📋 Showing claim detail for report: {report_id}")
+            await admin_panel.show_claim_detail(query, context, report_id)
+        elif data.startswith("claim_confirm_"):
+            report_id = data.replace("claim_confirm_", "")
+            logger.info(f"✅ Confirming claim for report: {report_id}")
+            await admin_panel.confirm_claim(query, context, report_id)
+        elif data.startswith("claim_dismiss_"):
+            report_id = data.replace("claim_dismiss_", "")
+            logger.info(f"❌ Dismissing claim for report: {report_id}")
+            await admin_panel.dismiss_claim(query, context, report_id)
+        
+        # User lookup
+        elif data == "admin_lookup":
+            await admin_panel.show_lookup_menu(query, context)
+        
+        # Statistics
+        elif data == "admin_stats":
+            await admin_panel.show_statistics(query, context)
+        
+        # Recurring Messages (from admin panel)
+        elif data == "admin_recurring":
+            await recurring_messages.show_main_menu(update, context)
+        
+        # Masked Users (from admin panel)
+        elif data == "admin_masked":
+            await masked_users.show_main_menu(update, context)
+        
+        # Close panel
+        elif data == "admin_close":
+            await query.edit_message_text("✅ Admin panel closed.")
+        
+        else:
+            await query.answer("Feature coming soon!")
     
-    # Points management
-    elif data == "admin_points":
-        await admin_panel.show_points_menu(query, context)
-    elif data == "points_add":
-        await admin_panel.points_add_start(query, context)
-    elif data == "points_remove":
-        await admin_panel.points_remove_start(query, context)
-    elif data == "points_leaderboard":
-        await admin_panel.show_points_leaderboard(query, context)
-    
-    # Sellers management
-    elif data == "admin_sellers":
-        await admin_panel.show_sellers_menu(query, context)
-    elif data == "seller_add":
-        await admin_panel.seller_add_start(query, context)
-    elif data == "seller_remove":
-        await admin_panel.seller_remove_start(query, context)
-    elif data == "seller_rename":
-        await admin_panel.seller_rename_start(query, context)
-    elif data == "seller_list":
-        await admin_panel.show_all_sellers(query, context)
-    
-    # Scammers management
-    elif data == "admin_scammers":
-        await admin_panel.show_scammers_menu(query, context)
-    elif data == "scammer_add":
-        await admin_panel.scammer_add_start(query, context)
-    elif data == "scammer_remove":
-        await admin_panel.scammer_remove_start(query, context)
-    elif data == "scammer_list":
-        await admin_panel.show_all_scammers(query, context)
-    
-    # Claims review
-    elif data == "admin_claims":
-        await admin_panel.show_claims_menu(query, context)
-    elif data.startswith("claim_review_"):
-        report_id = data.replace("claim_review_", "")
-        await admin_panel.show_claim_detail(query, context, report_id)
-    elif data.startswith("claim_confirm_"):
-        report_id = data.replace("claim_confirm_", "")
-        await admin_panel.confirm_claim(query, context, report_id)
-    elif data.startswith("claim_dismiss_"):
-        report_id = data.replace("claim_dismiss_", "")
-        await admin_panel.dismiss_claim(query, context, report_id)
-    
-    # User lookup
-    elif data == "admin_lookup":
-        await admin_panel.show_lookup_menu(query, context)
-    
-    # Statistics
-    elif data == "admin_stats":
-        await admin_panel.show_statistics(query, context)
-    
-    # Recurring Messages (from admin panel)
-    elif data == "admin_recurring":
-        await recurring_messages.show_main_menu(update, context)
-    
-    # Masked Users (from admin panel)
-    elif data == "admin_masked":
-        await masked_users.show_main_menu(update, context)
-    
-    # Close panel
-    elif data == "admin_close":
-        await query.edit_message_text("✅ Admin panel closed.")
-    
-    else:
-        await query.answer("Feature coming soon!")
+    except Exception as e:
+        logger.error(f"❌ Error in admin callback handler: {e}")
+        logger.exception(e)
+        await query.answer("❌ Klaida apdorojant užklausą")
 
 
 # Message handler for private chat input
