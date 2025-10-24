@@ -671,6 +671,54 @@ async def show_statistics(query, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 # ============================================================================
+# SETTINGS MENU
+# ============================================================================
+
+async def show_settings_menu(query, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show admin settings menu"""
+    # Import withdrawals_enabled from payments
+    import payments
+    
+    withdrawal_status = "✅ ĮJUNGTI" if payments.withdrawals_enabled else "🚫 IŠJUNGTI"
+    withdrawal_emoji = "✅" if payments.withdrawals_enabled else "🚫"
+    
+    text = (
+        "⚙️ **SETTINGS**\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Manage bot settings and configurations.\n\n"
+        f"**Withdrawal Status:** {withdrawal_status}\n\n"
+        "Select an option below:"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton(f"{withdrawal_emoji} Toggle Withdrawals", callback_data="settings_toggle_withdrawals")],
+        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="admin_main")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+
+async def toggle_withdrawals_setting(query, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Toggle withdrawal enable/disable"""
+    import payments
+    
+    # Toggle the setting
+    payments.withdrawals_enabled = not payments.withdrawals_enabled
+    data_manager.save_data(payments.withdrawals_enabled, 'withdrawals_enabled.pkl')
+    
+    status = "✅ ĮJUNGTI" if payments.withdrawals_enabled else "🚫 IŠJUNGTI"
+    
+    # Show confirmation
+    await query.answer(f"Išėmimai dabar {status}")
+    
+    # Refresh settings menu
+    await show_settings_menu(query, context)
+    
+    logger.info(f"Withdrawals toggled via admin panel: {payments.withdrawals_enabled}")
+
+
+# ============================================================================
 # INPUT HANDLER FOR ADMIN ACTIONS
 # ============================================================================
 

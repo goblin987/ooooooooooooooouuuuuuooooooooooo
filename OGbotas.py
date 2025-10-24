@@ -660,6 +660,12 @@ async def handle_admin_callback(update: Update, context: ContextTypes.DEFAULT_TY
         elif data == "admin_masked":
             await masked_users.show_main_menu(update, context)
         
+        # Settings menu
+        elif data == "admin_settings":
+            await admin_panel.show_settings_menu(query, context)
+        elif data == "settings_toggle_withdrawals":
+            await admin_panel.toggle_withdrawals_setting(query, context)
+        
         # Close panel
         elif data == "admin_close":
             await query.edit_message_text("✅ Admin panel closed.")
