@@ -1481,16 +1481,10 @@ async def resume_message(query, context: ContextTypes.DEFAULT_TYPE, message_id: 
                 if interval < 1:
                     # It's in minutes
                     minutes = int(interval * 60)
-                    trigger = IntervalTrigger(
-                        minutes=minutes,
-                        timezone=pytz.timezone('Europe/Vilnius')
-                    )
+                    trigger = IntervalTrigger(minutes=minutes)
                 else:
                     # It's in hours
-                    trigger = IntervalTrigger(
-                        hours=int(interval),
-                        timezone=pytz.timezone('Europe/Vilnius')
-                    )
+                    trigger = IntervalTrigger(hours=int(interval))
                 
                 job_id = f"recur_{query.message.chat_id}_{message_id}"
                 
@@ -1920,19 +1914,13 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 # It's in minutes (fractional hours)
                 minutes = int(interval_hours * 60)
                 logger.info(f"⏱️ Creating MINUTE interval trigger: {minutes} minutes (interval_hours={interval_hours})")
-                trigger = IntervalTrigger(
-                    minutes=minutes,
-                    timezone=pytz.timezone('Europe/Vilnius')
-                )
+                trigger = IntervalTrigger(minutes=minutes)
                 rep_text = f"{minutes} minutes"
             else:
                 # It's in hours
                 hours = int(interval_hours)
                 logger.info(f"⏱️ Creating HOUR interval trigger: {hours} hours")
-                trigger = IntervalTrigger(
-                    hours=hours,
-                    timezone=pytz.timezone('Europe/Vilnius')
-                )
+                trigger = IntervalTrigger(hours=hours)
                 rep_text = f"{hours} hours"
         
         # Save to database
@@ -2158,17 +2146,11 @@ def load_scheduled_jobs_from_db(bot):
                     if interval < 1:
                         # It's in minutes (fractional hours)
                         minutes = int(interval * 60)
-                        trigger = IntervalTrigger(
-                            minutes=minutes,
-                            timezone=pytz.timezone('Europe/Vilnius')
-                        )
+                        trigger = IntervalTrigger(minutes=minutes)
                         logger.info(f"Loaded {minutes}-minute interval job for message {msg_id}")
                     else:
                         # It's in hours
-                        trigger = IntervalTrigger(
-                            hours=int(interval),
-                            timezone=pytz.timezone('Europe/Vilnius')
-                        )
+                        trigger = IntervalTrigger(hours=int(interval))
                         logger.info(f"Loaded {int(interval)}-hour interval job for message {msg_id}")
                 # TODO: Recreate cron triggers for days_of_week/days_of_month
                 
