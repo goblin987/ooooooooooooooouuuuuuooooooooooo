@@ -150,50 +150,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Help command"""
+    """Help command - Member commands only, in Lithuanian"""
     await update.message.reply_text(
-        "🤖 **OGbotas Help**\n\n"
-        "**Moderation:**\n"
-        "• `/cache @user` - Cache user before ban (if never sent message)\n"
-        "• `/ban @user [reason]` - Ban user\n"
-        "• `/unban @user` - Unban user\n"
-        "• `/mute @user [minutes]` - Mute user\n"
-        "• `/unmute @user` - Unmute user\n\n"
-        "**Recurring Messages:**\n"
-        "• `/recurring` - Manage recurring messages\n\n"
-        "**Scammer Protection:**\n"
-        "• `/patikra @user` - Check if user is scammer\n"
-        "• `/vagis @user reason` - Report a scammer\n\n"
-        "**Utilities:**\n"
-        "• `/lookup @user` - Lookup user info\n\n"
-        "**Admin Panel:**\n"
-        "• `/admin` - Interactive admin panel\n"
-        "  - 💰 Points, ⭐ Sellers, 🚨 Scammers\n"
-        "  - 📋 Claims, 🔍 Lookup, 📊 Stats\n"
-        "  - 🔄 Recurring Messages\n"
-        "  - 👤 Masked Users\n\n"
-        "**Group Management:**\n"
-        "• `/recurring` - Recurring messages (GroupHelpBot style)\n"
-        "• `/masked` - Manage masked/anonymous users\n\n"
-        "**Casino Games (Player vs Player with Crypto):**\n"
-        "• `/dice <points>` - 🎲 Dice game\n"
-        "• `/basketball <points>` - 🏀 Basketball\n"
-        "• `/football <points>` - ⚽ Football\n"
-        "• `/bowling <points>` - 🎳 Bowling\n\n"
-        "**Points Games (Saved Points, PvP):**\n"
-        "• `/dice2 <points>` - 🎲 Dice PvP (no crypto)\n"
-        "• `/points` - Check your points balance\n\n"
-        "**Balance & Payments:**\n"
-        "• `/balance` - Check balance, deposit/withdraw\n\n"
-        "**Voting System:**\n"
-        "• `/balsuoti` - Link to voting group\n"
-        "• `/barygos` - View seller leaderboards\n\n"
-        "**Admin Commands:**\n"
-        "• `/addbalance @user amount` - Add funds\n"
-        "• `/removebalance @user amount` - Remove funds\n"
-        "• `/togglewithdrawals` - Enable/disable withdrawals\n"
-        "• `/updatevoting` - Update voting buttons\n\n"
-        "**Note:** Admin permissions required for most commands.",
+        "🤖 **Pagalba**\n\n"
+        "**Apsauga nuo vagių:**\n"
+        "• `/patikra @vartotojas` - Patikrinti ar vagis\n"
+        "• `/vagis @vartotojas priežastis` - Pranešti apie vagį\n\n"
+        "**Pinigai ir balansas:**\n"
+        "• `/pinigine` - Peržiūrėti balansą\n"
+        "• `/balance` - Įnešti/išimti lėšas\n\n"
+        "**Žaidimai (kripto):**\n"
+        "• `/dice <suma>` - 🎲 Kauliukai (1.90x)\n"
+        "• `/basketball <suma>` - 🏀 Krepšinis (1.90x)\n"
+        "• `/football <suma>` - ⚽ Futbolas (1.90x)\n"
+        "• `/bowling <suma>` - 🎳 Boulingas (1.90x)\n\n"
+        "**Žaidimai (taškai):**\n"
+        "• `/dice2 <taškai>` - 🎲 Kauliukai be kripto\n"
+        "• `/points` - Peržiūrėti savo taškus\n\n"
+        "**Balsavimas:**\n"
+        "• `/balsuoti` - Nuoroda į balsavimų grupę\n"
+        "• `/barygos` - Patikimiausių pardavėjų reitingai\n\n"
+        "💡 **Patarimas:** Naudokite `/pinigine` pradėti žaisti!",
         parse_mode='Markdown'
     )
 
@@ -822,7 +799,7 @@ def create_application():
     # Admin panel callbacks (check admin_ prefix first)
     application.add_handler(CallbackQueryHandler(
         handle_admin_callback,
-        pattern="^(admin_|points_|seller_|scammer_|claim_)"
+        pattern="^(admin_|points_|seller_|scammer_|claim_|settings_)"
     ))
     
     # Recurring messages callbacks (GroupHelpBot style + old style)
