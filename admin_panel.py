@@ -938,14 +938,25 @@ async def process_seller_rename(update: Update, context: ContextTypes.DEFAULT_TY
         weekly_votes = voting.votes_weekly.get(new_username, 0)
         alltime_votes = voting.votes_alltime.get(new_username, 0)
         
+        # Reload trusted_sellers in voting.py (it's imported at module level)
+        voting.trusted_sellers = data_manager.load_data('trusted_sellers.pkl', [])
+        
+        # Automatically update voting buttons
+        try:
+            await voting.update_voting_message(context)
+            button_status = "✅ Voting buttons updated automatically!"
+        except Exception as e:
+            logger.error(f"Failed to auto-update voting buttons: {e}")
+            button_status = "⚠️ Run `/updatevoting` in voting group to update buttons manually"
+        
         await update.message.reply_text(
             f"✅ **Seller Renamed Successfully!**\n\n"
-            f"Old name: @{old_username}\n"
-            f"New name: @{new_username}\n\n"
+            f"Old name: {old_with_at}\n"
+            f"New name: {new_with_at}\n\n"
             f"📊 **Votes Preserved:**\n"
             f"• Weekly: {weekly_votes}\n"
             f"• All-time: {alltime_votes}\n\n"
-            f"⚠️ **Important:** Run `/updatevoting` in voting group to update buttons!",
+            f"{button_status}",
             parse_mode='Markdown'
         )
         
