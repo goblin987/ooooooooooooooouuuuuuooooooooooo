@@ -2036,15 +2036,27 @@ async def save_and_schedule_message(query, context: ContextTypes.DEFAULT_TYPE):
                 trigger=trigger,
                 args=[context.bot, chat_id, message_id],
                 id=job_id,
-                replace_existing=True
+                replace_existing=True,
+                misfire_grace_time=3600  # 1 hour grace time for misfires
             )
+            
+            # Verify the job was created
+            created_job = scheduler.get_job(job_id)
+            if created_job:
+                next_run = created_job.next_run_time
+                logger.info(f"✅ Job {job_id} created successfully, next run: {next_run}")
+            else:
+                logger.error(f"❌ CRITICAL: Job {job_id} was not added to scheduler!")
             
             # Update job_id in database
             conn.execute(
                 'UPDATE scheduled_messages SET job_id = ? WHERE id = ?',
                 (job_id, message_id)
             )
-            logger.info(f"✅ Created recurring message job {job_id} for chat {chat_id}, next run: {scheduler.get_job(job_id).next_run_time if scheduler.get_job(job_id) else 'Unknown'}")
+            
+            # Final verification - list all jobs
+            all_jobs = scheduler.get_jobs()
+            logger.info(f"📊 Scheduler now has {len(all_jobs)} total jobs after save")
         
         conn.commit()
         conn.close()
@@ -2125,7 +2137,19 @@ def load_scheduled_jobs_from_db(bot):
     This ensures jobs persist across bot restarts
     """
     try:
+        logger.info("🔄 Starting to load scheduled jobs from database...")
         init_scheduler()
+        
+        # Verify scheduler is running
+        if scheduler is None:
+            logger.error("❌ CRITICAL: Scheduler is None after init_scheduler()!")
+            return
+        
+        if not scheduler.running:
+            logger.warning("⚠️ Scheduler not running, starting it now...")
+            scheduler.start()
+        
+        logger.info(f"✅ Scheduler state: running={scheduler.running}, state={scheduler.state}")
         
         conn = database.get_sync_connection()
         cursor = conn.execute('''
@@ -2135,24 +2159,35 @@ def load_scheduled_jobs_from_db(bot):
         ''')
         
         messages = cursor.fetchall()
+        logger.info(f"📊 Found {len(messages)} active recurring messages in database")
+        
         loaded_count = 0
         
         for msg in messages:
             msg_id, chat_id, text, rep_type, interval, old_job_id = msg
             
             try:
+                logger.info(f"📥 Loading message {msg_id}: chat={chat_id}, type={rep_type}, interval={interval}")
+                
                 # Create new job
+                trigger = None
                 if rep_type == 'interval':
                     if interval < 1:
                         # It's in minutes (fractional hours)
                         minutes = int(interval * 60)
                         trigger = IntervalTrigger(minutes=minutes)
-                        logger.info(f"Loaded {minutes}-minute interval job for message {msg_id}")
+                        logger.info(f"  ⏱️ Created {minutes}-minute interval trigger")
                     else:
                         # It's in hours
                         trigger = IntervalTrigger(hours=int(interval))
-                        logger.info(f"Loaded {int(interval)}-hour interval job for message {msg_id}")
-                # TODO: Recreate cron triggers for days_of_week/days_of_month
+                        logger.info(f"  ⏱️ Created {int(interval)}-hour interval trigger")
+                else:
+                    logger.warning(f"  ⚠️ Unsupported repetition type: {rep_type}, skipping")
+                    continue
+                
+                if trigger is None:
+                    logger.error(f"  ❌ Failed to create trigger for message {msg_id}")
+                    continue
                 
                 job_id = f"recur_{chat_id}_{msg_id}"
                 
@@ -2161,20 +2196,38 @@ def load_scheduled_jobs_from_db(bot):
                     trigger=trigger,
                     args=[bot, chat_id, msg_id],
                     id=job_id,
-                    replace_existing=True
+                    replace_existing=True,
+                    misfire_grace_time=3600  # 1 hour grace time for misfires
                 )
                 
-                loaded_count += 1
-                logger.info(f"Loaded recurring message job: {job_id}")
+                # Verify the job was added
+                job = scheduler.get_job(job_id)
+                if job:
+                    loaded_count += 1
+                    next_run = job.next_run_time
+                    logger.info(f"  ✅ Job {job_id} loaded successfully, next run: {next_run}")
+                else:
+                    logger.error(f"  ❌ Job {job_id} was not added to scheduler!")
                 
             except Exception as e:
-                logger.error(f"Error loading job for message {msg_id}: {e}")
+                logger.error(f"  ❌ Error loading job for message {msg_id}: {e}", exc_info=True)
         
         conn.close()
-        logger.info(f"Loaded {loaded_count} recurring message jobs from database")
+        
+        # Final verification
+        all_jobs = scheduler.get_jobs()
+        logger.info(f"✅ Loaded {loaded_count} recurring message jobs from database")
+        logger.info(f"📊 Scheduler now has {len(all_jobs)} total jobs")
+        
+        if all_jobs:
+            logger.info("📋 Current jobs:")
+            for job in all_jobs:
+                logger.info(f"  - {job.id}: next_run={job.next_run_time}, trigger={job.trigger}")
+        else:
+            logger.warning("⚠️ No jobs in scheduler after loading!")
         
     except Exception as e:
-        logger.error(f"Error loading scheduled jobs: {e}")
+        logger.error(f"❌ Error loading scheduled jobs: {e}", exc_info=True)
 
 
 # Export functions
