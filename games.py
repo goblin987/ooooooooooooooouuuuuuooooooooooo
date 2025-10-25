@@ -663,6 +663,11 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Track the challenge message for deletion too
         if query.message:
             game_state['message_ids'].append(query.message.message_id)
+        
+        # Track the original challenge message if it exists
+        if 'challenge_message_id' in game:
+            game_state['message_ids'].append(game['challenge_message_id'])
+        
         del context.bot_data['pending_challenges'][game_id]
 
     # Handle challenge cancellation
@@ -682,14 +687,14 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         last_games = context.bot_data.get('last_games', {}).get(chat_id, {})
         last_game = last_games.get(user_id)
         if not last_game:
-            await context.bot.send_message(chat_id, "Ankstesnis žaidimas nerastas.")
+            await query.answer("⚠️ Neturite ankstesnio žaidimo!", show_alert=True)
             return
         
         opponent_id = last_game['opponent']
         opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Kažkas"
         
         if (chat_id, opponent_id) in context.bot_data.get('user_games', {}):
-            await context.bot.send_message(chat_id, f"@{opponent_username} jau žaidžia!")
+            await query.answer(f"⚠️ @{opponent_username} jau žaidžia!", show_alert=True)
             return
         
         game_id = len(context.bot_data.get('pending_challenges', {})) + 1
@@ -714,14 +719,17 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
             [InlineKeyboardButton("✅ Priimti", callback_data=f"{game_type}_accept_{game_id}"),
              InlineKeyboardButton("❌ Atsisakyti", callback_data=f"{game_type}_cancel_challenge_{game_id}")]
         ]
-        await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
+        challenge_msg = await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
+        
+        # Store challenge message ID for deletion
+        context.bot_data['pending_challenges'][game_id]['challenge_message_id'] = challenge_msg.message_id
 
     # Handle Double
     elif data == f"{game_type}_double":
         last_games = context.bot_data.get('last_games', {}).get(chat_id, {})
         last_game = last_games.get(user_id)
         if not last_game:
-            await context.bot.send_message(chat_id, "Ankstesnis žaidimas nerastas.")
+            await query.answer("⚠️ Neturite ankstesnio žaidimo!", show_alert=True)
             return
         
         opponent_id = last_game['opponent']
@@ -731,12 +739,12 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         opponent_balance = get_user_balance(opponent_id)
         
         if new_bet > initiator_balance or new_bet > opponent_balance:
-            await context.bot.send_message(chat_id, "Vienam iš jūsų nepakanka balanso dvigubam statymui!")
+            await query.answer("⚠️ Nepakanka balanso dvigubam statymui!", show_alert=True)
             return
         
         if (chat_id, opponent_id) in context.bot_data.get('user_games', {}):
             opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Kažkas"
-            await context.bot.send_message(chat_id, f"@{opponent_username} jau žaidžia!")
+            await query.answer(f"⚠️ @{opponent_username} jau žaidžia!", show_alert=True)
             return
         
         game_id = len(context.bot_data.get('pending_challenges', {})) + 1
@@ -764,7 +772,10 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
             [InlineKeyboardButton("✅ Priimti", callback_data=f"{game_type}_accept_{game_id}"),
              InlineKeyboardButton("❌ Atsisakyti", callback_data=f"{game_type}_cancel_challenge_{game_id}")]
         ]
-        await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
+        challenge_msg = await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
+        
+        # Store challenge message ID for deletion
+        context.bot_data['pending_challenges'][game_id]['challenge_message_id'] = challenge_msg.message_id
 
 
 # ============================================================================
@@ -985,14 +996,8 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
             return True
         
         # Create challenge
+        # Create game_id first
         game_id = len(context.bot_data.get('pending_challenges', {})) + 1
-        context.bot_data.setdefault('pending_challenges', {})[game_id] = {
-            'initiator': user_id,
-            'challenged': challenged_id,
-            'mode': context.user_data[f'{game_type}_mode'],
-            'points_to_win': context.user_data[f'{game_type}_points'],
-            'bet': setup['bet']
-        }
         
         emoji_map = {'dice': '🎲', 'basketball': '🏀', 'football': '⚽', 'bowling': '🎳'}
         emoji = emoji_map[game_type]
@@ -1015,7 +1020,17 @@ async def handle_game_challenge(update: Update, context: ContextTypes.DEFAULT_TY
             [InlineKeyboardButton("✅ Priimti", callback_data=f"{game_type}_accept_{game_id}"),
              InlineKeyboardButton("❌ Atsisakyti", callback_data=f"{game_type}_cancel_challenge_{game_id}")]
         ]
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        challenge_msg = await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        
+        # Store challenge with message ID for deletion
+        context.bot_data.setdefault('pending_challenges', {})[game_id] = {
+            'initiator': user_id,
+            'challenged': challenged_id,
+            'mode': context.user_data[f'{game_type}_mode'],
+            'points_to_win': context.user_data[f'{game_type}_points'],
+            'bet': setup['bet'],
+            'challenge_message_id': challenge_msg.message_id  # Track for deletion
+        }
         
         # Clean up setup and username expectation
         setup_key = f'{game_type}_setup'

@@ -477,14 +477,14 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         last_games = context.bot_data.get('last_games_points', {}).get(chat_id, {})
         last_game = last_games.get(user_id)
         if not last_game:
-            await context.bot.send_message(chat_id, "Ankstesnis žaidimas nerastas.")
+            await query.answer("⚠️ Neturite ankstesnio žaidimo!", show_alert=True)
             return True
         
         opponent_id = last_game['opponent']
         opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Kažkas"
         
         if (chat_id, opponent_id) in context.bot_data.get('user_games_points', {}):
-            await context.bot.send_message(chat_id, f"@{opponent_username} jau žaidžia!")
+            await query.answer(f"⚠️ @{opponent_username} jau žaidžia!", show_alert=True)
             return True
         
         game_id = len(context.bot_data.get('pending_challenges_points', {})) + 1
@@ -519,7 +519,7 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         last_games = context.bot_data.get('last_games_points', {}).get(chat_id, {})
         last_game = last_games.get(user_id)
         if not last_game:
-            await context.bot.send_message(chat_id, "Ankstesnis žaidimas nerastas.")
+            await query.answer("⚠️ Neturite ankstesnio žaidimo!", show_alert=True)
             return True
         
         opponent_id = last_game['opponent']
@@ -529,12 +529,12 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         opponent_points = get_user_points(opponent_id)
         
         if new_bet > initiator_points or new_bet > opponent_points:
-            await context.bot.send_message(chat_id, "Vienam iš jūsų nepakanka taškų dvigubam statymui!")
+            await query.answer("⚠️ Nepakanka taškų dvigubam statymui!", show_alert=True)
             return True
         
         if (chat_id, opponent_id) in context.bot_data.get('user_games_points', {}):
             opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Kažkas"
-            await context.bot.send_message(chat_id, f"@{opponent_username} jau žaidžia!")
+            await query.answer(f"⚠️ @{opponent_username} jau žaidžia!", show_alert=True)
             return True
         
         game_id = len(context.bot_data.get('pending_challenges_points', {})) + 1
