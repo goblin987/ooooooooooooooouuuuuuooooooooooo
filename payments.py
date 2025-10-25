@@ -754,12 +754,118 @@ async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_T
     return False
 
 
+async def tip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send crypto tip to another user"""
+    user_id = update.effective_user.id
+    
+    # Check if command has proper format: /tip @username amount
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text(
+            "❌ Naudojimas: /tip @vartotojas suma\n\n"
+            "Pavyzdžiui: /tip @vardas 5.00"
+        )
+        return
+    
+    # Parse username and amount
+    recipient_username = context.args[0].lstrip('@')
+    try:
+        amount = float(context.args[1])
+    except ValueError:
+        await update.message.reply_text("❌ Neteisinga suma! Naudokite skaičius, pvz: 5.00")
+        return
+    
+    # Validate amount
+    if amount <= 0:
+        await update.message.reply_text("❌ Suma turi būti didesnė už 0!")
+        return
+    
+    if amount < 0.01:
+        await update.message.reply_text("❌ Minimali suma: $0.01")
+        return
+    
+    # Check sender's balance
+    sender_balance = get_user_balance(user_id)
+    if sender_balance < amount:
+        await update.message.reply_text(
+            f"❌ Nepakanka lėšų!\n\n"
+            f"Jūsų balansas: ${sender_balance:.2f}\n"
+            f"Reikalinga: ${amount:.2f}"
+        )
+        return
+    
+    # Find recipient in database
+    recipient_user = database.get_user_by_username(recipient_username)
+    
+    if not recipient_user:
+        await update.message.reply_text(
+            f"❌ Naudotojas @{recipient_username} nerastas!\n\n"
+            "Įsitikinkite, kad:\n"
+            "• Jis yra šiame pokalbyje\n"
+            "• Jis rašė bent vieną žinutę\n"
+            "• Username parašytas teisingai"
+        )
+        return
+    
+    # Extract recipient ID
+    recipient_id = recipient_user if isinstance(recipient_user, int) else recipient_user.get('user_id')
+    
+    # Check if trying to tip yourself
+    if recipient_id == user_id:
+        await update.message.reply_text("❌ Negalite siųsti sau pačiam!")
+        return
+    
+    # Create user if doesn't exist
+    if not user_exists(recipient_id):
+        update_user_balance(recipient_id, 0.0)
+    
+    # Perform the transfer
+    try:
+        amount_decimal = Decimal(str(amount))
+        
+        # Deduct from sender
+        update_user_balance(user_id, sender_balance - amount_decimal)
+        
+        # Add to recipient
+        recipient_balance = get_user_balance(recipient_id)
+        update_user_balance(recipient_id, recipient_balance + amount_decimal)
+        
+        # Get new balances
+        new_sender_balance = get_user_balance(user_id)
+        new_recipient_balance = get_user_balance(recipient_id)
+        
+        # Send confirmation
+        sender_username = update.effective_user.username or "Kažkas"
+        await update.message.reply_text(
+            f"✅ Pervedimas sėkmingas!\n\n"
+            f"💸 @{sender_username} → @{recipient_username}\n"
+            f"💰 Suma: ${amount:.2f}\n\n"
+            f"📊 Jūsų naujas balansas: ${new_sender_balance:.2f}"
+        )
+        
+        # Notify recipient if in same chat
+        try:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"🎁 @{recipient_username}, gavote ${amount:.2f} iš @{sender_username}!\n\n"
+                     f"💰 Jūsų naujas balansas: ${new_recipient_balance:.2f}"
+            )
+        except:
+            pass  # Recipient might have privacy settings preventing this
+        
+        logger.info(f"Tip: {sender_username} ({user_id}) -> @{recipient_username} ({recipient_id}): ${amount:.2f}")
+        
+    except Exception as e:
+        logger.error(f"Tip error: {e}")
+        await update.message.reply_text("❌ Įvyko klaida. Bandykite dar kartą.")
+
+
 # Export functions
 __all__ = [
     'balance_command',
     'add_balance_command',
     'remove_balance_command',
     'toggle_withdrawals_command',
+    'tip_command',
     'handle_payment_callback',
     'handle_withdrawal_text'
 ]

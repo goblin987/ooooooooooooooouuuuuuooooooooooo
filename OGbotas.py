@@ -157,7 +157,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/patikra @vartotojas` - Patikrinti ar vagis\n"
         "• `/vagis @vartotojas priežastis` - Pranešti apie vagį\n\n"
         "**Pinigai ir balansas:**\n"
-        "• `/pinigine` - Peržiūrėti balansą, įnešti/išimti lėšas\n\n"
+        "• `/pinigine` - Peržiūrėti balansą, įnešti/išimti lėšas\n"
+        "• `/tip @vartotojas suma` - Pervesti pinigus kitam nariui\n\n"
         "**Žaidimai (kripto):**\n"
         "• `/dice <suma>` - 🎲 Kauliukai (1.90x)\n"
         "• `/basketball <suma>` - 🏀 Krepšinis (1.90x)\n"
@@ -769,8 +770,9 @@ def create_application():
     application.add_handler(CommandHandler("dice2", points_games.dice2_command))
     application.add_handler(CommandHandler("points", points_games.points_command))
     
-    # Payment commands (balance, deposit, withdraw)
+    # Payment commands (balance, deposit, withdraw, tip)
     application.add_handler(CommandHandler("pinigine", payments.balance_command))  # Wallet command
+    application.add_handler(CommandHandler("tip", payments.tip_command))  # Send crypto to others
     application.add_handler(CommandHandler("setbalance", payments.setbalance_command))
     application.add_handler(CommandHandler("addbalance", payments.add_balance_command))
     application.add_handler(CommandHandler("removebalance", payments.remove_balance_command))
