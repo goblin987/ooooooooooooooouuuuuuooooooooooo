@@ -496,10 +496,12 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
             await context.bot.send_message(chat_id, "Žaidimas jau baigtas!")
             return
         
+        # Check if user is one of the players
         player_key = 'player1' if game['player1'] == user_id else 'player2' if game['player2'] == user_id else None
         logger.info(f"🔍 ROLL DICE: player_key={player_key} for user_id={user_id}")
         if not player_key:
-            logger.error(f"❌ ROLL DICE: Could not determine player_key!")
+            logger.warning(f"⚠️ ROLL DICE: User {user_id} is not a player in this game!")
+            await query.answer("⚠️ Šis žaidimas ne tau!", show_alert=True)
             return
         
         turn_round = int(data.split('_')[-1])

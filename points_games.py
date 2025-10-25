@@ -350,8 +350,11 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             await context.bot.send_message(chat_id, "Žaidimas jau baigtas!")
             return True
         
+        # Check if user is one of the players
         player_key = 'player1' if game['player1'] == user_id else 'player2' if game['player2'] == user_id else None
         if not player_key:
+            logger.warning(f"⚠️ DICE2 ROLL: User {user_id} is not a player in this game!")
+            await query.answer("⚠️ Šis žaidimas ne tau!", show_alert=True)
             return True
         
         turn_round = int(data.split('_')[2])
@@ -474,14 +477,14 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         last_games = context.bot_data.get('last_games_points', {}).get(chat_id, {})
         last_game = last_games.get(user_id)
         if not last_game:
-            await context.bot.send_message(chat_id, "No previous game found.")
+            await context.bot.send_message(chat_id, "Ankstesnis žaidimas nerastas.")
             return True
         
         opponent_id = last_game['opponent']
-        opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Someone"
+        opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Kažkas"
         
         if (chat_id, opponent_id) in context.bot_data.get('user_games_points', {}):
-            await context.bot.send_message(chat_id, f"@{opponent_username} is already in a game!")
+            await context.bot.send_message(chat_id, f"@{opponent_username} jau žaidžia!")
             return True
         
         game_id = len(context.bot_data.get('pending_challenges_points', {})) + 1
@@ -513,7 +516,7 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         last_games = context.bot_data.get('last_games_points', {}).get(chat_id, {})
         last_game = last_games.get(user_id)
         if not last_game:
-            await context.bot.send_message(chat_id, "No previous game found.")
+            await context.bot.send_message(chat_id, "Ankstesnis žaidimas nerastas.")
             return True
         
         opponent_id = last_game['opponent']
@@ -523,12 +526,12 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         opponent_points = get_user_points(opponent_id)
         
         if new_bet > initiator_points or new_bet > opponent_points:
-            await context.bot.send_message(chat_id, "One of you doesn't have enough points for the doubled bet!")
+            await context.bot.send_message(chat_id, "Vienam iš jūsų nepakanka taškų dvigubam statymui!")
             return True
         
         if (chat_id, opponent_id) in context.bot_data.get('user_games_points', {}):
-            opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Someone"
-            await context.bot.send_message(chat_id, f"@{opponent_username} is already in a game!")
+            opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Kažkas"
+            await context.bot.send_message(chat_id, f"@{opponent_username} jau žaidžia!")
             return True
         
         game_id = len(context.bot_data.get('pending_challenges_points', {})) + 1
@@ -569,7 +572,7 @@ async def evaluate_dice2_round(game, chat_id, game_key, context):
     required_rolls = game['rolls_needed']
     
     if len(rolls1) < required_rolls or len(rolls2) < required_rolls:
-        await context.bot.send_message(chat_id, "Error: Rolls incomplete. Please start again.")
+        await context.bot.send_message(chat_id, "❌ Klaida: Neužbaigti metimai. Pradėkite iš naujo.")
         game['rolls'] = {'player1': [], 'player2': []}
         game['roll_count'] = {'player1': 0, 'player2': 0}
         game['current_player'] = 'player1'
