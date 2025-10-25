@@ -496,17 +496,20 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             'bet': last_game['bet']
         }
         
-        initiator_username = query.from_user.username or "Someone"
+        initiator_username = query.from_user.username or "Kažkas"
+        mode_names = {'normal': 'Normalus', 'double': 'Dvigubas', 'crazy': 'Beprotiškas'}
+        mode_lt = mode_names.get(last_game['mode'], last_game['mode'].capitalize())
+        
         text = (
-            f"🎲 {initiator_username} wants to play again with the same settings!\n"
-            f"Bet: {last_game['bet']} points\n"
-            f"Mode: {last_game['mode'].capitalize()}\n"
-            f"First to {last_game['points_to_win']} points\n\n"
-            f"@{opponent_username}, do you accept?"
+            f"🎲 {initiator_username} nori žaisti dar kartą su tais pačiais nustatymais!\n"
+            f"Statymas: {last_game['bet']} tšk\n"
+            f"Režimas: {mode_lt}\n"
+            f"Iki {last_game['points_to_win']} tšk\n\n"
+            f"@{opponent_username}, ar priimi?"
         )
         keyboard = [
-            [InlineKeyboardButton("Accept", callback_data=f"dice2_accept_{game_id}"),
-             InlineKeyboardButton("Cancel", callback_data=f"dice2_cancel_challenge_{game_id}")]
+            [InlineKeyboardButton("✅ Priimti", callback_data=f"dice2_accept_{game_id}"),
+             InlineKeyboardButton("❌ Atsisakyti", callback_data=f"dice2_cancel_challenge_{game_id}")]
         ]
         await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
         return True
@@ -543,18 +546,21 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             'bet': new_bet
         }
         
-        initiator_username = query.from_user.username or "Someone"
-        opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Someone"
+        initiator_username = query.from_user.username or "Kažkas"
+        opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Kažkas"
+        mode_names = {'normal': 'Normalus', 'double': 'Dvigubas', 'crazy': 'Beprotiškas'}
+        mode_lt = mode_names.get(last_game['mode'], last_game['mode'].capitalize())
+        
         text = (
-            f"🎲 {initiator_username} wants to double the bet!\n"
-            f"New bet: {new_bet} points\n"
-            f"Mode: {last_game['mode'].capitalize()}\n"
-            f"First to {last_game['points_to_win']} points\n\n"
-            f"@{opponent_username}, do you accept?"
+            f"🎲 {initiator_username} nori padvigubinti statymą!\n"
+            f"Naujas statymas: {new_bet} tšk\n"
+            f"Režimas: {mode_lt}\n"
+            f"Iki {last_game['points_to_win']} tšk\n\n"
+            f"@{opponent_username}, ar priimi?"
         )
         keyboard = [
-            [InlineKeyboardButton("Accept", callback_data=f"dice2_accept_{game_id}"),
-             InlineKeyboardButton("Cancel", callback_data=f"dice2_cancel_challenge_{game_id}")]
+            [InlineKeyboardButton("✅ Priimti", callback_data=f"dice2_accept_{game_id}"),
+             InlineKeyboardButton("❌ Atsisakyti", callback_data=f"dice2_cancel_challenge_{game_id}")]
         ]
         await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
         return True

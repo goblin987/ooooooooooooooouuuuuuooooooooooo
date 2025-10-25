@@ -393,18 +393,27 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
             points = int(data.split('_')[2])
             context.user_data[f'{game_type}_points'] = points
             bet = setup['bet']
-            mode = context.user_data[f'{game_type}_mode'].capitalize()
+            mode = context.user_data[f'{game_type}_mode']
+            
+            # Translate game names
+            game_names = {'dice': 'Kauliukai', 'basketball': 'Krepšinis', 'football': 'Futbolas', 'bowling': 'Boulingas'}
+            game_name = game_names.get(game_type, game_type.capitalize())
+            
+            # Translate modes
+            mode_names = {'normal': 'Normalus', 'double': 'Dvigubas', 'crazy': 'Beprotiškas'}
+            mode_lt = mode_names.get(mode, mode.capitalize())
+            
             text = (
-                f"{emoji} **Game confirmation**\n"
-                f"Game: {game_type.capitalize()} {emoji}\n"
-                f"First to {points} points\n"
-                f"Mode: {mode} Mode\n"
-                f"Your bet: ${bet:.2f}\n"
-                f"Win multiplier: 1.90x (after 10% house fee)"
+                f"{emoji} Žaidimo patvirtinimas\n\n"
+                f"Žaidimas: {game_name} {emoji}\n"
+                f"Iki {points} tšk\n"
+                f"Režimas: {mode_lt}\n"
+                f"Jūsų statymas: ${bet:.2f}\n"
+                f"Laimėjimo koeficientas: 1.90x"
             )
             keyboard = [
-                [InlineKeyboardButton("✅ Confirm", callback_data=f"{game_type}_confirm_setup"),
-                 InlineKeyboardButton("❌ Cancel", callback_data=f"{game_type}_cancel")]
+                [InlineKeyboardButton("✅ Patvirtinti", callback_data=f"{game_type}_confirm_setup"),
+                 InlineKeyboardButton("❌ Atšaukti", callback_data=f"{game_type}_cancel")]
             ]
             await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -739,18 +748,21 @@ async def handle_game_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
             'bet': new_bet
         }
         
-        initiator_username = query.from_user.username or "Someone"
-        opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Someone"
+        initiator_username = query.from_user.username or "Kažkas"
+        opponent_username = (await context.bot.get_chat_member(chat_id, opponent_id)).user.username or "Kažkas"
+        mode_names = {'normal': 'Normalus', 'double': 'Dvigubas', 'crazy': 'Beprotiškas'}
+        mode_lt = mode_names.get(last_game['mode'], last_game['mode'].capitalize())
+        
         text = (
-            f"{emoji} {initiator_username} wants to double the bet!\n"
-            f"New bet: ${new_bet:.2f}\n"
-            f"Mode: {last_game['mode'].capitalize()}\n"
-            f"First to {last_game['points_to_win']} points\n\n"
-            f"@{opponent_username}, do you accept?"
+            f"{emoji} {initiator_username} nori padvigubinti statymą!\n"
+            f"Naujas statymas: ${new_bet:.2f}\n"
+            f"Režimas: {mode_lt}\n"
+            f"Iki {last_game['points_to_win']} tšk\n\n"
+            f"@{opponent_username}, ar priimi?"
         )
         keyboard = [
-            [InlineKeyboardButton("Accept", callback_data=f"{game_type}_accept_{game_id}"),
-             InlineKeyboardButton("Cancel", callback_data=f"{game_type}_cancel_challenge_{game_id}")]
+            [InlineKeyboardButton("✅ Priimti", callback_data=f"{game_type}_accept_{game_id}"),
+             InlineKeyboardButton("❌ Atsisakyti", callback_data=f"{game_type}_cancel_challenge_{game_id}")]
         ]
         await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
 
