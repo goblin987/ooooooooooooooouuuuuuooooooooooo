@@ -757,10 +757,18 @@ async def handle_withdrawal_text(update: Update, context: ContextTypes.DEFAULT_T
 async def tip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send crypto tip to another user"""
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    
+    # Helper to send messages safely
+    async def send_reply(text: str):
+        if update.message:
+            await update.message.reply_text(text)
+        else:
+            await context.bot.send_message(chat_id=chat_id, text=text)
     
     # Check if command has proper format: /tip @username amount
     if not context.args or len(context.args) < 2:
-        await update.message.reply_text(
+        await send_reply(
             "❌ Naudojimas: /tip @vartotojas suma\n\n"
             "Pavyzdžiui: /tip @vardas 5.00"
         )
@@ -771,22 +779,22 @@ async def tip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         amount = float(context.args[1])
     except ValueError:
-        await update.message.reply_text("❌ Neteisinga suma! Naudokite skaičius, pvz: 5.00")
+        await send_reply("❌ Neteisinga suma! Naudokite skaičius, pvz: 5.00")
         return
     
     # Validate amount
     if amount <= 0:
-        await update.message.reply_text("❌ Suma turi būti didesnė už 0!")
+        await send_reply("❌ Suma turi būti didesnė už 0!")
         return
     
     if amount < 0.01:
-        await update.message.reply_text("❌ Minimali suma: $0.01")
+        await send_reply("❌ Minimali suma: $0.01")
         return
     
     # Check sender's balance
     sender_balance = get_user_balance(user_id)
     if sender_balance < amount:
-        await update.message.reply_text(
+        await send_reply(
             f"❌ Nepakanka lėšų!\n\n"
             f"Jūsų balansas: ${sender_balance:.2f}\n"
             f"Reikalinga: ${amount:.2f}"
@@ -797,7 +805,7 @@ async def tip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     recipient_user = database.get_user_by_username(recipient_username)
     
     if not recipient_user:
-        await update.message.reply_text(
+        await send_reply(
             f"❌ Naudotojas @{recipient_username} nerastas!\n\n"
             "Įsitikinkite, kad:\n"
             "• Jis yra šiame pokalbyje\n"
@@ -811,7 +819,7 @@ async def tip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Check if trying to tip yourself
     if recipient_id == user_id:
-        await update.message.reply_text("❌ Negalite siųsti sau pačiam!")
+        await send_reply("❌ Negalite siųsti sau pačiam!")
         return
     
     # Create user if doesn't exist
@@ -835,7 +843,7 @@ async def tip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Send confirmation
         sender_username = update.effective_user.username or "Kažkas"
-        await update.message.reply_text(
+        await send_reply(
             f"✅ Pervedimas sėkmingas!\n\n"
             f"💸 @{sender_username} → @{recipient_username}\n"
             f"💰 Suma: ${amount:.2f}\n\n"
@@ -845,7 +853,7 @@ async def tip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Notify recipient if in same chat
         try:
             await context.bot.send_message(
-                chat_id=update.effective_chat.id,
+                chat_id=chat_id,
                 text=f"🎁 @{recipient_username}, gavote ${amount:.2f} iš @{sender_username}!\n\n"
                      f"💰 Jūsų naujas balansas: ${new_recipient_balance:.2f}"
             )
@@ -855,8 +863,11 @@ async def tip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Tip: {sender_username} ({user_id}) -> @{recipient_username} ({recipient_id}): ${amount:.2f}")
         
     except Exception as e:
-        logger.error(f"Tip error: {e}")
-        await update.message.reply_text("❌ Įvyko klaida. Bandykite dar kartą.")
+        logger.error(f"Tip error: {e}", exc_info=True)
+        try:
+            await send_reply("❌ Įvyko klaida. Bandykite dar kartą.")
+        except:
+            logger.error("Failed to send error message")
 
 
 # Export functions
