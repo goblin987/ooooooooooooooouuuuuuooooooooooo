@@ -15,6 +15,27 @@ from database import database
 logger = logging.getLogger(__name__)
 
 
+# ============================================================================
+# MESSAGE AUTO-DELETION
+# ============================================================================
+
+async def delete_game_messages(context: ContextTypes.DEFAULT_TYPE):
+    """Delete all tracked messages from a game after 2 minutes"""
+    job = context.job
+    chat_id = job.data['chat_id']
+    message_ids = job.data['message_ids']
+    
+    logger.info(f"🗑️ Auto-deleting {len(message_ids)} game messages from chat {chat_id}")
+    
+    for msg_id in message_ids:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except Exception as e:
+            logger.debug(f"Could not delete message {msg_id}: {e}")
+    
+    logger.info(f"✅ Deleted {len(message_ids)} game messages")
+
+
 def get_user_points(user_id: int) -> int:
     """Get user's saved points (NOT crypto balance)"""
     try:
@@ -344,6 +365,7 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         
         # Send dice
         dice_msg = await context.bot.send_dice(chat_id=chat_id, emoji='🎲')
+        game['message_ids'].append(dice_msg.message_id)  # Track dice message for deletion
         await asyncio.sleep(4)
         dice_value = dice_msg.dice.value
         game['rolls'][player_key].append(dice_value)
@@ -397,7 +419,9 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             'rolls_needed': 2 if game['mode'] == 'double' else 1,
             'roll_count': {'player1': 0, 'player2': 0},
             'round_number': 1,
-            'message_id': None
+            'message_id': None,
+            'message_ids': [],  # Track all messages for auto-deletion
+            'chat_id': chat_id  # Store chat_id for deletion
         }
         context.bot_data.setdefault('games_points', {})[game_key] = game_state
         context.bot_data.setdefault('user_games_points', {})[(chat_id, game['initiator'])] = game_key
@@ -424,6 +448,11 @@ async def handle_dice2_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         reply_markup = InlineKeyboardMarkup(keyboard)
         message = await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
         game_state['message_id'] = message.message_id
+        game_state['message_ids'].append(message.message_id)  # Track for deletion
+        
+        # Track the challenge message for deletion too
+        if query.message:
+            game_state['message_ids'].append(query.message.message_id)
         del context.bot_data['pending_challenges_points'][game_id]
         return True
 
@@ -617,7 +646,17 @@ async def evaluate_dice2_round(game, chat_id, game_key, context):
             [InlineKeyboardButton("🔄 Žaisti dar kartą", callback_data="dice2_play_again"),
              InlineKeyboardButton("⚡ Dvigubas", callback_data="dice2_double")]
         ]
-        await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
+        final_msg = await context.bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
+        game['message_ids'].append(final_msg.message_id)  # Track final message
+        
+        # Schedule deletion of all game messages after 2 minutes
+        context.job_queue.run_once(
+            delete_game_messages,
+            when=120,  # 2 minutes
+            data={'chat_id': chat_id, 'message_ids': game['message_ids'].copy()},
+            name=f"delete_game_{chat_id}_{game_key}"
+        )
+        logger.info(f"🗑️ Scheduled deletion of {len(game['message_ids'])} messages in 2 minutes")
         
         # Store last game data
         last_game_p1 = {'opponent': game['player2'], 'mode': game['mode'], 'points_to_win': game['points_to_win'], 'bet': game['bet']}
@@ -641,6 +680,7 @@ async def evaluate_dice2_round(game, chat_id, game_key, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         message = await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
         game['message_id'] = message.message_id
+        game['message_ids'].append(message.message_id)  # Track round continuation message
 
 
 # ============================================================================
