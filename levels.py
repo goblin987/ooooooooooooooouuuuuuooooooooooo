@@ -196,105 +196,50 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
         next_rank = LEVEL_RANKS.get(next_rank_level, "👑 Max Rank") if next_rank_level else "👑 Max Rank"
         
-        # GTA SAN ANDREAS HUD STYLE
+        # GTA SAN ANDREAS HUD STYLE - CLEAN TOP-RIGHT CORNER DESIGN
         width, height = 1080, 1920
         
-        # GTA SA background with sky, desert, and palm trees
-        img = Image.new('RGB', (width, height), color='#87CEEB')
+        # Simple clean background (light blue-grey like Telegram)
+        img = Image.new('RGB', (width, height), color='#E8EEF7')
         draw = ImageDraw.Draw(img)
         
-        # Sky blue gradient at top (0-40%)
-        sky_start = (135, 206, 235)
-        sky_end = (176, 196, 222)
-        for y in range(int(height * 0.4)):
-            ratio = y / (height * 0.4)
-            r = int(sky_start[0] + (sky_end[0] - sky_start[0]) * ratio)
-            g = int(sky_start[1] + (sky_end[1] - sky_start[1]) * ratio)
-            b = int(sky_start[2] + (sky_end[2] - sky_start[2]) * ratio)
-            draw.line([(0, y), (width, y)], fill=(r, g, b))
+        # Add subtle texture/pattern to background (optional)
+        # Keep it simple and clean for HUD overlay effect
         
-        # Desert/sand gradient in middle (40-85%)
-        desert_start = (210, 180, 140)
-        desert_end = (194, 178, 128)
-        for y in range(int(height * 0.4), int(height * 0.85)):
-            ratio = (y - height * 0.4) / (height * 0.45)
-            r = int(desert_start[0] + (desert_end[0] - desert_start[0]) * ratio)
-            g = int(desert_start[1] + (desert_end[1] - desert_start[1]) * ratio)
-            b = int(desert_start[2] + (desert_end[2] - desert_start[2]) * ratio)
-            draw.line([(0, y), (width, y)], fill=(r, g, b))
+        # Load GTA SA style fonts - try Pricedown first, fallback to bold
+        import os
+        money_font = None
+        label_font = None
         
-        # Ground/darker sand at bottom (85-100%)
-        ground_color = (184, 134, 88)
-        for y in range(int(height * 0.85), height):
-            draw.line([(0, y), (width, y)], fill=ground_color)
-        
-        # Draw horizon line
-        horizon_y = int(height * 0.4)
-        draw.line([(0, horizon_y), (width, horizon_y)], fill='#4682B4', width=2)
-        
-        # Draw palm trees at bottom-right (simple pixelated style)
-        tree_x = width - 200
-        tree_y = height - 300
-        
-        # Palm tree trunk (dark brown vertical rectangle)
-        draw.rectangle([tree_x + 20, tree_y + 100, tree_x + 35, tree_y + 200], fill='#8B4513', outline='#000000', width=2)
-        
-        # Palm tree leaves (dark green triangles/rectangles)
-        # Left leaf
-        draw.polygon([(tree_x + 10, tree_y + 50), (tree_x + 20, tree_y + 100), (tree_x + 5, tree_y + 100)], fill='#228B22', outline='#000000', width=2)
-        # Right leaf
-        draw.polygon([(tree_x + 50, tree_y + 50), (tree_x + 35, tree_y + 100), (tree_x + 55, tree_y + 100)], fill='#228B22', outline='#000000', width=2)
-        # Top leaf
-        draw.polygon([(tree_x + 27, tree_y + 30), (tree_x + 20, tree_y + 100), (tree_x + 35, tree_y + 100)], fill='#228B22', outline='#000000', width=2)
-        
-        # Additional smaller palm tree further left
-        tree2_x = width - 450
-        tree2_y = height - 280
-        draw.rectangle([tree2_x + 15, tree2_y + 90, tree2_x + 28, tree2_y + 180], fill='#8B4513', outline='#000000', width=2)
-        draw.polygon([(tree2_x + 5, tree2_y + 40), (tree2_x + 15, tree2_y + 90), (tree2_x + 2, tree2_y + 90)], fill='#228B22', outline='#000000', width=2)
-        draw.polygon([(tree2_x + 40, tree2_y + 40), (tree2_x + 28, tree2_y + 90), (tree2_x + 48, tree2_y + 90)], fill='#228B22', outline='#000000', width=2)
-        draw.polygon([(tree2_x + 21, tree2_y + 25), (tree2_x + 15, tree2_y + 90), (tree2_x + 28, tree2_y + 90)], fill='#228B22', outline='#000000', width=2)
-        
-        # Load pixelated fonts - try multiple paths, fallback to bold with pixelation
-        time_font = None
-        level_font = None
-        points_font = None
-        
-        # Try pixelated fonts in order
-        pixel_font_paths = [
-            ("C:/Windows/Fonts/pressstart2p.ttf", "Press Start 2P"),
-            ("/usr/share/fonts/truetype/pressstart2p/PressStart2P-Regular.ttf", "Press Start 2P"),
-            ("C:/Windows/Fonts/Minecraftia-Regular.ttf", "Minecraftia"),
-            ("/usr/share/fonts/truetype/minecraftia/Minecraftia-Regular.ttf", "Minecraftia"),
+        # Try Pricedown font (iconic GTA font) for money display
+        pricedown_paths = [
+            ("C:/Windows/Fonts/pricedown bl.ttf", "Pricedown"),
+            ("C:/Windows/Fonts/PRICEDOW.TTF", "Pricedown"),
+            ("/usr/share/fonts/truetype/pricedown/pricedown.ttf", "Pricedown"),
         ]
         
-        for font_path, font_name in pixel_font_paths:
+        for font_path, font_name in pricedown_paths:
             try:
-                import os
                 if os.path.exists(font_path):
-                    time_font = ImageFont.truetype(font_path, 130)
-                    level_font = ImageFont.truetype(font_path, 55)
-                    points_font = ImageFont.truetype(font_path, 115)
-                    logger.info(f"Loaded pixelated font: {font_name}")
+                    money_font = ImageFont.truetype(font_path, 140)  # Large for money
+                    label_font = ImageFont.truetype(font_path, 45)   # Small for labels
+                    logger.info(f"Loaded GTA font: {font_name}")
                     break
             except:
                 continue
         
-        # Fallback to bold Arial if pixel fonts not found
-        if not time_font:
+        # Fallback to bold Arial if Pricedown not found
+        if not money_font:
             try:
-                time_font = ImageFont.truetype("arialbd.ttf", 130)
-                level_font = ImageFont.truetype("arialbd.ttf", 55)
-                points_font = ImageFont.truetype("arialbd.ttf", 115)
+                money_font = ImageFont.truetype("arialbd.ttf", 140)
+                label_font = ImageFont.truetype("arialbd.ttf", 45)
             except:
                 try:
-                    time_font = ImageFont.truetype("arial.ttf", 130)
-                    level_font = ImageFont.truetype("arial.ttf", 55)
-                    points_font = ImageFont.truetype("arial.ttf", 115)
+                    money_font = ImageFont.truetype("arial.ttf", 140)
+                    label_font = ImageFont.truetype("arial.ttf", 45)
                 except:
-                    time_font = ImageFont.load_default()
-                    level_font = ImageFont.load_default()
-                    points_font = ImageFont.load_default()
+                    money_font = ImageFont.load_default()
+                    label_font = ImageFont.load_default()
         
         # Helper function to apply pixelation effect to image
         def pixelate_image(image, scale_factor=0.5):
@@ -319,123 +264,70 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Draw main text on top
             draw.text(position, text, fill=fill_color, **kwargs)
         
-        # Get user profile photo
-        profile_pic = None
-        try:
-            photos = await context.bot.get_user_profile_photos(user_id, limit=1)
-            if photos.total_count > 0:
-                file = await context.bot.get_file(photos.photos[0][-1].file_id)
-                photo_bytes = await file.download_as_bytearray()
-                profile_pic = Image.open(BytesIO(photo_bytes))
-                logger.info(f"Successfully loaded profile photo for user {user_id}")
-        except Exception as e:
-            logger.warning(f"Could not get profile photo: {e}")
+        # No profile photo needed for GTA SA HUD style
         
-        # GTA SAN ANDREAS HUD LAYOUT
+        # GTA SAN ANDREAS HUD LAYOUT - TOP-RIGHT CORNER ONLY
         
-        # 1. TOP-LEFT: Profile Picture in Light Green Square
-        pic_size = 200
-        pic_x = 40
-        pic_y = 60
-        square_size = pic_size + 40  # Extra space for border
+        # Position everything in TOP-RIGHT corner (like GTA SA HUD)
+        hud_margin = 50
+        hud_x = width - 520  # Start from right edge
+        hud_y = 80  # Top margin
         
-        # Draw light green square with thick black border (5px)
-        border_thickness = 5
-        draw.rectangle([pic_x - border_thickness, pic_y - border_thickness, 
-                       pic_x + square_size + border_thickness, pic_y + square_size + border_thickness], 
-                      fill='#000000')  # Black border
-        draw.rectangle([pic_x, pic_y, pic_x + square_size, pic_y + square_size], 
-                      fill='#90EE90')  # Light green
+        # 1. LEVEL/RANK LABEL (small text to left of progress bar)
+        label_text = "LEVEL"
+        label_x = hud_x - 110
+        label_y = hud_y + 10
+        draw_outlined_text(label_text, (label_x, label_y), 
+                         label_font, '#FFFFFF', outline_width=3)
         
-        # Place profile picture inside square (square, not circular)
-        pic_inner_x = pic_x + 20
-        pic_inner_y = pic_y + 20
-        if profile_pic:
-            # Apply subtle pixelation to profile pic for retro look
-            profile_pic = profile_pic.resize((pic_size, pic_size), Image.Resampling.LANCZOS)
-            # Small pixelation effect
-            profile_pic_small = profile_pic.resize((pic_size // 2, pic_size // 2), Image.Resampling.NEAREST)
-            profile_pic = profile_pic_small.resize((pic_size, pic_size), Image.Resampling.NEAREST)
-            img.paste(profile_pic, (pic_inner_x, pic_inner_y))
-        else:
-            # Default avatar
-            draw.rectangle([pic_inner_x, pic_inner_y, pic_inner_x + pic_size, pic_inner_y + pic_size], 
-                          fill='#555555', outline='#000000', width=2)
-            initial = first_name[0].upper() if first_name else "?"
-            draw_outlined_text(initial, (pic_inner_x + pic_size//2, pic_inner_y + pic_size//2), 
-                             level_font, '#FFFFFF', outline_width=4, anchor='mm')
+        # 2. PROGRESS BAR (Lime Green - like GTA SA Health Bar)
+        bar_width = 450
+        bar_height = 45
+        bar_x = hud_x
+        bar_y = hud_y
         
-        # Level text INSIDE green square (below profile pic, like ammo count in reference)
-        level_text_y = pic_y + square_size - 25  # Position inside square at bottom
-        level_text = f"Level: {level}"
-        draw_outlined_text(level_text, (pic_x + square_size//2, level_text_y), 
-                         level_font, '#87CEEB', outline_width=4, anchor='mm')
-        
-        # 2. TOP-RIGHT: Time Display "04:20" - LARGE and VISIBLE
-        time_text = "04:20"
-        # Calculate text width to position properly
-        bbox = draw.textbbox((0, 0), time_text, font=time_font)
-        text_width = bbox[2] - bbox[0]
-        time_x = width - text_width - 50
-        time_y = 40
-        draw_outlined_text(time_text, (time_x, time_y), 
-                         time_font, '#D3D3D3', outline_width=5)
-        
-        # 3. MIDDLE-RIGHT: Status Bars (thicker with better visibility)
-        bar_x = width - 450
-        bar_y = 350
-        bar_width = 380
-        bar_height = 65  # Thicker bars
-        bar_spacing = 75
-        
-        # TOP BAR: Progress Bar (White fill) - thicker outline
+        # Draw black outline/border (5px thick)
         outline_thickness = 5
         draw.rectangle([bar_x - outline_thickness, bar_y - outline_thickness, 
                        bar_x + bar_width + outline_thickness, bar_y + bar_height + outline_thickness], 
-                     fill='#000000')  # Black outline
+                     fill='#000000')
+        
+        # Draw dark semi-transparent background
         draw.rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height], 
-                     fill='#333333')  # Dark gray background
+                     fill='#1a1a1a')
         
-        # Progress fill (bright white) - ALWAYS show something
+        # Draw lime green fill (GTA SA health bar color)
         filled_width = int((progress / 100) * bar_width)
-        # Ensure minimum visible fill even at 0%
         if filled_width < 10:
-            filled_width = max(10, int(bar_width * 0.05))  # At least 5% visible
+            filled_width = max(10, int(bar_width * 0.05))
+        
+        # Bright lime green fill
         draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + bar_height], 
-                      fill='#FFFFFF')
-        # Add subtle inner highlight
+                      fill='#00FF00')  # Bright lime green
+        
+        # Add highlight on top edge for depth
         if filled_width > 5:
-            draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + 3], fill='#CCCCCC')
+            draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + 4], 
+                          fill='#33FF33')
         
-        # BOTTOM BAR: Secondary Bar (Red fill - represents level completion)
-        bar2_y = bar_y + bar_height + bar_spacing
-        draw.rectangle([bar_x - outline_thickness, bar2_y - outline_thickness, 
-                       bar_x + bar_width + outline_thickness, bar2_y + bar_height + outline_thickness], 
-                     fill='#000000')  # Black outline
-        draw.rectangle([bar_x, bar2_y, bar_x + bar_width, bar2_y + bar_height], 
-                     fill='#333333')  # Dark gray background
+        # 3. MONEY/POINTS DISPLAY (Yellow/Gold - GTA SA Money style)
+        money_y = bar_y + bar_height + 25
+        points_text = f"${current_points:08d}"
         
-        # Level completion fill (bright red) - ALWAYS show something
-        level_completion = (points_in_level / points_needed * 100) if points_needed > 0 else 0
-        filled_width2 = int((level_completion / 100) * bar_width)
-        # Ensure minimum visible fill even at 0%
-        if filled_width2 < 10:
-            filled_width2 = max(10, int(bar_width * 0.05))  # At least 5% visible
-        draw.rectangle([bar_x, bar2_y, bar_x + filled_width2, bar2_y + bar_height], 
-                      fill='#FF0000')
-        # Add subtle inner highlight
-        if filled_width2 > 5:
-            draw.rectangle([bar_x, bar2_y, bar_x + filled_width2, bar2_y + 3], fill='#CC0000')
-        
-        # 4. BOTTOM-CENTER/RIGHT: Points Display (Money style) - LARGE and VISIBLE
-        points_text = f"${current_points:08d}"  # Format like "$00251742"
-        # Calculate text width to position properly
-        bbox = draw.textbbox((0, 0), points_text, font=points_font)
+        # Calculate text position (right-aligned)
+        bbox = draw.textbbox((0, 0), points_text, font=money_font)
         text_width = bbox[2] - bbox[0]
-        points_x = width - text_width - 50
-        points_y = height - 150
-        draw_outlined_text(points_text, (points_x, points_y), 
-                         points_font, '#006400', outline_width=5)  # Dark green
+        money_x = bar_x + bar_width - text_width
+        
+        # Draw money text with GTA SA gold/yellow color
+        draw_outlined_text(points_text, (money_x, money_y), 
+                         money_font, '#FFD700', outline_width=5)  # Bright gold
+        
+        # Add additional info below (optional - username and rank)
+        info_y = money_y + 100
+        info_text = f"{first_name} • {rank_title}"
+        draw_outlined_text(info_text, (hud_x, info_y), 
+                         label_font, '#FFFFFF', outline_width=3)
         
         # Apply retro pixelation effect to entire image (lighter effect to preserve details)
         img = pixelate_image(img, scale_factor=0.75)  # Less aggressive pixelation
