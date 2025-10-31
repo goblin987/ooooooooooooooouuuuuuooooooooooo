@@ -261,123 +261,50 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Draw main text on top
             draw.text(position, text, fill=fill_color, **kwargs)
         
-        # Get user profile photo for weapon icon area
-        profile_pic = None
-        try:
-            photos = await context.bot.get_user_profile_photos(user_id, limit=1)
-            if photos.total_count > 0:
-                file = await context.bot.get_file(photos.photos[0][-1].file_id)
-                photo_bytes = await file.download_as_bytearray()
-                profile_pic = Image.open(BytesIO(photo_bytes))
-                logger.info(f"Successfully loaded profile photo for user {user_id}")
-        except Exception as e:
-            logger.warning(f"Could not get profile photo: {e}")
+        # GTA SAN ANDREAS HUD - CLEAN MINIMAL VERSION (MONEY + STARS ONLY)
+        # ❌ No profile icon, no progress bars, no time display
+        # ✅ Only money counter and star row
         
-        # GTA SAN ANDREAS HUD LAYOUT - 100% IDENTICAL TO PATCH
+        # Calculate how many stars to fill based on level
+        total_stars = 5
+        filled_stars = min((level - 1) // 2 + 1, 5)  # Fill more stars as level increases
         
-        # Compact positioning like patch
-        hud_x = 50
-        hud_y = 60
-        icon_size = 180
+        # Right-aligned positioning (anchor from right edge)
+        money_x = width - 100  # 100px from right edge
+        money_y = 150  # 150px from top
         
-        # 1. WEAPON ICON BOX - EXACT PATCH STYLE
-        icon_x = hud_x
-        icon_y = hud_y
-        
-        # Thick white border, black fill (like patch)
-        border_width = 5
-        draw.rectangle([icon_x - border_width, icon_y - border_width, 
-                       icon_x + icon_size + border_width, icon_y + icon_size + border_width], 
-                      fill='#FFFFFF')
-        draw.rectangle([icon_x, icon_y, icon_x + icon_size, icon_y + icon_size], 
-                      fill='#000000')
-        
-        # Draw weapon icon or profile pic
-        if profile_pic:
-            # Heavy pixelation
-            profile_pic_small = profile_pic.resize((45, 45), Image.Resampling.NEAREST)
-            profile_pic_pixelated = profile_pic_small.resize((icon_size - 15, icon_size - 15), Image.Resampling.NEAREST)
-            img.paste(profile_pic_pixelated, (icon_x + 8, icon_y + 8))
-        else:
-            # Simple gun shape in light grey/white
-            gun_y = icon_y + 50
-            # Gun barrel (horizontal)
-            draw.rectangle([icon_x + 75, gun_y, icon_x + 165, gun_y + 18], fill='#DDDDDD', outline='#000000', width=2)
-            # Gun body
-            draw.rectangle([icon_x + 35, gun_y + 12, icon_x + 80, gun_y + 55], fill='#DDDDDD', outline='#000000', width=2)
-            # Gun handle
-            draw.polygon([(icon_x + 55, gun_y + 55), (icon_x + 65, gun_y + 55), 
-                         (icon_x + 70, gun_y + 95), (icon_x + 50, gun_y + 95)], 
-                         fill='#DDDDDD', outline='#000000')
-        
-        # Ammo count below weapon (exactly like "103-30" in patch)
-        ammo_text = f"{level}-{points_in_level}"
-        draw_outlined_text(ammo_text, (icon_x + icon_size//2, icon_y + icon_size + 12), 
-                         label_font, '#FFFFFF', outline_width=3, anchor='mm')
-        
-        # 2. TIME DISPLAY - exact patch position
-        time_text = "04:20"
-        time_x = icon_x + icon_size + 220
-        time_y = icon_y + 5
-        draw_outlined_text(time_text, (time_x, time_y), 
-                         money_font, '#FFFFFF', outline_width=5)
-        
-        # 3. WHITE/GREY BAR - thinner and more compact like patch
-        bar_x = icon_x + icon_size + 30
-        bar_y = icon_y + 78
-        bar_width = 520
-        bar_height = 38  # Thinner!
-        
-        # Black outline (thinner)
-        draw.rectangle([bar_x - 4, bar_y - 4, bar_x + bar_width + 4, bar_y + bar_height + 4], 
-                     fill='#000000')
-        # Very dark background
-        draw.rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height], 
-                     fill='#0A0A0A')
-        # Light grey fill (75% full)
-        white_fill = int(bar_width * 0.75)
-        draw.rectangle([bar_x, bar_y, bar_x + white_fill, bar_y + bar_height], 
-                      fill='#D0D0D0')
-        
-        # 4. RED BAR - directly below, same size (compact spacing)
-        bar2_y = bar_y + bar_height + 10  # Tighter spacing!
-        
-        # Black outline
-        draw.rectangle([bar_x - 4, bar2_y - 4, bar_x + bar_width + 4, bar2_y + bar_height + 4], 
-                     fill='#000000')
-        # Very dark background
-        draw.rectangle([bar_x, bar2_y, bar_x + bar_width, bar2_y + bar_height], 
-                     fill='#0A0A0A')
-        # Bright red fill
-        filled_width = int((progress / 100) * bar_width)
-        if filled_width < 12:
-            filled_width = max(12, int(bar_width * 0.05))
-        draw.rectangle([bar_x, bar2_y, bar_x + filled_width, bar2_y + bar_height], 
-                      fill='#DD0000')  # Brighter red
-        
-        # 5. MONEY - VIVID BRIGHT GREEN exactly like patch
-        money_y = bar2_y + bar_height + 22  # Tighter spacing
+        # 1. MONEY/POINTS DISPLAY - Dark GTA Green with thick black outline
         points_text = f"${current_points:08d}"
         
-        # VIVID GREEN money text (exact patch color)
-        draw_outlined_text(points_text, (bar_x, money_y), 
-                         money_font, '#00FF00', outline_width=5)  # Pure bright green!
+        # Use dark GTA green color from reference
+        gta_green = '#36682C'  # Authentic GTA SA money color
         
-        # 6. STARS - TIGHT SPACING like patch (3 grey + 3 gold)
-        stars_y = money_y + 75  # Tighter
-        star_spacing = 55  # Tighter spacing!
+        # Draw money text with thick black outline (right-aligned)
+        draw_outlined_text(points_text, (money_x, money_y), 
+                         money_font, gta_green, outline_width=7, anchor='rm')
         
-        # Always show 3 grey + 3 gold (like patch)
-        for i in range(6):
-            star_x_pos = bar_x + (i * star_spacing)
-            if i >= 3:  # Last 3 are GOLD
-                star_color = '#FFD700'
-            else:  # First 3 are GREY
-                star_color = '#3A3A3A'  # Darker grey like patch
+        # 2. STARS - Row of 5 stars below money (right-aligned)
+        stars_y = money_y + 110
+        star_size = 85
+        star_spacing = 95
+        
+        # Calculate starting position for right-alignment
+        total_star_width = (total_stars - 1) * star_spacing
+        first_star_x = money_x - total_star_width
+        
+        # Draw 5 stars
+        for i in range(total_stars):
+            star_x_pos = first_star_x + (i * star_spacing)
             
-            # Draw star
+            # Determine star color based on progress
+            if i < filled_stars:
+                star_color = '#FFD700'  # Gold/Yellow for filled
+            else:
+                star_color = '#3E3E3E'  # Dark grey for empty
+            
+            # Draw blocky star with thick outline
             draw_outlined_text("★", (star_x_pos, stars_y), 
-                             label_font, star_color, outline_width=2)
+                             money_font, star_color, outline_width=5, anchor='mm')
         
         # Apply retro pixelation effect to entire image (lighter effect to preserve details)
         img = pixelate_image(img, scale_factor=0.75)  # Less aggressive pixelation
