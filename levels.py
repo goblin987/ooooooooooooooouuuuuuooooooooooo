@@ -196,41 +196,53 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
         next_rank = LEVEL_RANKS.get(next_rank_level, "👑 Max Rank") if next_rank_level else "👑 Max Rank"
         
-        # Create FULL SCREEN modern Apple-like card (1080x1920 - full phone)
+        # GTA SAN ANDREAS HUD STYLE
         width, height = 1080, 1920
         
-        # Apple-like blurred background (dark)
-        img = Image.new('RGB', (width, height), color='#0f172a')
+        # GTA SA light blue-green background
+        img = Image.new('RGB', (width, height), color='#87CEEB')
         draw = ImageDraw.Draw(img)
         
-        # Subtle gradient
+        # Subtle gradient background (sky blue to light green)
         for y in range(height):
             ratio = y / height
-            r = int(15 + (25 - 15) * ratio)
-            g = int(23 + (35 - 23) * ratio)
-            b = int(42 + (52 - 42) * ratio)
+            r = int(135 + (135 - 135) * ratio)
+            g = int(206 + (206 - 206) * ratio)
+            b = int(235 + (235 - 235) * ratio)
+            if ratio > 0.7:  # Add green tint at bottom
+                g = int(206 + (220 - 206) * ((ratio - 0.7) / 0.3))
             draw.line([(0, y), (width, y)], fill=(r, g, b))
         
-        # Load fonts - MUCH BIGGER to fill screen
+        # Load fonts - try to find pixelated font, fallback to bold sans-serif
         try:
-            title_font = ImageFont.truetype("arial.ttf", 75)          # "Your Stats" title - BIGGER
-            name_font = ImageFont.truetype("arialbd.ttf", 95)          # Username (bold) - MUCH BIGGER
-            info_font = ImageFont.truetype("arial.ttf", 62)            # Info labels - BIGGER
-            level_font = ImageFont.truetype("arialbd.ttf", 85)        # Level number - ALMOST SAME AS USERNAME
-            points_font = ImageFont.truetype("arialbd.ttf", 80)       # Points text - ALMOST SAME AS USERNAME
+            # Try pixelated/retro fonts
+            time_font = ImageFont.truetype("arialbd.ttf", 100)       # Time - large
+            level_font = ImageFont.truetype("arialbd.ttf", 60)       # Level text
+            points_font = ImageFont.truetype("arialbd.ttf", 90)      # Points - large
         except:
             try:
-                title_font = ImageFont.truetype("arial.ttf", 75)
-                name_font = ImageFont.truetype("arial.ttf", 95)
-                info_font = ImageFont.truetype("arial.ttf", 62)
-                level_font = ImageFont.truetype("arial.ttf", 85)
-                points_font = ImageFont.truetype("arial.ttf", 80)
+                time_font = ImageFont.truetype("arial.ttf", 100)
+                level_font = ImageFont.truetype("arial.ttf", 60)
+                points_font = ImageFont.truetype("arial.ttf", 90)
             except:
-                title_font = ImageFont.load_default()
-                name_font = ImageFont.load_default()
-                info_font = ImageFont.load_default()
+                time_font = ImageFont.load_default()
                 level_font = ImageFont.load_default()
                 points_font = ImageFont.load_default()
+        
+        # Helper function to draw text with thick black outline (GTA SA style)
+        def draw_outlined_text(text, position, font, fill_color, outline_color='#000000', outline_width=3, anchor=None):
+            x, y = position
+            kwargs = {'font': font}
+            if anchor:
+                kwargs['anchor'] = anchor
+            
+            # Draw outline by drawing text multiple times at offsets
+            for adj in range(-outline_width, outline_width + 1):
+                for adj2 in range(-outline_width, outline_width + 1):
+                    if adj != 0 or adj2 != 0:
+                        draw.text((x + adj, y + adj2), text, fill=outline_color, **kwargs)
+            # Draw main text on top
+            draw.text(position, text, fill=fill_color, **kwargs)
         
         # Get user profile photo
         profile_pic = None
@@ -244,102 +256,88 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.warning(f"Could not get profile photo: {e}")
         
-        # APPLE-LIKE MODERN LAYOUT - FILL SCREEN
+        # GTA SAN ANDREAS HUD LAYOUT
         
-        # Title at top - "Your Stats" - BIGGER
-        title_y = 80
-        draw.text((width//2, title_y), "Your Stats", fill='#60a5fa', anchor='mm', font=title_font)
+        # 1. TOP-LEFT: Profile Picture in Light Green Square
+        pic_size = 200
+        pic_x = 40
+        pic_y = 60
+        square_size = pic_size + 40  # Extra space for border
         
-        # Main card - dark grey-blue, Apple-like - USE MORE SPACE
-        card_margin = 40
-        card_x = card_margin
-        card_y = 180
-        card_width = width - card_margin * 2
-        card_height = height - card_y - 80
+        # Draw light green square with thick black border
+        border_thickness = 4
+        draw.rectangle([pic_x - border_thickness, pic_y - border_thickness, 
+                       pic_x + square_size + border_thickness, pic_y + square_size + border_thickness], 
+                      fill='#000000')  # Black border
+        draw.rectangle([pic_x, pic_y, pic_x + square_size, pic_y + square_size], 
+                      fill='#90EE90')  # Light green
         
-        # Draw main card with subtle shadow effect
-        draw.rounded_rectangle([card_x, card_y, card_x + card_width, card_y + card_height],
-                              radius=28, fill='#1e293b')
-        
-        # LEFT SIDE - Profile Picture - MUCH BIGGER
-        pic_size = 320
-        pic_x = card_x + 60
-        pic_y = card_y + 80
-        
+        # Place profile picture inside square (square, not circular)
+        pic_inner_x = pic_x + 20
+        pic_inner_y = pic_y + 20
         if profile_pic:
-            # Resize and make circular
             profile_pic = profile_pic.resize((pic_size, pic_size), Image.Resampling.LANCZOS)
-            
-            # Create circular mask
-            mask = Image.new('L', (pic_size, pic_size), 0)
-            mask_draw = ImageDraw.Draw(mask)
-            mask_draw.ellipse([0, 0, pic_size, pic_size], fill=255)
-            
-            # Paste circular profile pic (no border for cleaner look)
-            output = Image.new('RGBA', (pic_size, pic_size), (0, 0, 0, 0))
-            output.paste(profile_pic, (0, 0))
-            img.paste(output, (pic_x, pic_y), mask)
+            img.paste(profile_pic, (pic_inner_x, pic_inner_y))
         else:
-            # Draw default avatar circle
-            draw.ellipse([pic_x, pic_y, pic_x + pic_size, pic_y + pic_size], 
-                        fill='#334155')
-            
-            # Draw user initial
+            # Default avatar
+            draw.rectangle([pic_inner_x, pic_inner_y, pic_inner_x + pic_size, pic_inner_y + pic_size], 
+                          fill='#555555')
             initial = first_name[0].upper() if first_name else "?"
-            draw.text((pic_x + pic_size//2, pic_y + pic_size//2), initial, 
-                     fill='#ffffff', anchor='mm', font=level_font)
+            draw_outlined_text(initial, (pic_inner_x + pic_size//2, pic_inner_y + pic_size//2), 
+                             level_font, '#FFFFFF', outline_width=2)
         
-        # RIGHT SIDE - All info LEFT-ALIGNED (not centered) - BIGGER SPACING
-        info_x = pic_x + pic_size + 60
-        info_start_y = card_y + 80
+        # Level text below profile pic
+        level_text_y = pic_y + square_size + 15
+        level_text = f"Level: {level}"
+        draw_outlined_text(level_text, (pic_x + square_size//2, level_text_y), 
+                         level_font, '#87CEEB', outline_width=3, anchor='mm')
         
-        current_y = info_start_y
+        # 2. TOP-RIGHT: Time Display "04:20"
+        time_text = "04:20"
+        time_x = width - 200
+        time_y = 60
+        draw_outlined_text(time_text, (time_x, time_y), 
+                         time_font, '#D3D3D3', outline_width=3)
         
-        # Username - HUGE bold white (left-aligned)
-        draw.text((info_x, current_y), first_name, fill='#ffffff', anchor='lt', font=name_font)
-        current_y += 110
+        # 3. MIDDLE-RIGHT: Status Bars
+        bar_x = width - 450
+        bar_y = 350
+        bar_width = 380
+        bar_height = 50
+        bar_spacing = 70
         
-        # Leaderboard - Green - BIGGER
-        draw.text((info_x, current_y), f"Leaderboard: #{leaderboard_pos}", 
-                 fill='#34d399', anchor='lt', font=info_font)
-        current_y += 80
+        # TOP BAR: Progress Bar (White fill)
+        draw.rectangle([bar_x - 4, bar_y - 4, bar_x + bar_width + 4, bar_y + bar_height + 4], 
+                     fill='#000000')  # Black outline
+        draw.rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height], 
+                     fill='#333333')  # Dark gray background
         
-        # Rank - Yellow (no badge, just text) - BIGGER
-        draw.text((info_x, current_y), f"Rank: {rank_title}", 
-                 fill='#fbbf24', anchor='lt', font=info_font)
-        current_y += 90
-        
-        # Level - White - ALMOST SAME SIZE AS USERNAME
-        draw.text((info_x, current_y), f"Level: {level}", 
-                 fill='#ffffff', anchor='lt', font=level_font)
-        current_y += 100
-        
-        # Points Progress - White - ALMOST SAME SIZE AS USERNAME
-        draw.text((info_x, current_y), f"{points_in_level:,} / {points_needed:,} Points", 
-                 fill='#ffffff', anchor='lt', font=points_font)
-        current_y += 100
-        
-        # Progress bar - MUCH THICKER - Light blue (Apple-like)
-        bar_width = card_x + card_width - info_x - 60
-        bar_height = 60  # MUCH THICKER!
-        bar_x = info_x
-        bar_y = current_y
-        
-        # Background bar - dark grey
-        draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height],
-                              radius=30, fill='#334155')
-        
-        # Filled bar - light blue (Apple accent color)
+        # Progress fill (white)
         filled_width = int((progress / 100) * bar_width)
-        if filled_width > 12:
-            draw.rounded_rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + bar_height],
-                                  radius=30, fill='#60a5fa')
+        if filled_width > 4:
+            draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + bar_height], 
+                          fill='#FFFFFF')
         
-        current_y = bar_y + bar_height + 80
+        # BOTTOM BAR: Secondary Bar (Red fill - represents level completion)
+        bar2_y = bar_y + bar_height + bar_spacing
+        draw.rectangle([bar_x - 4, bar2_y - 4, bar_x + bar_width + 4, bar2_y + bar_height + 4], 
+                     fill='#000000')  # Black outline
+        draw.rectangle([bar_x, bar2_y, bar_x + bar_width, bar2_y + bar_height], 
+                     fill='#333333')  # Dark gray background
         
-        # Next rank - Light blue - BIGGER
-        draw.text((info_x, current_y), f"Next: {next_rank}", 
-                 fill='#60a5fa', anchor='lt', font=info_font)
+        # Level completion fill (red) - shows how far through current level
+        level_completion = (points_in_level / points_needed * 100) if points_needed > 0 else 0
+        filled_width2 = int((level_completion / 100) * bar_width)
+        if filled_width2 > 4:
+            draw.rectangle([bar_x, bar2_y, bar_x + filled_width2, bar2_y + bar_height], 
+                          fill='#FF0000')
+        
+        # 4. BOTTOM-CENTER/RIGHT: Points Display (Money style)
+        points_text = f"${current_points:08d}"  # Format like "$00251742"
+        points_x = width - 350
+        points_y = height - 150
+        draw_outlined_text(points_text, (points_x, points_y), 
+                         points_font, '#006400', outline_width=3)  # Dark green
         
         # Save to bytes
         bio = BytesIO()
