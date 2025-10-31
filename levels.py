@@ -199,38 +199,113 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # GTA SAN ANDREAS HUD STYLE
         width, height = 1080, 1920
         
-        # GTA SA light blue-green background
+        # GTA SA background with sky, desert, and palm trees
         img = Image.new('RGB', (width, height), color='#87CEEB')
         draw = ImageDraw.Draw(img)
         
-        # Subtle gradient background (sky blue to light green)
-        for y in range(height):
-            ratio = y / height
-            r = int(135 + (135 - 135) * ratio)
-            g = int(206 + (206 - 206) * ratio)
-            b = int(235 + (235 - 235) * ratio)
-            if ratio > 0.7:  # Add green tint at bottom
-                g = int(206 + (220 - 206) * ((ratio - 0.7) / 0.3))
+        # Sky blue gradient at top (0-40%)
+        sky_start = (135, 206, 235)
+        sky_end = (176, 196, 222)
+        for y in range(int(height * 0.4)):
+            ratio = y / (height * 0.4)
+            r = int(sky_start[0] + (sky_end[0] - sky_start[0]) * ratio)
+            g = int(sky_start[1] + (sky_end[1] - sky_start[1]) * ratio)
+            b = int(sky_start[2] + (sky_end[2] - sky_start[2]) * ratio)
             draw.line([(0, y), (width, y)], fill=(r, g, b))
         
-        # Load fonts - try to find pixelated font, fallback to bold sans-serif
-        try:
-            # Try pixelated/retro fonts
-            time_font = ImageFont.truetype("arialbd.ttf", 100)       # Time - large
-            level_font = ImageFont.truetype("arialbd.ttf", 60)       # Level text
-            points_font = ImageFont.truetype("arialbd.ttf", 90)      # Points - large
-        except:
+        # Desert/sand gradient in middle (40-85%)
+        desert_start = (210, 180, 140)
+        desert_end = (194, 178, 128)
+        for y in range(int(height * 0.4), int(height * 0.85)):
+            ratio = (y - height * 0.4) / (height * 0.45)
+            r = int(desert_start[0] + (desert_end[0] - desert_start[0]) * ratio)
+            g = int(desert_start[1] + (desert_end[1] - desert_start[1]) * ratio)
+            b = int(desert_start[2] + (desert_end[2] - desert_start[2]) * ratio)
+            draw.line([(0, y), (width, y)], fill=(r, g, b))
+        
+        # Ground/darker sand at bottom (85-100%)
+        ground_color = (184, 134, 88)
+        for y in range(int(height * 0.85), height):
+            draw.line([(0, y), (width, y)], fill=ground_color)
+        
+        # Draw horizon line
+        horizon_y = int(height * 0.4)
+        draw.line([(0, horizon_y), (width, horizon_y)], fill='#4682B4', width=2)
+        
+        # Draw palm trees at bottom-right (simple pixelated style)
+        tree_x = width - 200
+        tree_y = height - 300
+        
+        # Palm tree trunk (dark brown vertical rectangle)
+        draw.rectangle([tree_x + 20, tree_y + 100, tree_x + 35, tree_y + 200], fill='#8B4513', outline='#000000', width=2)
+        
+        # Palm tree leaves (dark green triangles/rectangles)
+        # Left leaf
+        draw.polygon([(tree_x + 10, tree_y + 50), (tree_x + 20, tree_y + 100), (tree_x + 5, tree_y + 100)], fill='#228B22', outline='#000000', width=2)
+        # Right leaf
+        draw.polygon([(tree_x + 50, tree_y + 50), (tree_x + 35, tree_y + 100), (tree_x + 55, tree_y + 100)], fill='#228B22', outline='#000000', width=2)
+        # Top leaf
+        draw.polygon([(tree_x + 27, tree_y + 30), (tree_x + 20, tree_y + 100), (tree_x + 35, tree_y + 100)], fill='#228B22', outline='#000000', width=2)
+        
+        # Additional smaller palm tree further left
+        tree2_x = width - 450
+        tree2_y = height - 280
+        draw.rectangle([tree2_x + 15, tree2_y + 90, tree2_x + 28, tree2_y + 180], fill='#8B4513', outline='#000000', width=2)
+        draw.polygon([(tree2_x + 5, tree2_y + 40), (tree2_x + 15, tree2_y + 90), (tree2_x + 2, tree2_y + 90)], fill='#228B22', outline='#000000', width=2)
+        draw.polygon([(tree2_x + 40, tree2_y + 40), (tree2_x + 28, tree2_y + 90), (tree2_x + 48, tree2_y + 90)], fill='#228B22', outline='#000000', width=2)
+        draw.polygon([(tree2_x + 21, tree2_y + 25), (tree2_x + 15, tree2_y + 90), (tree2_x + 28, tree2_y + 90)], fill='#228B22', outline='#000000', width=2)
+        
+        # Load pixelated fonts - try multiple paths, fallback to bold with pixelation
+        time_font = None
+        level_font = None
+        points_font = None
+        
+        # Try pixelated fonts in order
+        pixel_font_paths = [
+            ("C:/Windows/Fonts/pressstart2p.ttf", "Press Start 2P"),
+            ("/usr/share/fonts/truetype/pressstart2p/PressStart2P-Regular.ttf", "Press Start 2P"),
+            ("C:/Windows/Fonts/Minecraftia-Regular.ttf", "Minecraftia"),
+            ("/usr/share/fonts/truetype/minecraftia/Minecraftia-Regular.ttf", "Minecraftia"),
+        ]
+        
+        for font_path, font_name in pixel_font_paths:
             try:
-                time_font = ImageFont.truetype("arial.ttf", 100)
-                level_font = ImageFont.truetype("arial.ttf", 60)
-                points_font = ImageFont.truetype("arial.ttf", 90)
+                import os
+                if os.path.exists(font_path):
+                    time_font = ImageFont.truetype(font_path, 130)
+                    level_font = ImageFont.truetype(font_path, 55)
+                    points_font = ImageFont.truetype(font_path, 115)
+                    logger.info(f"Loaded pixelated font: {font_name}")
+                    break
             except:
-                time_font = ImageFont.load_default()
-                level_font = ImageFont.load_default()
-                points_font = ImageFont.load_default()
+                continue
+        
+        # Fallback to bold Arial if pixel fonts not found
+        if not time_font:
+            try:
+                time_font = ImageFont.truetype("arialbd.ttf", 130)
+                level_font = ImageFont.truetype("arialbd.ttf", 55)
+                points_font = ImageFont.truetype("arialbd.ttf", 115)
+            except:
+                try:
+                    time_font = ImageFont.truetype("arial.ttf", 130)
+                    level_font = ImageFont.truetype("arial.ttf", 55)
+                    points_font = ImageFont.truetype("arial.ttf", 115)
+                except:
+                    time_font = ImageFont.load_default()
+                    level_font = ImageFont.load_default()
+                    points_font = ImageFont.load_default()
+        
+        # Helper function to apply pixelation effect to image
+        def pixelate_image(image, scale_factor=0.5):
+            """Apply pixelation effect by scaling down and back up"""
+            w, h = image.size
+            small = image.resize((int(w * scale_factor), int(h * scale_factor)), Image.Resampling.NEAREST)
+            pixelated = small.resize((w, h), Image.Resampling.NEAREST)
+            return pixelated
         
         # Helper function to draw text with thick black outline (GTA SA style)
-        def draw_outlined_text(text, position, font, fill_color, outline_color='#000000', outline_width=3, anchor=None):
+        def draw_outlined_text(text, position, font, fill_color, outline_color='#000000', outline_width=4, anchor=None):
             x, y = position
             kwargs = {'font': font}
             if anchor:
@@ -264,8 +339,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pic_y = 60
         square_size = pic_size + 40  # Extra space for border
         
-        # Draw light green square with thick black border
-        border_thickness = 4
+        # Draw light green square with thick black border (5px)
+        border_thickness = 5
         draw.rectangle([pic_x - border_thickness, pic_y - border_thickness, 
                        pic_x + square_size + border_thickness, pic_y + square_size + border_thickness], 
                       fill='#000000')  # Black border
@@ -276,68 +351,88 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pic_inner_x = pic_x + 20
         pic_inner_y = pic_y + 20
         if profile_pic:
+            # Apply subtle pixelation to profile pic for retro look
             profile_pic = profile_pic.resize((pic_size, pic_size), Image.Resampling.LANCZOS)
+            # Small pixelation effect
+            profile_pic_small = profile_pic.resize((pic_size // 2, pic_size // 2), Image.Resampling.NEAREST)
+            profile_pic = profile_pic_small.resize((pic_size, pic_size), Image.Resampling.NEAREST)
             img.paste(profile_pic, (pic_inner_x, pic_inner_y))
         else:
             # Default avatar
             draw.rectangle([pic_inner_x, pic_inner_y, pic_inner_x + pic_size, pic_inner_y + pic_size], 
-                          fill='#555555')
+                          fill='#555555', outline='#000000', width=2)
             initial = first_name[0].upper() if first_name else "?"
             draw_outlined_text(initial, (pic_inner_x + pic_size//2, pic_inner_y + pic_size//2), 
-                             level_font, '#FFFFFF', outline_width=2)
+                             level_font, '#FFFFFF', outline_width=4, anchor='mm')
         
-        # Level text below profile pic
-        level_text_y = pic_y + square_size + 15
+        # Level text INSIDE green square (below profile pic, like ammo count in reference)
+        level_text_y = pic_y + square_size - 25  # Position inside square at bottom
         level_text = f"Level: {level}"
         draw_outlined_text(level_text, (pic_x + square_size//2, level_text_y), 
-                         level_font, '#87CEEB', outline_width=3, anchor='mm')
+                         level_font, '#87CEEB', outline_width=4, anchor='mm')
         
         # 2. TOP-RIGHT: Time Display "04:20"
         time_text = "04:20"
-        time_x = width - 200
-        time_y = 60
+        time_x = width - 250
+        time_y = 50
         draw_outlined_text(time_text, (time_x, time_y), 
-                         time_font, '#D3D3D3', outline_width=3)
+                         time_font, '#D3D3D3', outline_width=4)
         
-        # 3. MIDDLE-RIGHT: Status Bars
+        # 3. MIDDLE-RIGHT: Status Bars (thicker with better visibility)
         bar_x = width - 450
         bar_y = 350
         bar_width = 380
-        bar_height = 50
-        bar_spacing = 70
+        bar_height = 65  # Thicker bars
+        bar_spacing = 75
         
-        # TOP BAR: Progress Bar (White fill)
-        draw.rectangle([bar_x - 4, bar_y - 4, bar_x + bar_width + 4, bar_y + bar_height + 4], 
+        # TOP BAR: Progress Bar (White fill) - thicker outline
+        outline_thickness = 5
+        draw.rectangle([bar_x - outline_thickness, bar_y - outline_thickness, 
+                       bar_x + bar_width + outline_thickness, bar_y + bar_height + outline_thickness], 
                      fill='#000000')  # Black outline
         draw.rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height], 
                      fill='#333333')  # Dark gray background
         
-        # Progress fill (white)
+        # Progress fill (bright white)
         filled_width = int((progress / 100) * bar_width)
-        if filled_width > 4:
+        if filled_width > 5:
             draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + bar_height], 
                           fill='#FFFFFF')
+            # Add subtle inner highlight
+            draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + 3], fill='#CCCCCC')
         
         # BOTTOM BAR: Secondary Bar (Red fill - represents level completion)
         bar2_y = bar_y + bar_height + bar_spacing
-        draw.rectangle([bar_x - 4, bar2_y - 4, bar_x + bar_width + 4, bar2_y + bar_height + 4], 
+        draw.rectangle([bar_x - outline_thickness, bar2_y - outline_thickness, 
+                       bar_x + bar_width + outline_thickness, bar2_y + bar_height + outline_thickness], 
                      fill='#000000')  # Black outline
         draw.rectangle([bar_x, bar2_y, bar_x + bar_width, bar2_y + bar_height], 
                      fill='#333333')  # Dark gray background
         
-        # Level completion fill (red) - shows how far through current level
+        # Level completion fill (bright red) - shows how far through current level
         level_completion = (points_in_level / points_needed * 100) if points_needed > 0 else 0
         filled_width2 = int((level_completion / 100) * bar_width)
-        if filled_width2 > 4:
+        if filled_width2 > 5:
             draw.rectangle([bar_x, bar2_y, bar_x + filled_width2, bar2_y + bar_height], 
                           fill='#FF0000')
+            # Add subtle inner highlight
+            draw.rectangle([bar_x, bar2_y, bar_x + filled_width2, bar2_y + 3], fill='#CC0000')
         
         # 4. BOTTOM-CENTER/RIGHT: Points Display (Money style)
         points_text = f"${current_points:08d}"  # Format like "$00251742"
-        points_x = width - 350
-        points_y = height - 150
+        points_x = width - 400
+        points_y = height - 120
         draw_outlined_text(points_text, (points_x, points_y), 
-                         points_font, '#006400', outline_width=3)  # Dark green
+                         points_font, '#006400', outline_width=4)  # Dark green
+        
+        # Apply retro pixelation effect to entire image
+        img = pixelate_image(img, scale_factor=0.6)
+        
+        # Recreate draw object after pixelation
+        draw = ImageDraw.Draw(img)
+        
+        # Redraw UI elements after pixelation to keep them sharp (optional enhancement)
+        # The pixelation will give the retro look while keeping elements readable
         
         # Save to bytes
         bio = BytesIO()
