@@ -196,11 +196,11 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
         next_rank = LEVEL_RANKS.get(next_rank_level, "👑 Max Rank") if next_rank_level else "👑 Max Rank"
         
-        # GTA SAN ANDREAS HUD STYLE - AUTHENTIC DARK BACKGROUND
+        # GTA SAN ANDREAS HUD STYLE - BLACK BACKGROUND
         width, height = 1080, 1920
         
-        # Dark background (Telegram dark mode / charcoal grey for retro contrast)
-        img = Image.new('RGB', (width, height), color='#1C1C1E')  # Dark charcoal
+        # Solid black background for maximum retro contrast
+        img = Image.new('RGB', (width, height), color='#111111')  # Very dark grey/black
         draw = ImageDraw.Draw(img)
         
         # Load GTA SA style fonts - try Pricedown first, fallback to bold
@@ -263,68 +263,68 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # No profile photo needed for GTA SA HUD style
         
-        # GTA SAN ANDREAS HUD LAYOUT - AUTHENTIC TOP-RIGHT CORNER
+        # GTA SAN ANDREAS HUD LAYOUT - EXACT TOP-RIGHT CORNER PLACEMENT
         
-        # Position everything tightly grouped in TOP-RIGHT corner (like GTA SA HUD)
-        hud_margin = 60
-        bar_width = 480  # Wider and thinner
-        bar_height = 38  # Thinner, more authentic
+        # Tightly grouped in absolute TOP-RIGHT corner (minimal margin)
+        hud_margin = 40  # Minimal margin
+        bar_width = 500  # Thick and short like reference
+        bar_height = 42  # Thick bar like reference
         hud_x = width - bar_width - hud_margin
-        hud_y = 70  # Top margin
+        hud_y = 50  # Very top
         
-        # 1. LEVEL/RANK LABEL (white text to left of progress bar)
+        # 1. LEVEL LABEL (white text to immediate left of progress bar)
         label_text = "LEVEL"
-        label_x = hud_x - 100
-        label_y = hud_y + 8
+        label_x = hud_x - 105
+        label_y = hud_y + 10
         draw_outlined_text(label_text, (label_x, label_y), 
                          label_font, '#FFFFFF', outline_width=4)
         
-        # 2. PROGRESS BAR (Authentic GTA SA Health Bar)
+        # 2. PROGRESS BAR (Bright Lime Green like reference image top bar)
         bar_x = hud_x
         bar_y = hud_y
         
-        # Draw thick black outline (authentic GTA SA style)
-        outline_thickness = 4
+        # Draw thick black outline (sharp corners, rectangular)
+        outline_thickness = 5
         draw.rectangle([bar_x - outline_thickness, bar_y - outline_thickness, 
                        bar_x + bar_width + outline_thickness, bar_y + bar_height + outline_thickness], 
                      fill='#000000')
         
         # Draw solid dark background (empty bar state)
         draw.rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height], 
-                     fill='#1A1A1A')  # Solid dark grey/black
+                     fill='#1A1A1A')  # Dark grey/black
         
-        # Draw GTA SA health bar lime green fill (#65AA09)
+        # Draw BRIGHT LIME GREEN fill (like reference image)
         filled_width = int((progress / 100) * bar_width)
         if filled_width < 10:
             filled_width = max(10, int(bar_width * 0.05))
         
-        # Authentic GTA SA lime green fill
+        # VIBRANT LIME GREEN fill (#00FF00 - bright neon green)
         draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + bar_height], 
-                      fill='#65AA09')  # Authentic GTA SA green
+                      fill='#00FF00')  # Bright lime green like reference
         
-        # Add subtle highlight on top edge for depth (lighter green)
+        # Add subtle highlight on top edge for depth
         if filled_width > 5:
             draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + 3], 
-                          fill='#7BC90A')
+                          fill='#33FF33')
         
-        # 3. MONEY/POINTS DISPLAY (Authentic GTA SA Dark Green)
-        money_y = bar_y + bar_height + 20  # Tighter spacing
+        # 3. MONEY/POINTS DISPLAY (Dark Green - exact match to reference)
+        money_y = bar_y + bar_height + 18  # Tight spacing
         points_text = f"${current_points:08d}"
         
-        # Calculate text position (right-aligned like GTA SA)
+        # Calculate text position (right-aligned with bar)
         bbox = draw.textbbox((0, 0), points_text, font=money_font)
         text_width = bbox[2] - bbox[0]
         money_x = bar_x + bar_width - text_width
         
-        # Draw money text with AUTHENTIC GTA SA dark green color
+        # Draw money text with DARK GREEN color (#005B00) and THICK black outline
         draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font, '#005B00', outline_width=5)  # Dark green (GTA SA money)
+                         money_font, '#005B00', outline_width=6)  # Dark green with thick outline
         
-        # Add additional info below (username and rank)
-        info_y = money_y + 95
+        # Add user info below (subtle grey)
+        info_y = money_y + 90
         info_text = f"{first_name} • {rank_title} • #{leaderboard_pos}"
         draw_outlined_text(info_text, (bar_x, info_y), 
-                         label_font, '#AAAAAA', outline_width=3)
+                         label_font, '#888888', outline_width=3)
         
         # Apply retro pixelation effect to entire image (lighter effect to preserve details)
         img = pixelate_image(img, scale_factor=0.75)  # Less aggressive pixelation
