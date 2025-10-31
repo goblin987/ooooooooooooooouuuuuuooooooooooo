@@ -631,18 +631,8 @@ async def evaluate_dice2_round(game, chat_id, game_key, context):
         update_user_points(winner_id, winner_points + prize + game['bet'])
         winner_username = player1_username if winner == 'player1' else player2_username
         
-        # Add XP rewards for dice2 game
-        try:
-            import levels
-            # Winner gets win XP, loser gets participation XP
-            loser = 'player2' if winner == 'player1' else 'player1'
-            loser_id = game[loser]
-            levels.add_xp(winner_id, levels.XP_REWARDS['dice2_win'], 'dice2_win')
-            levels.add_xp(loser_id, levels.XP_REWARDS['dice2_play'], 'dice2_play')
-        except Exception as e:
-            logger.error(f"Error adding XP for dice2: {e}")
-        
         # No stats recording for points games - they're separate from crypto games
+        # Note: dice2 is pure gambling - no XP/points rewards
         loser = 'player2' if winner == 'player1' else 'player1'
         loser_id = game[loser]
         

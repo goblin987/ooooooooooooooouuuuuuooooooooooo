@@ -387,11 +387,11 @@ async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     pending_scammer_reports[report_id] = report_data
     data_manager.save_data(pending_scammer_reports, 'pending_scammer_reports.pkl')
     
-    # Add XP for reporting scammer
+    # Add points for reporting scammer
     try:
         levels.add_xp(reporter_id, levels.XP_REWARDS['scammer_report'], 'scammer_report')
     except Exception as e:
-        logger.error(f"Error adding XP for scammer report: {e}")
+        logger.error(f"Error adding points for scammer report: {e}")
     
     await update.message.reply_text(
         f"✅ Pranešimas išsiųstas\n\n"
@@ -726,14 +726,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             update.effective_user.last_name
         )
     
-    # Grant XP for messages (with cooldown)
+    # Grant points for messages (with cooldown)
     if update.effective_chat.type in ['group', 'supergroup'] and update.message and update.message.text:
-        xp_result = levels.grant_message_xp(update.effective_user.id)
-        if xp_result and xp_result.get('leveled_up'):
+        points_result = levels.grant_message_xp(update.effective_user.id)
+        if points_result and points_result.get('leveled_up'):
             # Notify user of level up
             try:
                 username = update.effective_user.first_name
-                new_level = xp_result['new_level']
+                new_level = points_result['new_level']
                 rank = levels.get_rank_title(new_level)
                 await update.message.reply_text(
                     f"🎉 <b>{username}</b> pasiekė <b>Level {new_level}</b>!\n{rank}",
