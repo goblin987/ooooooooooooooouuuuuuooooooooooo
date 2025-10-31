@@ -172,6 +172,13 @@ async def handle_vote_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     current_points = get_user_points(user_id)
     update_user_points(user_id, current_points + 15)
     
+    # Add XP for voting
+    try:
+        import levels
+        levels.add_xp(user_id, levels.XP_REWARDS['vote'], 'voting')
+    except Exception as e:
+        logger.error(f"Error adding XP for vote: {e}")
+    
     last_vote_attempt[user_id] = now
     
     # Save voting data

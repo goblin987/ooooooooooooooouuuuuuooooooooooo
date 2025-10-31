@@ -59,6 +59,7 @@ import points_games
 import voting
 import stats
 import bajorai
+import levels
 
 # Telegram imports
 import telegram
@@ -385,6 +386,12 @@ async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     
     pending_scammer_reports[report_id] = report_data
     data_manager.save_data(pending_scammer_reports, 'pending_scammer_reports.pkl')
+    
+    # Add XP for reporting scammer
+    try:
+        levels.add_xp(reporter_id, levels.XP_REWARDS['scammer_report'], 'scammer_report')
+    except Exception as e:
+        logger.error(f"Error adding XP for scammer report: {e}")
     
     await update.message.reply_text(
         f"✅ Pranešimas išsiųstas\n\n"
@@ -719,6 +726,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             update.effective_user.last_name
         )
     
+    # Grant XP for messages (with cooldown)
+    if update.effective_chat.type in ['group', 'supergroup'] and update.message and update.message.text:
+        xp_result = levels.grant_message_xp(update.effective_user.id)
+        if xp_result and xp_result.get('leveled_up'):
+            # Notify user of level up
+            try:
+                username = update.effective_user.first_name
+                new_level = xp_result['new_level']
+                rank = levels.get_rank_title(new_level)
+                await update.message.reply_text(
+                    f"🎉 <b>{username}</b> pasiekė <b>Level {new_level}</b>!\n{rank}",
+                    parse_mode='HTML'
+                )
+            except:
+                pass
+    
     # Check game challenge handlers FIRST (work in both private and group chats)
     logger.debug(f"🔍 MESSAGE HANDLER: Checking game challenges for user {update.effective_user.id}")
     
@@ -965,6 +988,7 @@ def create_application():
     application.add_handler(CommandHandler("balsuoti", voting.balsuoti_command))
     application.add_handler(CommandHandler("barygos", voting.barygos_command))  # Scoreboard leaderboard
     application.add_handler(CommandHandler("bajorai", bajorai.bajorai_command))  # Top balances & game stats
+    application.add_handler(CommandHandler("points", levels.points_command))  # XP & Level system
     application.add_handler(CommandHandler("updatevoting", voting.updatevoting_command))
     application.add_handler(CommandHandler("resetvotes", voting.reset_voting_cooldowns_command))
     
