@@ -196,8 +196,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
         next_rank = LEVEL_RANKS.get(next_rank_level, "👑 Max Rank") if next_rank_level else "👑 Max Rank"
         
-        # Create BIG phone-optimized card (1080x1920 - full phone height)
-        width, height = 1080, 1920
+        # Create compact horizontal layout (1080x1400)
+        width, height = 1080, 1400
         
         # Create simple gradient background
         img = Image.new('RGB', (width, height), color='#0a0e27')
@@ -211,21 +211,29 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             b = int(39 + (66 - 39) * ratio)
             draw.line([(0, y), (width, y)], fill=(r, g, b))
         
-        # Load BIGGER fonts
+        # Load fonts for horizontal layout
         try:
-            name_font = ImageFont.truetype("arial.ttf", 100)       # Bigger!
-            rank_font = ImageFont.truetype("arial.ttf", 65)        # Bigger!
-            level_font = ImageFont.truetype("arial.ttf", 220)      # Bigger!
-            label_font = ImageFont.truetype("arial.ttf", 55)       # Bigger!
-            stats_font = ImageFont.truetype("arial.ttf", 90)       # MUCH Bigger!
-            small_font = ImageFont.truetype("arial.ttf", 50)       # Bigger!
+            name_font = ImageFont.truetype("arialbd.ttf", 85)      # Bold big name
+            rank_font = ImageFont.truetype("arial.ttf", 50)        
+            level_font = ImageFont.truetype("arialbd.ttf", 140)    # Big level
+            label_font = ImageFont.truetype("arial.ttf", 48)       
+            stats_font = ImageFont.truetype("arialbd.ttf", 75)     # Big stats
+            small_font = ImageFont.truetype("arial.ttf", 45)       
         except:
-            name_font = ImageFont.load_default()
-            rank_font = ImageFont.load_default()
-            level_font = ImageFont.load_default()
-            label_font = ImageFont.load_default()
-            stats_font = ImageFont.load_default()
-            small_font = ImageFont.load_default()
+            try:
+                name_font = ImageFont.truetype("arial.ttf", 85)
+                rank_font = ImageFont.truetype("arial.ttf", 50)
+                level_font = ImageFont.truetype("arial.ttf", 140)
+                label_font = ImageFont.truetype("arial.ttf", 48)
+                stats_font = ImageFont.truetype("arial.ttf", 75)
+                small_font = ImageFont.truetype("arial.ttf", 45)
+            except:
+                name_font = ImageFont.load_default()
+                rank_font = ImageFont.load_default()
+                level_font = ImageFont.load_default()
+                label_font = ImageFont.load_default()
+                stats_font = ImageFont.load_default()
+                small_font = ImageFont.load_default()
         
         # Get user profile photo
         profile_pic = None
@@ -239,20 +247,26 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.warning(f"Could not get profile photo: {e}")
         
-        # Draw profile picture (circular, top center) - BIGGER
-        pic_size = 250
-        pic_x = (width - pic_size) // 2
-        pic_y = 100
+        # HORIZONTAL LAYOUT - Photo on LEFT, Everything else on RIGHT
         
-        # Draw glow behind profile pic
-        glow_size = pic_size + 20
-        glow_x = pic_x - 10
-        glow_y = pic_y - 10
-        draw.ellipse([glow_x, glow_y, glow_x + glow_size, glow_y + glow_size], 
-                    fill='#ffffff10')
+        # Main content card
+        card_margin = 40
+        card_x = card_margin
+        card_y = 80
+        card_width = width - card_margin * 2
+        card_height = height - 160
+        
+        # Draw main card
+        draw.rounded_rectangle([card_x, card_y, card_x + card_width, card_y + card_height],
+                              radius=30, fill='#1e293b')
+        
+        # LEFT SIDE - Profile Picture
+        pic_size = 280
+        pic_x = card_x + 60
+        pic_y = card_y + (card_height - pic_size) // 2
         
         if profile_pic:
-            # Resize to square
+            # Resize and make circular
             profile_pic = profile_pic.resize((pic_size, pic_size), Image.Resampling.LANCZOS)
             
             # Create circular mask
@@ -261,100 +275,97 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             mask_draw.ellipse([0, 0, pic_size, pic_size], fill=255)
             
             # Draw white border
-            border_thickness = 6
+            border_thickness = 8
             draw.ellipse([pic_x - border_thickness, pic_y - border_thickness, 
                          pic_x + pic_size + border_thickness, pic_y + pic_size + border_thickness], 
-                        fill='#ffffff')
+                         fill='#ffffff')
             
             # Paste circular profile pic
             output = Image.new('RGBA', (pic_size, pic_size), (0, 0, 0, 0))
             output.paste(profile_pic, (0, 0))
             img.paste(output, (pic_x, pic_y), mask)
         else:
-            # Draw default avatar circle with border
-            border_thickness = 6
+            # Draw default avatar circle
+            border_thickness = 8
             draw.ellipse([pic_x - border_thickness, pic_y - border_thickness, 
                          pic_x + pic_size + border_thickness, pic_y + pic_size + border_thickness], 
-                        fill='#ffffff')
+                         fill='#ffffff')
             draw.ellipse([pic_x, pic_y, pic_x + pic_size, pic_y + pic_size], 
-                        fill='#1e293b')
+                        fill='#334155')
+            
             # Draw user initial
             initial = first_name[0].upper() if first_name else "?"
             draw.text((pic_x + pic_size//2, pic_y + pic_size//2), initial, 
-                     fill='#ffffff', anchor='mm', font=name_font)
+                     fill='#ffffff', anchor='mm', font=level_font)
         
-        # Draw username (below profile pic) - BIGGER
-        name_y = pic_y + pic_size + 60
-        draw.text((width//2, name_y), first_name, fill='#ffffff', anchor='mm', font=name_font)
+        # RIGHT SIDE - All info stacked vertically
+        info_x = pic_x + pic_size + 70
+        info_width = card_x + card_width - info_x - 60
+        info_center_x = info_x + info_width // 2
         
-        # Draw rank badge - BIGGER
-        rank_y = name_y + 100
+        current_y = card_y + 80
+        
+        # Username - BIG
+        draw.text((info_center_x, current_y), first_name, fill='#ffffff', anchor='mm', font=name_font)
+        current_y += 100
+        
+        # Rank badge
         rank_text = rank_title
-        
-        badge_padding = 40
+        badge_padding = 35
         bbox = draw.textbbox((0, 0), rank_text, font=rank_font)
         badge_width = bbox[2] - bbox[0] + badge_padding * 2
-        badge_height = 90
-        badge_x = (width - badge_width) // 2
-        badge_y = rank_y - badge_height // 2
+        badge_height = 70
+        badge_x = info_center_x - badge_width // 2
+        badge_y = current_y - badge_height // 2
         
         draw.rounded_rectangle([badge_x, badge_y, badge_x + badge_width, badge_y + badge_height],
-                              radius=45, fill='#fbbf24')
-        draw.text((width//2, rank_y), rank_text, fill='#0a0e27', anchor='mm', font=rank_font)
+                              radius=35, fill='#fbbf24')
+        draw.text((info_center_x, current_y), rank_text, fill='#0a0e27', anchor='mm', font=rank_font)
+        current_y += 120
         
-        # Draw level - MORE SPACE
-        level_y = rank_y + 140
-        draw.text((width//2, level_y), "LEVEL", fill='#94a3b8', anchor='mm', font=label_font)
-        draw.text((width//2, level_y + 120), str(level), fill='#ffffff', anchor='mm', font=level_font)
+        # Level
+        draw.text((info_center_x, current_y), "LEVEL", fill='#94a3b8', anchor='mm', font=label_font)
+        current_y += 65
+        draw.text((info_center_x, current_y), str(level), fill='#ffffff', anchor='mm', font=level_font)
+        current_y += 140
         
-        # Draw BIG progress card - USE MORE SPACE
-        card_y = level_y + 300
-        card_padding = 50
-        card_width = width - card_padding * 2
-        card_height = 550  # MUCH BIGGER!
-        card_x = card_padding
+        # Total Points
+        draw.text((info_center_x, current_y), "TOTAL POINTS", fill='#94a3b8', anchor='mm', font=label_font)
+        current_y += 65
+        draw.text((info_center_x, current_y), f"{current_points:,}", fill='#10b981', anchor='mm', font=stats_font)
+        current_y += 120
         
-        # Card background - lighter for contrast
-        draw.rounded_rectangle([card_x, card_y, card_x + card_width, card_y + card_height],
-                              radius=35, fill='#1e293b')
+        # Progress bar - WIDE and THICK
+        bar_width = info_width - 40
+        bar_height = 55
+        bar_x = info_x + 20
+        bar_y = current_y
         
-        # Total points (at top of card) - BIGGER TEXT
-        draw.text((width//2, card_y + 65), "TOTAL POINTS", fill='#94a3b8', anchor='mm', font=label_font)
-        draw.text((width//2, card_y + 160), f"{current_points:,}", fill='#10b981', anchor='mm', font=stats_font)
-        
-        # Progress to next level - BIGGER
-        progress_y = card_y + 260
-        draw.text((width//2, progress_y), f"{points_in_level:,} / {points_needed:,}", 
+        # Progress text above bar
+        draw.text((info_center_x, bar_y - 35), f"{points_in_level:,} / {points_needed:,}", 
                  fill='#cbd5e1', anchor='mm', font=small_font)
         
-        # BIG PROGRESS BAR - MUCH MORE VISIBLE
-        bar_padding = 60
-        bar_x = card_x + bar_padding
-        bar_y = progress_y + 70
-        bar_width = card_width - bar_padding * 2
-        bar_height = 50  # MUCH THICKER!
-        
-        # Background bar - lighter for better contrast
+        # Background bar
         draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height],
-                              radius=25, fill='#334155')  # Much lighter background!
+                              radius=28, fill='#334155')
         
-        # Filled bar - bright and visible
+        # Filled bar
         filled_width = int((progress / 100) * bar_width)
-        if filled_width > 12:
+        if filled_width > 14:
             draw.rounded_rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + bar_height],
-                                  radius=25, fill='#10b981')  # Bright green!
+                                  radius=28, fill='#10b981')
         
-        # Progress percentage - BIGGER
-        draw.text((width//2, bar_y + bar_height + 65), f"{progress:.0f}%", 
+        # Progress percentage below bar
+        current_y = bar_y + bar_height + 55
+        draw.text((info_center_x, current_y), f"{progress:.0f}%", 
                  fill='#ffffff', anchor='mm', font=small_font)
+        current_y += 80
         
-        # Next rank - BIGGER
-        draw.text((width//2, card_y + card_height - 65), f"Next: {next_rank}", 
+        # Next rank and leaderboard
+        draw.text((info_center_x, current_y), f"Next: {next_rank}", 
                  fill='#fbbf24', anchor='mm', font=small_font)
-        
-        # Leaderboard position (at bottom) - BIGGER
-        leaderboard_y = height - 140
-        draw.text((width//2, leaderboard_y), f"🏆 #{leaderboard_pos} on Leaderboard", 
+        current_y += 70
+        draw.text((info_center_x, current_y), f"🏆 #{leaderboard_pos} on Leaderboard", 
                  fill='#fbbf24', anchor='mm', font=label_font)
         
         # Save to bytes
