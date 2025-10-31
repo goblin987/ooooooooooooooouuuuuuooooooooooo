@@ -196,12 +196,20 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
         next_rank = LEVEL_RANKS.get(next_rank_level, "👑 Max Rank") if next_rank_level else "👑 Max Rank"
         
-        # GTA SAN ANDREAS HUD STYLE - BLACK BACKGROUND
+        # GTA SAN ANDREAS HUD STYLE - GAME BACKGROUND
         width, height = 1080, 1920
         
-        # Solid black background for maximum retro contrast
-        img = Image.new('RGB', (width, height), color='#111111')  # Very dark grey/black
+        # Create game-like background (dark green-grey military style)
+        img = Image.new('RGB', (width, height), color='#2B3A2F')
         draw = ImageDraw.Draw(img)
+        
+        # Add texture/gradient for depth
+        for y in range(height):
+            ratio = y / height
+            r = int(43 + (35 - 43) * ratio)
+            g = int(58 + (48 - 58) * ratio)
+            b = int(47 + (40 - 47) * ratio)
+            draw.line([(0, y), (width, y)], fill=(r, g, b))
         
         # Load GTA SA style fonts - try Pricedown first, fallback to bold
         import os
@@ -261,70 +269,111 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Draw main text on top
             draw.text(position, text, fill=fill_color, **kwargs)
         
-        # No profile photo needed for GTA SA HUD style
+        # Get user profile photo for weapon icon area
+        profile_pic = None
+        try:
+            photos = await context.bot.get_user_profile_photos(user_id, limit=1)
+            if photos.total_count > 0:
+                file = await context.bot.get_file(photos.photos[0][-1].file_id)
+                photo_bytes = await file.download_as_bytearray()
+                profile_pic = Image.open(BytesIO(photo_bytes))
+                logger.info(f"Successfully loaded profile photo for user {user_id}")
+        except Exception as e:
+            logger.warning(f"Could not get profile photo: {e}")
         
-        # GTA SAN ANDREAS HUD LAYOUT - EXACT TOP-RIGHT CORNER PLACEMENT
+        # GTA SAN ANDREAS HUD LAYOUT - EXACT REFERENCE MATCH
         
-        # Tightly grouped in absolute TOP-RIGHT corner (minimal margin)
-        hud_margin = 40  # Minimal margin
-        bar_width = 500  # Thick and short like reference
-        bar_height = 42  # Thick bar like reference
-        hud_x = width - bar_width - hud_margin
-        hud_y = 50  # Very top
+        # Position in top-left corner like reference patch
+        hud_x = 50
+        hud_y = 60
+        icon_size = 180
         
-        # 1. LEVEL LABEL (white text to immediate left of progress bar)
-        label_text = "LEVEL"
-        label_x = hud_x - 105
-        label_y = hud_y + 10
-        draw_outlined_text(label_text, (label_x, label_y), 
-                         label_font, '#FFFFFF', outline_width=4)
+        # 1. WEAPON ICON / PROFILE PICTURE (top-left, like weapon in reference)
+        icon_x = hud_x
+        icon_y = hud_y
         
-        # 2. PROGRESS BAR (Bright Lime Green like reference image top bar)
-        bar_x = hud_x
-        bar_y = hud_y
+        # Draw black square background for icon
+        draw.rectangle([icon_x, icon_y, icon_x + icon_size, icon_y + icon_size], 
+                      fill='#000000', outline='#FFFFFF', width=3)
         
-        # Draw thick black outline (sharp corners, rectangular)
-        outline_thickness = 5
-        draw.rectangle([bar_x - outline_thickness, bar_y - outline_thickness, 
-                       bar_x + bar_width + outline_thickness, bar_y + bar_height + outline_thickness], 
+        if profile_pic:
+            # Resize and place profile pic
+            profile_pic = profile_pic.resize((icon_size - 10, icon_size - 10), Image.Resampling.LANCZOS)
+            img.paste(profile_pic, (icon_x + 5, icon_y + 5))
+        else:
+            # Draw placeholder weapon icon
+            draw.text((icon_x + icon_size//2, icon_y + icon_size//2), "🔫", 
+                     fill='#FFFFFF', anchor='mm', font=money_font)
+        
+        # Level text below icon (like "103-30" in reference)
+        level_text = f"Lv:{level}"
+        draw_outlined_text(level_text, (icon_x + icon_size//2, icon_y + icon_size + 15), 
+                         label_font, '#FFFFFF', outline_width=3, anchor='mm')
+        
+        # 2. TIME DISPLAY (top-right, like "04:20" in reference)
+        time_text = "04:20"
+        time_x = hud_x + icon_size + 280
+        time_y = hud_y
+        draw_outlined_text(time_text, (time_x, time_y), 
+                         money_font, '#FFFFFF', outline_width=5)
+        
+        # 3. WHITE/GREY BAR (health bar - below time)
+        bar_x = hud_x + icon_size + 30
+        bar_y = hud_y + 80
+        bar_width = 500
+        bar_height = 45
+        
+        # Draw white/grey bar with black outline
+        draw.rectangle([bar_x - 3, bar_y - 3, bar_x + bar_width + 3, bar_y + bar_height + 3], 
                      fill='#000000')
-        
-        # Draw solid dark background (empty bar state)
         draw.rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height], 
-                     fill='#1A1A1A')  # Dark grey/black
+                     fill='#1A1A1A')
         
-        # Draw BRIGHT LIME GREEN fill (like reference image)
+        # White fill (representing health/armor)
+        white_fill = int(bar_width * 0.75)  # 75% filled
+        draw.rectangle([bar_x, bar_y, bar_x + white_fill, bar_y + bar_height], 
+                      fill='#DDDDDD')
+        
+        # 4. RED BAR (below white bar, like in reference)
+        bar2_y = bar_y + bar_height + 12
+        
+        # Draw red bar with black outline
+        draw.rectangle([bar_x - 3, bar2_y - 3, bar_x + bar_width + 3, bar2_y + bar_height + 3], 
+                     fill='#000000')
+        draw.rectangle([bar_x, bar2_y, bar_x + bar_width, bar2_y + bar_height], 
+                     fill='#1A1A1A')
+        
+        # Red fill (representing progress)
         filled_width = int((progress / 100) * bar_width)
         if filled_width < 10:
             filled_width = max(10, int(bar_width * 0.05))
+        draw.rectangle([bar_x, bar2_y, bar_x + filled_width, bar2_y + bar_height], 
+                      fill='#FF0000')
         
-        # VIBRANT LIME GREEN fill (#00FF00 - bright neon green)
-        draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + bar_height], 
-                      fill='#00FF00')  # Bright lime green like reference
-        
-        # Add subtle highlight on top edge for depth
-        if filled_width > 5:
-            draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + 3], 
-                          fill='#33FF33')
-        
-        # 3. MONEY/POINTS DISPLAY (Dark Green - exact match to reference)
-        money_y = bar_y + bar_height + 18  # Tight spacing
+        # 5. MONEY/POINTS DISPLAY (green text below bars, like reference)
+        money_y = bar2_y + bar_height + 25
         points_text = f"${current_points:08d}"
         
-        # Calculate text position (right-aligned with bar)
-        bbox = draw.textbbox((0, 0), points_text, font=money_font)
-        text_width = bbox[2] - bbox[0]
-        money_x = bar_x + bar_width - text_width
+        # Draw money text with GREEN color (like reference patch)
+        draw_outlined_text(points_text, (bar_x, money_y), 
+                         money_font, '#00AA00', outline_width=5)
         
-        # Draw money text with DARK GREEN color (#005B00) and THICK black outline
-        draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font, '#005B00', outline_width=6)  # Dark green with thick outline
+        # 6. STARS / RANK INDICATOR (below money, like reference)
+        stars_y = money_y + 85
+        star_x = bar_x
         
-        # Add user info below (subtle grey)
-        info_y = money_y + 90
-        info_text = f"{first_name} • {rank_title} • #{leaderboard_pos}"
-        draw_outlined_text(info_text, (bar_x, info_y), 
-                         label_font, '#888888', outline_width=3)
+        # Draw stars based on level (grey stars, then gold stars)
+        total_stars = 6
+        gold_stars = min(level // 5, 6)  # Gold stars based on level
+        
+        for i in range(total_stars):
+            if i < gold_stars:
+                star_color = '#FFD700'  # Gold
+            else:
+                star_color = '#555555'  # Grey
+            
+            draw_outlined_text("★", (star_x + i * 60, stars_y), 
+                             label_font, star_color, outline_width=2)
         
         # Apply retro pixelation effect to entire image (lighter effect to preserve details)
         img = pixelate_image(img, scale_factor=0.75)  # Less aggressive pixelation
