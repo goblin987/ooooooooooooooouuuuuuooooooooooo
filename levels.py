@@ -371,12 +371,15 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw_outlined_text(level_text, (pic_x + square_size//2, level_text_y), 
                          level_font, '#87CEEB', outline_width=4, anchor='mm')
         
-        # 2. TOP-RIGHT: Time Display "04:20"
+        # 2. TOP-RIGHT: Time Display "04:20" - LARGE and VISIBLE
         time_text = "04:20"
-        time_x = width - 250
-        time_y = 50
+        # Calculate text width to position properly
+        bbox = draw.textbbox((0, 0), time_text, font=time_font)
+        text_width = bbox[2] - bbox[0]
+        time_x = width - text_width - 50
+        time_y = 40
         draw_outlined_text(time_text, (time_x, time_y), 
-                         time_font, '#D3D3D3', outline_width=4)
+                         time_font, '#D3D3D3', outline_width=5)
         
         # 3. MIDDLE-RIGHT: Status Bars (thicker with better visibility)
         bar_x = width - 450
@@ -393,12 +396,15 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height], 
                      fill='#333333')  # Dark gray background
         
-        # Progress fill (bright white)
+        # Progress fill (bright white) - ALWAYS show something
         filled_width = int((progress / 100) * bar_width)
+        # Ensure minimum visible fill even at 0%
+        if filled_width < 10:
+            filled_width = max(10, int(bar_width * 0.05))  # At least 5% visible
+        draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + bar_height], 
+                      fill='#FFFFFF')
+        # Add subtle inner highlight
         if filled_width > 5:
-            draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + bar_height], 
-                          fill='#FFFFFF')
-            # Add subtle inner highlight
             draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + 3], fill='#CCCCCC')
         
         # BOTTOM BAR: Secondary Bar (Red fill - represents level completion)
@@ -409,30 +415,30 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([bar_x, bar2_y, bar_x + bar_width, bar2_y + bar_height], 
                      fill='#333333')  # Dark gray background
         
-        # Level completion fill (bright red) - shows how far through current level
+        # Level completion fill (bright red) - ALWAYS show something
         level_completion = (points_in_level / points_needed * 100) if points_needed > 0 else 0
         filled_width2 = int((level_completion / 100) * bar_width)
+        # Ensure minimum visible fill even at 0%
+        if filled_width2 < 10:
+            filled_width2 = max(10, int(bar_width * 0.05))  # At least 5% visible
+        draw.rectangle([bar_x, bar2_y, bar_x + filled_width2, bar2_y + bar_height], 
+                      fill='#FF0000')
+        # Add subtle inner highlight
         if filled_width2 > 5:
-            draw.rectangle([bar_x, bar2_y, bar_x + filled_width2, bar2_y + bar_height], 
-                          fill='#FF0000')
-            # Add subtle inner highlight
             draw.rectangle([bar_x, bar2_y, bar_x + filled_width2, bar2_y + 3], fill='#CC0000')
         
-        # 4. BOTTOM-CENTER/RIGHT: Points Display (Money style)
+        # 4. BOTTOM-CENTER/RIGHT: Points Display (Money style) - LARGE and VISIBLE
         points_text = f"${current_points:08d}"  # Format like "$00251742"
-        points_x = width - 400
-        points_y = height - 120
+        # Calculate text width to position properly
+        bbox = draw.textbbox((0, 0), points_text, font=points_font)
+        text_width = bbox[2] - bbox[0]
+        points_x = width - text_width - 50
+        points_y = height - 150
         draw_outlined_text(points_text, (points_x, points_y), 
-                         points_font, '#006400', outline_width=4)  # Dark green
+                         points_font, '#006400', outline_width=5)  # Dark green
         
-        # Apply retro pixelation effect to entire image
-        img = pixelate_image(img, scale_factor=0.6)
-        
-        # Recreate draw object after pixelation
-        draw = ImageDraw.Draw(img)
-        
-        # Redraw UI elements after pixelation to keep them sharp (optional enhancement)
-        # The pixelation will give the retro look while keeping elements readable
+        # Apply retro pixelation effect to entire image (lighter effect to preserve details)
+        img = pixelate_image(img, scale_factor=0.75)  # Less aggressive pixelation
         
         # Save to bytes
         bio = BytesIO()
