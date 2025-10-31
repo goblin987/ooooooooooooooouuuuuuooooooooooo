@@ -75,31 +75,19 @@ async def bajorai_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
         if game_stats:
             total_dice = game_stats[0] or 0
-            total_dice_won = game_stats[1] or 0
             total_basketball = game_stats[2] or 0
-            total_basketball_won = game_stats[3] or 0
             total_football = game_stats[4] or 0
-            total_football_won = game_stats[5] or 0
             total_bowling = game_stats[6] or 0
-            total_bowling_won = game_stats[7] or 0
             
-            # Calculate win rates
-            dice_wr = (total_dice_won / total_dice * 100) if total_dice > 0 else 0
-            basketball_wr = (total_basketball_won / total_basketball * 100) if total_basketball > 0 else 0
-            football_wr = (total_football_won / total_football * 100) if total_football > 0 else 0
-            bowling_wr = (total_bowling_won / total_bowling * 100) if total_bowling > 0 else 0
-            
-            message += f"🎲 Dice: {total_dice} žaidimų ({dice_wr:.1f}%)\n"
-            message += f"🏀 Basketball: {total_basketball} žaidimų ({basketball_wr:.1f}%)\n"
-            message += f"⚽ Football: {total_football} žaidimų ({football_wr:.1f}%)\n"
-            message += f"🎳 Bowling: {total_bowling} žaidimų ({bowling_wr:.1f}%)\n"
+            message += f"🎲 Dice: {total_dice} žaidimų\n"
+            message += f"🏀 Basketball: {total_basketball} žaidimų\n"
+            message += f"⚽ Football: {total_football} žaidimų\n"
+            message += f"🎳 Bowling: {total_bowling} žaidimų\n"
             
             # Total games
             total_games = total_dice + total_basketball + total_football + total_bowling
-            total_wins = total_dice_won + total_basketball_won + total_football_won + total_bowling_won
-            overall_wr = (total_wins / total_games * 100) if total_games > 0 else 0
             
-            message += f"\n📊 Viso: {total_games} žaidimų ({overall_wr:.1f}% laimėta)"
+            message += f"\n📊 Viso: {total_games} žaidimų"
         else:
             message += "<i>Nėra žaidimų</i>"
         
