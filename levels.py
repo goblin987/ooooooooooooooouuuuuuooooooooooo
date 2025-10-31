@@ -171,14 +171,15 @@ async def get_leaderboard_position(user_id: int) -> int:
 
 
 async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show user's level and progress with image card"""
+    """Show user's level and progress with modern image card"""
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
     first_name = update.effective_user.first_name
     
     try:
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image, ImageDraw, ImageFont, ImageFilter
         from io import BytesIO
+        import requests
         import os
         
         # Get user stats
@@ -193,70 +194,160 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if req_level > level:
                 next_rank_level = req_level
                 break
-        next_rank = LEVEL_RANKS.get(next_rank_level, "Max Rank") if next_rank_level else "👑 Max Rank"
+        next_rank = LEVEL_RANKS.get(next_rank_level, "👑 Max Rank") if next_rank_level else "👑 Max Rank"
         
-        # Create image (800x400)
-        width, height = 800, 400
-        img = Image.new('RGB', (width, height), color='#2b2d42')
+        # Create modern card (1080x1080 for better quality)
+        width, height = 1080, 1080
+        
+        # Create gradient background (iOS-style)
+        img = Image.new('RGB', (width, height), color='#1c1c1e')
         draw = ImageDraw.Draw(img)
         
-        # Try to load fonts, fallback to default
+        # Draw gradient background
+        for y in range(height):
+            # Smooth gradient from dark blue to purple
+            r = int(28 + (88 - 28) * (y / height))
+            g = int(28 + (86 - 28) * (y / height))
+            b = int(30 + (214 - 30) * (y / height))
+            draw.line([(0, y), (width, y)], fill=(r, g, b))
+        
+        # Try to load fonts
         try:
-            title_font = ImageFont.truetype("arial.ttf", 48)
-            big_font = ImageFont.truetype("arial.ttf", 36)
-            medium_font = ImageFont.truetype("arial.ttf", 28)
-            small_font = ImageFont.truetype("arial.ttf", 24)
+            name_font = ImageFont.truetype("arial.ttf", 72)
+            rank_font = ImageFont.truetype("arial.ttf", 48)
+            level_font = ImageFont.truetype("arial.ttf", 140)
+            label_font = ImageFont.truetype("arial.ttf", 38)
+            stats_font = ImageFont.truetype("arial.ttf", 42)
+            small_font = ImageFont.truetype("arial.ttf", 36)
         except:
-            title_font = ImageFont.load_default()
-            big_font = ImageFont.load_default()
-            medium_font = ImageFont.load_default()
+            name_font = ImageFont.load_default()
+            rank_font = ImageFont.load_default()
+            level_font = ImageFont.load_default()
+            label_font = ImageFont.load_default()
+            stats_font = ImageFont.load_default()
             small_font = ImageFont.load_default()
         
-        # Draw header
-        draw.text((400, 40), "YOUR STATS", fill='#8ecae6', anchor='mm', font=title_font)
+        # Get user profile photo
+        profile_pic = None
+        try:
+            photos = await context.bot.get_user_profile_photos(user_id, limit=1)
+            if photos.total_count > 0:
+                file = await context.bot.get_file(photos.photos[0][-1].file_id)
+                photo_bytes = await file.download_as_bytearray()
+                profile_pic = Image.open(BytesIO(photo_bytes))
+        except Exception as e:
+            logger.debug(f"Could not get profile photo: {e}")
         
-        # Draw username
-        draw.text((400, 100), first_name, fill='#ffffff', anchor='mm', font=big_font)
+        # Draw profile picture (circular, top center)
+        pic_size = 180
+        pic_x = (width - pic_size) // 2
+        pic_y = 80
         
-        # Draw leaderboard position
-        draw.text((400, 145), f"Leaderboard: #{leaderboard_pos}", fill='#06ffa5', anchor='mm', font=small_font)
+        if profile_pic:
+            # Resize and crop to circle
+            profile_pic = profile_pic.resize((pic_size, pic_size), Image.Resampling.LANCZOS)
+            
+            # Create circular mask
+            mask = Image.new('L', (pic_size, pic_size), 0)
+            mask_draw = ImageDraw.Draw(mask)
+            mask_draw.ellipse([0, 0, pic_size, pic_size], fill=255)
+            
+            # Create white border circle
+            border_size = pic_size + 8
+            border_x = pic_x - 4
+            border_y = pic_y - 4
+            draw.ellipse([border_x, border_y, border_x + border_size, border_y + border_size], 
+                        fill='#ffffff', outline='#ffffff', width=4)
+            
+            # Paste circular profile pic
+            img.paste(profile_pic, (pic_x, pic_y), mask)
+        else:
+            # Draw default avatar circle
+            draw.ellipse([pic_x, pic_y, pic_x + pic_size, pic_y + pic_size], 
+                        fill='#48484a', outline='#ffffff', width=4)
+            # Draw user initial
+            initial = first_name[0].upper() if first_name else "?"
+            draw.text((pic_x + pic_size//2, pic_y + pic_size//2), initial, 
+                     fill='#ffffff', anchor='mm', font=level_font)
         
-        # Draw rank title
-        draw.text((400, 185), rank_title, fill='#ffbe0b', anchor='mm', font=medium_font)
+        # Draw name (below profile pic)
+        name_y = pic_y + pic_size + 40
+        draw.text((width//2, name_y), first_name, fill='#ffffff', anchor='mm', font=name_font)
         
-        # Draw level
-        draw.text((400, 230), f"Level: {level}", fill='#ffffff', anchor='mm', font=big_font)
+        # Draw rank badge (pill-shaped)
+        rank_y = name_y + 70
+        rank_text = rank_title
         
-        # Draw progress bar
-        bar_x, bar_y = 150, 280
-        bar_width, bar_height = 500, 30
+        # Draw semi-transparent badge background
+        badge_padding = 30
+        bbox = draw.textbbox((0, 0), rank_text, font=rank_font)
+        badge_width = bbox[2] - bbox[0] + badge_padding * 2
+        badge_height = 60
+        badge_x = (width - badge_width) // 2
+        badge_y = rank_y - badge_height // 2
         
-        # Background bar
-        draw.rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height], fill='#1a1c2e')
+        # Rounded rectangle for badge
+        draw.rounded_rectangle([badge_x, badge_y, badge_x + badge_width, badge_y + badge_height],
+                              radius=30, fill='#ffffff20')
+        draw.text((width//2, rank_y), rank_text, fill='#ffd60a', anchor='mm', font=rank_font)
         
-        # Filled bar
+        # Draw level (big and bold)
+        level_y = rank_y + 120
+        draw.text((width//2, level_y - 20), "LEVEL", fill='#ffffff80', anchor='mm', font=label_font)
+        draw.text((width//2, level_y + 60), str(level), fill='#ffffff', anchor='mm', font=level_font)
+        
+        # Draw progress card
+        card_y = level_y + 180
+        card_padding = 60
+        card_width = width - card_padding * 2
+        card_height = 200
+        card_x = card_padding
+        
+        # Semi-transparent card
+        draw.rounded_rectangle([card_x, card_y, card_x + card_width, card_y + card_height],
+                              radius=25, fill='#ffffff15')
+        
+        # Progress bar
+        bar_padding = 40
+        bar_x = card_x + bar_padding
+        bar_y = card_y + 60
+        bar_width = card_width - bar_padding * 2
+        bar_height = 16
+        
+        # Background bar (rounded)
+        draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height],
+                              radius=8, fill='#ffffff20')
+        
+        # Filled bar (gradient effect)
         filled_width = int((progress / 100) * bar_width)
-        draw.rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + bar_height], fill='#06ffa5')
+        if filled_width > 0:
+            draw.rounded_rectangle([bar_x, bar_y, bar_x + filled_width, bar_y + bar_height],
+                                  radius=8, fill='#06ffa5')
         
         # Progress text
-        draw.text((400, 295), f"{points_in_level:,} / {points_needed:,} points", fill='#ffffff', anchor='mm', font=small_font)
+        progress_text = f"{points_in_level:,} / {points_needed:,}"
+        draw.text((width//2, bar_y + bar_height + 40), progress_text, 
+                 fill='#ffffff', anchor='mm', font=stats_font)
         
-        # Next rank
-        draw.text((400, 340), f"Next: {next_rank}", fill='#8ecae6', anchor='mm', font=small_font)
+        # Next rank indicator
+        next_rank_y = bar_y + bar_height + 100
+        draw.text((width//2, next_rank_y), f"Next: {next_rank}", 
+                 fill='#ffffff90', anchor='mm', font=small_font)
+        
+        # Leaderboard position (bottom)
+        draw.text((width//2, height - 100), f"🏆 #{leaderboard_pos} on Leaderboard", 
+                 fill='#ffd60a', anchor='mm', font=stats_font)
         
         # Save to bytes
         bio = BytesIO()
         bio.name = 'stats.png'
-        img.save(bio, 'PNG')
+        img.save(bio, 'PNG', quality=95)
         bio.seek(0)
         
-        # Send image
+        # Send image with minimal caption
         caption = (
-            f"<b>{first_name}</b> - Level {level}\n\n"
-            f"<i>Kaip gauti points:</i>\n"
-            f"💬 Rašyti: +{XP_REWARDS['message']}\n"
-            f"🗳️ Balsuoti: +{XP_REWARDS['vote']}\n"
-            f"🚨 Pranešti: +{XP_REWARDS['scammer_report']}"
+            f"<b>Earn Points:</b>\n"
+            f"💬 Chat +{XP_REWARDS['message']} • 🗳️ Vote +{XP_REWARDS['vote']} • 🚨 Report +{XP_REWARDS['scammer_report']}"
         )
         
         await update.message.reply_photo(photo=bio, caption=caption, parse_mode='HTML')
