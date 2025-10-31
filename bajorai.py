@@ -45,12 +45,11 @@ async def bajorai_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
         conn.close()
         
-        # Format the message
-        message = "💰 <b>BAJORAI - TOP BALANSAI IR STATISTIKA</b> 💰\n"
-        message += "=" * 35 + "\n\n"
+        # Format the message - Clean and minimalistic
+        message = "💰 <b>BAJORAI</b>\n\n"
         
         # Top 5 Balances
-        message += "🏆 <b>TOP 5 BALANSAI:</b>\n\n"
+        message += "<b>TOP 5 BALANSAI:</b>\n"
         if top_balances:
             for i, (user_id, username, balance) in enumerate(top_balances, 1):
                 # Get username from cache if not in users table
@@ -66,16 +65,13 @@ async def bajorai_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 elif i == 3:
                     emoji = "🥉"
                 else:
-                    emoji = f"{i}."
+                    emoji = f"  {i}."
                 
-                message += f"{emoji} <b>@{username}</b> - ${balance:.2f}\n"
+                message += f"{emoji} @{username} - ${balance:.2f}\n"
         else:
-            message += "<i>Dar nėra balansų</i>\n"
+            message += "<i>Nėra balansų</i>\n"
         
-        message += "\n" + "—" * 35 + "\n\n"
-        
-        # Game Statistics
-        message += "🎮 <b>VISO SUŽAISTA ŽAIDIMŲ:</b>\n\n"
+        message += "\n<b>ŽAIDIMAI:</b>\n"
         
         if game_stats:
             total_dice = game_stats[0] or 0
@@ -93,21 +89,19 @@ async def bajorai_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             football_wr = (total_football_won / total_football * 100) if total_football > 0 else 0
             bowling_wr = (total_bowling_won / total_bowling * 100) if total_bowling > 0 else 0
             
-            message += f"🎲 <b>Dice:</b> {total_dice} žaidimų ({total_dice_won} laimėta - {dice_wr:.1f}%)\n"
-            message += f"🏀 <b>Basketball:</b> {total_basketball} žaidimų ({total_basketball_won} laimėta - {basketball_wr:.1f}%)\n"
-            message += f"⚽ <b>Football:</b> {total_football} žaidimų ({total_football_won} laimėta - {football_wr:.1f}%)\n"
-            message += f"🎳 <b>Bowling:</b> {total_bowling} žaidimų ({total_bowling_won} laimėta - {bowling_wr:.1f}%)\n"
+            message += f"🎲 Dice: {total_dice} žaidimų ({dice_wr:.1f}%)\n"
+            message += f"🏀 Basketball: {total_basketball} žaidimų ({basketball_wr:.1f}%)\n"
+            message += f"⚽ Football: {total_football} žaidimų ({football_wr:.1f}%)\n"
+            message += f"🎳 Bowling: {total_bowling} žaidimų ({bowling_wr:.1f}%)\n"
             
             # Total games
             total_games = total_dice + total_basketball + total_football + total_bowling
             total_wins = total_dice_won + total_basketball_won + total_football_won + total_bowling_won
             overall_wr = (total_wins / total_games * 100) if total_games > 0 else 0
             
-            message += f"\n📊 <b>VISO:</b> {total_games} žaidimų ({total_wins} laimėta - {overall_wr:.1f}%)\n"
+            message += f"\n📊 Viso: {total_games} žaidimų ({overall_wr:.1f}% laimėta)"
         else:
-            message += "<i>Dar nėra sužaistų žaidimų</i>\n"
-        
-        message += "\n" + "=" * 35
+            message += "<i>Nėra žaidimų</i>"
         
         await update.message.reply_text(message, parse_mode='HTML')
         
