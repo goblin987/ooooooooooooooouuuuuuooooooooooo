@@ -847,7 +847,7 @@ def create_application():
     
     # Points games commands (saved points only, NO crypto)
     application.add_handler(CommandHandler("dice2", points_games.dice2_command))
-    application.add_handler(CommandHandler("points", points_games.points_command))
+    # Note: /points command now handled by levels.py (level system), not points_games.py
     
     # Stats command
     application.add_handler(CommandHandler("stats", stats.stats_command))
