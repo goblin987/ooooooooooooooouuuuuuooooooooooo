@@ -372,52 +372,52 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
                       fill='#FFFFFF', outline='#000000', width=2)
         
-        # RED HEALTH BAR - Position VERY CLOSE below profile like patch
-        separator_y = icon_y + icon_size + 25  # Very close below profile
-        separator_height = 14  # Thick like patch
-        separator_margin = 30  # Match patch margins
+        # RED HEALTH BAR - Position close below profile like patch
+        separator_y = icon_y + icon_size + 20  # Small gap like patch
+        separator_height = 16  # Thick like patch
+        separator_margin = 32  # Match patch margins
         draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
                       fill='#DD0000', outline='#000000', width=2)
         
-        # MONEY TEXT - Position close below red bar (grouped together)
-        money_y = separator_y + separator_height + 40  # Close below red bar
+        # MONEY TEXT - HUGE like patch, positioned below red bar
+        money_y = separator_y + separator_height + 60  # Gap below red bar
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color) - 70pt matching patch
+        # Bright lime green (GTA SA money color) - HUGE 100pt like patch
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 70)  # Match patch
+                money_font_size = ImageFont.truetype(font_path_used, 100)  # HUGE to match patch
             except:
-                money_font_size = money_font
+                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 100) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
         else:
             money_font_size = money_font
         # Calculate exact center positioning for money
         bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
         text_width = bbox[2] - bbox[0]
         money_x = (width - text_width) // 2
-        # Draw with thick outline like patch
+        # Draw with THICK outline like patch
         draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF00', outline_color='#000000', outline_width=4)
+                         money_font_size, '#00FF00', outline_color='#000000', outline_width=6)
         
-        # STARS - Position VERY CLOSE below money (grouped together like patch)
-        stars_y = money_y + 82  # Very close below money
+        # STARS - HUGE like patch, VERY CLOSE below money (SAME SIZE as money)
+        stars_y = money_y + 105  # Very close below money (tight grouping)
         total_stars = 6
-        star_margin = 40  # Margins to match patch
+        star_margin = 45  # Margins to match patch
         
         # Calculate spacing - fit all 6 stars
         available_width = width - (2 * star_margin)
         star_spacing = available_width / (total_stars - 1)
         
-        # Star font - EXACTLY 70pt (SAME as money, matching patch)
+        # Star font - HUGE 100pt (EXACTLY SAME as money, matching patch)
         if font_path_used:
             try:
-                star_font = ImageFont.truetype(font_path_used, 70)  # EXACT size matching patch
+                star_font = ImageFont.truetype(font_path_used, 100)  # HUGE matching money and patch
             except:
-                star_font = label_font
+                star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 100) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else label_font
         else:
             star_font = label_font
         
-        # Draw 6 stars (3 grey + 3 gold) like patch
+        # Draw 6 HUGE stars (3 grey + 3 gold) like patch
         for i in range(total_stars):
             star_x_pos = star_margin + int(i * star_spacing)
             if i >= 3:  # Last 3 are gold
@@ -425,9 +425,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:  # First 3 are grey
                 star_color = '#AAAAAA'  # Grey
             
-            # Draw star with thick outline like patch
+            # Draw star with THICK outline like patch
             draw_outlined_text("★", (star_x_pos, stars_y), 
-                             star_font, star_color, outline_color='#000000', outline_width=4)
+                             star_font, star_color, outline_color='#000000', outline_width=6)
         
         # No pixelation needed for green cityscape background
         
