@@ -422,8 +422,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw_outlined_text(points_text, (money_x, money_y), 
                          money_font_size, '#00FF00', outline_color='#000000', outline_width=4)
         
-        # RED HEALTH BAR - Position just above money text like patch
-        separator_y = money_y - 35  # Just above money
+        # RED HEALTH BAR - Position close below profile section like patch
+        separator_y = icon_y + icon_size + 35  # Close below profile (small gap)
         separator_height = 14  # Thick like patch
         separator_margin = 30  # Match patch margins
         draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
