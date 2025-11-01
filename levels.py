@@ -407,7 +407,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          money_font_size, '#00FF40', outline_color='#000000', outline_width=2)
         
         # STARS ROW
-        star_start_x = 60
+        star_start_x = 90
         star_y = 460
         star_size = 35
         # Gap: 80px
@@ -424,7 +424,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Draw 6 stars (first 3 gray, last 3 gold)
         for i in range(total_stars):
-            star_x = star_start_x + i * (star_size + star_gap)
+            star_x = 90 + i * 80
             if i < 3:
                 star_color = '#7A7A7A'  # Gray (unfilled)
             else:
