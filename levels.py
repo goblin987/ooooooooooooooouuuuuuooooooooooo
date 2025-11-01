@@ -383,16 +383,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
                       fill='#DD0000', outline='#000000', width=2)
         
-        # MONEY TEXT - Large like patch, positioned below red bar
+        # MONEY TEXT - Sized to match star width in patch
         money_y = separator_y + separator_height + 60  # Gap below red bar
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color) - 75pt to fit in frame
+        # Bright lime green (GTA SA money color) - 68pt to match star width
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 75)  # Sized to fit 600px width
+                money_font_size = ImageFont.truetype(font_path_used, 68)  # Sized to match stars width
             except:
-                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 75) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
+                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 68) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
         else:
             money_font_size = money_font
         # Calculate exact center positioning for money
@@ -413,12 +413,12 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         star_spacing = available_width / (total_stars - 1)
         
         # Star font - Use system font for stars (Pricedown doesn't have star character)
-        # Use Arial or fallback for star symbols
+        # 68pt to match money text height
         try:
-            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 75) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 75)
+            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 68) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 68)
         except:
             try:
-                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 75)
+                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 68)
             except:
                 star_font = ImageFont.load_default()
         
