@@ -198,6 +198,25 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # GTA SAN ANDREAS HUD STYLE - Square patch format matching uilook.png
         width, height = 600, 600  # Square patch format like reference
+
+        # Layout constants defined from the mock layout measurements
+        hud_margin = 40           # Global padding for primary HUD elements
+        icon_size = 140           # Avatar box size
+        icon_outer_border = 6
+        icon_inner_border = 3
+        time_margin_top = hud_margin
+        time_margin_right = 60
+        time_underline_width = 100
+        time_underline_height = 8
+        time_underline_gap = 12
+        health_gap_from_icon = 40
+        health_height = 18
+        money_baseline_offset = 110  # Distance from bottom to money text baseline
+        stars_baseline_offset = 60   # Distance from bottom to star centres (mock layout)
+        star_left_margin = 60        # From wireframe
+        star_gap = 70                # Distance between star centres
+        total_stars = 6
+
         
         # Load GTA SA background image (green cityscape)
         background_path = os.path.join(os.path.dirname(__file__), 'background.jpg')
@@ -316,17 +335,12 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.warning(f"Could not get profile photo: {e}")
         
         # Layout positioning - Square patch matching uilook.png
-        hud_x = 35
-        hud_y = 35
-        icon_size = 180  # Large profile like patch
+        icon_x = hud_margin
+        icon_y = hud_margin
         
-        # 1. PROFILE PICTURE BOX (Top-Left) - Large like patch
-        icon_x = hud_x
-        icon_y = hud_y
-        
-        # Double white border like patch
-        outer_border = 6
-        inner_border = 3
+        # 1. PROFILE PICTURE BOX (Top-Left)
+        outer_border = icon_outer_border
+        inner_border = icon_inner_border
         # Outer white border
         draw.rectangle([icon_x - outer_border, icon_y - outer_border, 
                        icon_x + icon_size + outer_border, icon_y + icon_size + outer_border], 
@@ -345,42 +359,52 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             profile_pic_resized = profile_pic.resize((icon_size, icon_size), Image.Resampling.LANCZOS)
             img.paste(profile_pic_resized, (icon_x, icon_y))
         else:
-            # Weapon icon for large size
-            gun_y = icon_y + 60
-            draw.rectangle([icon_x + 80, gun_y, icon_x + 170, gun_y + 22], fill='#CCCCCC', outline='#000000', width=2)
-            draw.rectangle([icon_x + 35, gun_y + 16, icon_x + 85, gun_y + 65], fill='#CCCCCC', outline='#000000', width=2)
-            draw.polygon([(icon_x + 58, gun_y + 65), (icon_x + 68, gun_y + 65), 
-                         (icon_x + 74, gun_y + 110), (icon_x + 52, gun_y + 110)], 
-                         fill='#CCCCCC', outline='#000000')
+            # Simple placeholder icon
+            center_x = icon_x + icon_size // 2
+            center_y = icon_y + icon_size // 2
+            head_radius = icon_size // 4
+            body_width = icon_size // 2
+            body_height = icon_size // 3
+            draw.ellipse(
+                [center_x - head_radius, center_y - head_radius - body_height // 2,
+                 center_x + head_radius, center_y + head_radius - body_height // 2],
+                fill='#CCCCCC', outline='#000000', width=2
+            )
+            draw.rectangle(
+                [center_x - body_width // 2, center_y,
+                 center_x + body_width // 2, center_y + body_height],
+                fill='#CCCCCC', outline='#000000', width=2
+            )
         
         
-        # 2. TIME DISPLAY (Top-Right) - Large like patch
+        # 2. TIME DISPLAY (Top-Right) - positioned from right margin
         time_text = "04:20"
-        time_x = icon_x + icon_size + 50
-        time_y = icon_y + 15
-        # Draw time - BIGGER
         if font_path_used:
             try:
-                time_font = ImageFont.truetype(font_path_used, 85)  # BIGGER
+                time_font = ImageFont.truetype(font_path_used, 85)
             except:
                 time_font = label_font
         else:
             time_font = label_font
-        draw_outlined_text(time_text, (time_x, time_y), 
-                         time_font, '#FFFFFF', outline_width=4)
+        time_bbox = draw.textbbox((0, 0), time_text, font=time_font)
+        time_width = time_bbox[2] - time_bbox[0]
+        time_height = time_bbox[3] - time_bbox[1]
+        time_x = width - time_margin_right - time_width
+        time_y = time_margin_top
+        draw_outlined_text(time_text, (time_x, time_y), time_font, '#FFFFFF', outline_width=4)
         
-        # Time underline bar like patch - TIGHTER
-        time_underline_y = time_y + 75
-        time_underline_width = 200
-        time_underline_height = 8
-        draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
-                      fill='#FFFFFF', outline='#000000', width=2)
+        # Time underline bar (100px wide, right-aligned under time)
+        underline_x = time_x + time_width - time_underline_width
+        underline_y = time_y + time_height + time_underline_gap
+        draw.rectangle(
+            [underline_x, underline_y, underline_x + time_underline_width, underline_y + time_underline_height],
+            fill='#FFFFFF', outline='#000000', width=2
+        )
         
         # RED HEALTH BAR
-        health_x = 40
-        health_y = 200
-        health_width = 520
-        health_height = 18
+        health_x = hud_margin
+        health_width = width - (2 * hud_margin)
+        health_y = icon_y + icon_size + health_gap_from_icon
         draw.rounded_rectangle(
             [health_x, health_y, health_x + health_width, health_y + health_height],
             radius=4, fill='#D22B2B'
@@ -388,8 +412,6 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # MONEY TEXT
         points_text = f"${current_points:09d}"
-        money_y = 480
-        
         # Load money font (54px)
         try:
             if font_path_used:
@@ -401,18 +423,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Calculate center position
         money_bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
         money_width = money_bbox[2] - money_bbox[0]
+        money_height = money_bbox[3] - money_bbox[1]
         money_x = (width - money_width) // 2
+        money_y = height - money_baseline_offset - money_height
         # Draw money with black outline
         draw_outlined_text(points_text, (money_x, money_y), 
                          money_font_size, '#00FF40', outline_color='#000000', outline_width=2)
         
         # STARS ROW
-        star_start_x = 90
-        star_y = 525
-        star_size = 50
-        # Gap: 80px
-        total_stars = 6
-        
+        stars_center_y = height - stars_baseline_offset
+
         # Load star font (60px for 60x60 stars)
         try:
             star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 60) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.load_default()
@@ -424,14 +444,21 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Draw 6 stars (first 3 gray, last 3 gold)
         for i in range(total_stars):
-            star_x = 90 + i * 70
+            star_x = star_left_margin + i * star_gap
             if i < 3:
                 star_color = '#7A7A7A'  # Gray (unfilled)
             else:
                 star_color = '#FFD700'  # Gold (filled)
             # Draw star with outline
-            draw_outlined_text("★", (star_x, star_y), 
-                             star_font, star_color, outline_color='#000000', outline_width=2)
+            draw_outlined_text(
+                "★",
+                (star_x, stars_center_y),
+                star_font,
+                star_color,
+                outline_color='#000000',
+                outline_width=2,
+                anchor='mm'
+            )
         
         # No pixelation needed for green cityscape background
         
