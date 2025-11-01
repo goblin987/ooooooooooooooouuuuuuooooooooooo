@@ -236,6 +236,22 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 color = (135, green_value, 107)
                 draw_temp.line([(0, y), (width, y)], fill=color)
         
+        # Add subtle vignette for depth (darker edges)
+        vignette = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        vignette_draw = ImageDraw.Draw(vignette)
+        center_x, center_y = width // 2, height // 2
+        max_dist = math.sqrt(center_x**2 + center_y**2)
+        for y in range(height):
+            for x in range(0, width, 4):  # sample every 4px for performance
+                dist = math.sqrt((x - center_x)**2 + (y - center_y)**2)
+                alpha = int((dist / max_dist) * 60)  # max 60 alpha at corners
+                if alpha > 0:
+                    vignette_draw.point((x, y), fill=(0, 0, 0, alpha))
+        try:
+            img = Image.alpha_composite(img.convert('RGBA'), vignette).convert('RGB')
+        except:
+            pass  # skip vignette if alpha composite fails
+        
         draw = ImageDraw.Draw(img)
         
         # Load Pricedown font (or fallback) for outline text
@@ -298,17 +314,33 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 size += 2
             return size
 
-        def draw_outlined_text(text, position, font, fill_color='#FFFFFF', outline_color='#000000', outline_width=4, anchor=None):
+        def draw_outlined_text(text, position, font, fill_color='#FFFFFF', outline_color='#000000', outline_width=4, anchor=None, shadow=True):
             x, y = position
             kwargs = {'font': font}
             if anchor:
                 kwargs['anchor'] = anchor
 
+            # Drop shadow for depth (GTA SA style) - soft blur effect
+            if shadow:
+                shadow_offset = 4
+                shadow_color = (0, 0, 0, 100)  # semi-transparent black
+                # Create soft shadow by drawing multiple offset layers
+                for s_offset in range(1, shadow_offset + 1):
+                    alpha = int(100 / s_offset)  # fade as we go further
+                    for s_adj in range(-1, 2):
+                        for s_adj2 in range(-1, 2):
+                            try:
+                                draw.text((x + s_offset + s_adj, y + s_offset + s_adj2), text, fill=(0, 0, 0, alpha), **kwargs)
+                            except:
+                                draw.text((x + s_offset + s_adj, y + s_offset + s_adj2), text, fill='#000000', **kwargs)
+
+            # Black outline (thick for visibility on any background)
             for adj in range(-outline_width, outline_width + 1):
                 for adj2 in range(-outline_width, outline_width + 1):
                     if adj == 0 and adj2 == 0:
                         continue
                     draw.text((x + adj, y + adj2), text, fill=outline_color, **kwargs)
+            # Bright fill on top
             draw.text(position, text, fill=fill_color, **kwargs)
 
         def draw_star(center_x, center_y, radius, filled=False, outline_width=5):
@@ -318,9 +350,26 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 angle_rad = math.radians(angle_deg)
                 r = radius if i % 2 == 0 else radius * 0.45
                 points.append((center_x + r * math.cos(angle_rad), center_y + r * math.sin(angle_rad)))
-            # Gray unfilled or gold filled
-            fill_color = '#FFD700' if filled else '#7A7A7A'
-            draw.polygon(points, outline='#000000', fill=fill_color, width=outline_width)
+            
+            if filled:
+                # Gold stars with glow effect
+                glow_color = '#FFD70080'  # semi-transparent gold
+                for glow_offset in range(1, 4):
+                    glow_points = []
+                    for i in range(10):
+                        angle_deg = -90 + i * 36
+                        angle_rad = math.radians(angle_deg)
+                        r = (radius + glow_offset) if i % 2 == 0 else (radius + glow_offset) * 0.45
+                        glow_points.append((center_x + r * math.cos(angle_rad), center_y + r * math.sin(angle_rad)))
+                    try:
+                        draw.polygon(glow_points, fill=glow_color, outline=None)
+                    except:
+                        pass
+                # Bright gold fill
+                draw.polygon(points, outline='#000000', fill='#FFD700', width=outline_width)
+            else:
+                # Gray unfilled stars with darker outline
+                draw.polygon(points, outline='#000000', fill='#6A6A6A', width=outline_width + 1)
         
         # Get user profile photo (optional)
         profile_pic = None
@@ -336,20 +385,36 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         icon_x, icon_y = icon_origin
 
-        # Profile picture box (outer + inner outline only)
+        # Profile picture box with enhanced borders and subtle glow
         outer_border = icon_outer_border
         inner_border = icon_inner_border
+        
+        # Subtle outer glow (white)
+        for glow_dist in range(1, 3):
+            glow_alpha = int(50 / glow_dist)
+            try:
+                draw.rectangle(
+                    [icon_x - outer_border - glow_dist, icon_y - outer_border - glow_dist, 
+                     icon_x + icon_size + outer_border + glow_dist, icon_y + icon_size + outer_border + glow_dist],
+                    outline=(255, 255, 255, glow_alpha), width=2
+                )
+            except:
+                pass
+        
+        # Outer white border (bright)
         draw.rectangle(
             [icon_x - outer_border, icon_y - outer_border, icon_x + icon_size + outer_border, icon_y + icon_size + outer_border],
             fill='#FFFFFF', outline='#000000', width=4
         )
+        # Inner black frame
         draw.rectangle(
             [icon_x - inner_border, icon_y - inner_border, icon_x + icon_size + inner_border, icon_y + icon_size + inner_border],
-            fill='#FFFFFF', outline='#000000', width=3
+            fill='#000000', outline='#000000', width=2
         )
+        # Photo background
         draw.rectangle(
             [icon_x, icon_y, icon_x + icon_size, icon_y + icon_size],
-            fill='#FFFFFF', outline='#000000', width=3
+            fill='#1A1A1A', outline=None
         )
         
         # Insert profile picture
@@ -375,7 +440,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         icon_bottom = icon_y + icon_size  # align with icon bottom
         ul_y1 = icon_bottom + 10  # small gap below icon
         time_underline_rect = (ul_x1, ul_y1, ul_x1 + time_underline_width, ul_y1 + time_underline_height)
-        draw.rectangle(time_underline_rect, outline='#000000', width=4, fill='#FFFFFF')
+        # Time underline with rounded ends and subtle 3D bevel
+        draw.rounded_rectangle(time_underline_rect, radius=6, fill='#FFFFFF', outline='#000000', width=3)
+        # Highlight on top for 3D effect
+        draw.line([(ul_x1 + 5, ul_y1 + 2), (ul_x1 + time_underline_width - 5, ul_y1 + 2)], fill='#CCCCCC', width=2)
         
         # Money text: size to fill most of row width
         points_text = f"${current_points:09d}"
@@ -405,11 +473,25 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         health_top = health_bottom - health_gap_to_money - health_bar_height
         health_rect_adjusted = (health_rect[0], int(health_top), health_rect[2], int(health_top + health_bar_height))
         
-        # Draw health bar (red filled)
-        draw.rounded_rectangle(health_rect_adjusted, radius=4, fill='#D22B2B', outline='#000000', width=2)
+        # Draw health bar with gradient and 3D effect
+        from PIL import ImageDraw
+        # Create gradient from darker red (bottom) to brighter red (top)
+        x1, y1, x2, y2 = health_rect_adjusted
+        for y_offset in range(int(y2 - y1)):
+            # Gradient calculation: darker at bottom, brighter at top
+            ratio = y_offset / (y2 - y1)
+            red_val = int(210 + (230 - 210) * (1 - ratio))  # 210 to 230
+            green_val = int(35 + (70 - 35) * (1 - ratio))   # 35 to 70
+            color = (red_val, green_val, 43)
+            draw.line([(x1 + 2, y1 + y_offset), (x2 - 2, y1 + y_offset)], fill=color, width=1)
         
-        # Draw money (green GTA style)
-        draw_outlined_text(points_text, (money_x, money_y), money_font, fill_color='#00FF40')
+        # Black border
+        draw.rounded_rectangle(health_rect_adjusted, radius=4, outline='#000000', width=3, fill=None)
+        # Subtle white highlight on top edge for 3D effect
+        draw.line([(x1 + 5, y1 + 3), (x2 - 5, y1 + 3)], fill='#FFFFFF40', width=2)
+        
+        # Draw money (green GTA style with warmer neon glow)
+        draw_outlined_text(points_text, (money_x, money_y), money_font, fill_color='#0FFF50')
         
         # Draw stars aligned to money width (first 3 gray, last 3 gold)
         star_positions = []
