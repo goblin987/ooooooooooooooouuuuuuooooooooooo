@@ -196,23 +196,44 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
         next_rank = LEVEL_RANKS.get(next_rank_level, "👑 Max Rank") if next_rank_level else "👑 Max Rank"
         
-        # GTA SAN ANDREAS HUD STYLE - SQUARE EMBROIDERED PATCH
-        width, height = 800, 800  # Square like the patch
+        # GTA SAN ANDREAS HUD STYLE - SQUARE FORMAT
+        width, height = 800, 800  # Square
         
-        # Dark black background like patch fabric
-        img = Image.new('RGB', (width, height), color='#0A0A0A')
+        # GTA SA GREEN CITYSCAPE BACKGROUND (like the reference)
+        img = Image.new('RGB', (width, height), color='#87A96B')  # Green sky
         draw = ImageDraw.Draw(img)
         
-        # Very subtle texture variation for fabric look
+        # Gradient green sky (lighter at top, darker at bottom)
         for y in range(height):
-            darkness = int(y / height * 6)  # Even more subtle
-            color = (10 - darkness, 10 - darkness, 10 - darkness)
+            # Gradient from light green to darker green
+            green_value = int(169 - (y / height * 40))  # 169 down to 129
+            color = (135, green_value, 107)
             draw.line([(0, y), (width, y)], fill=color)
         
-        # Add stitched border like an embroidered patch
-        border_width = 10
-        border_color = '#2A2A2A'
-        draw.rectangle([0, 0, width, height], outline=border_color, width=border_width)
+        # Draw city skyline silhouette at bottom (simple buildings)
+        building_y_start = height - 220  # Buildings start lower
+        
+        # Building silhouettes (darker green, semi-transparent look)
+        buildings = [
+            # (x, width, height_from_bottom)
+            (0, 80, 180),
+            (80, 60, 140),
+            (140, 90, 200),
+            (230, 70, 160),
+            (300, 100, 220),  # Tallest building in center
+            (400, 80, 190),
+            (480, 60, 150),
+            (540, 90, 170),
+            (630, 70, 140),
+            (700, 100, 160),
+        ]
+        
+        building_color = '#6B8E54'  # Darker green for buildings
+        for x, w, h in buildings:
+            draw.rectangle([x, height - h, x + w, height], fill=building_color)
+        
+        # Ground/horizon line (even darker green)
+        draw.rectangle([0, height - 30, width, height], fill='#5A7A45')
         
         # Load GTA SA style fonts - try Pricedown first, fallback to bold
         import os
@@ -352,12 +373,12 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # 2. TIME DISPLAY (Top-Right) - MUCH BIGGER like reference patch
         time_text = "04:20"
-        time_x = icon_x + icon_size + 80  # Adjusted spacing
-        time_y = icon_y
+        time_x = icon_x + icon_size + 70  # Adjusted spacing
+        time_y = icon_y + 20
         # Draw time MUCH BIGGER
         if font_path_used:
             try:
-                time_font = ImageFont.truetype(font_path_used, 140)  # MUCH larger to match patch
+                time_font = ImageFont.truetype(font_path_used, 130)  # Large to match patch
             except:
                 time_font = label_font
         else:
@@ -365,26 +386,26 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw_outlined_text(time_text, (time_x, time_y), 
                          time_font, '#FFFFFF', outline_width=5)
         
-        # Time underline bar (like in reference patch) - more prominent
-        time_underline_y = time_y + 135
-        time_underline_width = 290
-        time_underline_height = 12
+        # Time underline bar (like in reference patch) - positioned correctly
+        time_underline_y = time_y + 120
+        time_underline_width = 270
+        time_underline_height = 10
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
                       fill='#FFFFFF', outline='#000000', width=2)
         
-        # STARS AT BOTTOM - FULL WIDTH like reference patch
-        stars_y = height - 150  # At the very bottom
+        # STARS AT BOTTOM - FULL WIDTH like reference patch (above buildings)
+        stars_y = height - 90  # Above ground/buildings
         total_stars = 6
-        star_margin = 50  # Margins from edges
+        star_margin = 35  # Margins from edges
         
         # Calculate spacing to fill entire width
         available_width = width - (2 * star_margin)
         star_spacing = available_width / (total_stars - 1)
         
-        # Star font - HUGE to match patch
+        # Star font - sized to fit properly
         if font_path_used:
             try:
-                star_font = ImageFont.truetype(font_path_used, 130)  # MUCH bigger stars
+                star_font = ImageFont.truetype(font_path_used, 95)  # Sized to fit in frame
             except:
                 star_font = label_font
         else:
@@ -400,16 +421,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Draw star with thick outline
             draw_outlined_text("★", (star_x_pos, stars_y), 
-                             star_font, star_color, outline_width=5)
+                             star_font, star_color, outline_width=4)
         
-        # MONEY TEXT (Above stars) - SAME WIDTH as stars
-        money_y = stars_y - 150  # Above stars
+        # MONEY TEXT (Above stars) - FULL WIDTH, sized to fit
+        money_y = stars_y - 120  # Above stars with spacing
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color) - HUGE to span full width
+        # Bright lime green (GTA SA money color) - sized to fit properly
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 140)  # HUGE to match patch
+                money_font_size = ImageFont.truetype(font_path_used, 105)  # Sized to fit in frame
             except:
                 money_font_size = money_font
         else:
@@ -419,17 +440,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text_width = bbox[2] - bbox[0]
         money_x = (width - text_width) // 2
         draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF00', outline_width=6)
+                         money_font_size, '#00FF00', outline_width=5)
         
-        # RED HEALTH BAR (Above money) - FULL WIDTH
-        separator_y = money_y - 100  # Above money
-        separator_height = 24  # Thick like patch
-        separator_margin = 45
+        # RED HEALTH BAR (positioned between profile section and money)
+        separator_y = icon_y + icon_size + 100  # Below profile section
+        separator_height = 20  # Thick
+        separator_margin = 40
         draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
                       fill='#DD0000', outline='#000000', width=3)
         
-        # Apply retro pixelation effect to entire image (lighter effect to preserve details)
-        img = pixelate_image(img, scale_factor=0.75)  # Less aggressive pixelation
+        # No pixelation needed for green cityscape background
         
         # Save to bytes
         bio = BytesIO()
