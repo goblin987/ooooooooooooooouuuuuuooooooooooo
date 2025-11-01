@@ -388,7 +388,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # MONEY TEXT
         points_text = f"${current_points:09d}"
-        money_y = 440
+        money_y = 420
         
         # Load money font (54px)
         try:
@@ -408,9 +408,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # STARS ROW
         star_start_x = 60
-        star_y = 500
-        star_size = 60
-        star_gap = 20
+        star_y = 460
+        star_size = 35
+        # Gap: 80px
         total_stars = 6
         
         # Load star font (60px for 60x60 stars)
