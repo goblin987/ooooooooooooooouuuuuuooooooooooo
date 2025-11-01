@@ -383,45 +383,46 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
                       fill='#DD0000', outline='#000000', width=2)
         
-        # MONEY TEXT - LARGE like in patch (bigger than stars)
-        money_y = separator_y + separator_height + 25  # VERY TIGHT gap below red bar
+        # MONEY TEXT - 1-3px gap below health bar
+        money_y = separator_y + separator_height + 2  # 1-3px gap
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color) - BIGGER
+        # Font sized to fit perfectly
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 85)  # BIGGER like patch
+                money_font_size = ImageFont.truetype(font_path_used, 110)  # Large money text
             except:
-                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 85) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
+                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 110) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
         else:
             money_font_size = money_font
         # Calculate exact center positioning for money
         bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
         text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
         money_x = (width - text_width) // 2
         # Draw with THICK outline like patch
         draw_outlined_text(points_text, (money_x, money_y), 
                          money_font_size, '#00FF00', outline_color='#000000', outline_width=6)
         
-        # STARS - BIGGER, tightly grouped below money
-        stars_y = money_y + 80  # VERY close below money (tight grouping like patch)
+        # STARS - 1-3px gap below money, fit ALL stars perfectly
+        stars_y = money_y + text_height + 2  # 1-3px gap below money
         total_stars = 6
-        star_margin = 40  # Tight margins for 600px
+        star_margin = 15  # Tight margins to fit all stars
         
-        # Calculate spacing - fit all 6 stars tightly
+        # Calculate spacing - fit all 6 stars perfectly
         available_width = width - (2 * star_margin)
         star_spacing = available_width / (total_stars - 1)
         
-        # Star font - BIGGER (similar to money)
+        # Star font - slightly smaller to ensure they ALL fit
         try:
-            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 65) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 65)
+            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 85) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 85)
         except:
             try:
-                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 65)
+                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 85)
             except:
                 star_font = ImageFont.load_default()
         
-        # Draw 6 stars (3 grey + 3 gold) like patch
+        # Draw 6 stars (3 grey + 3 gold) - ALL fit perfectly
         for i in range(total_stars):
             star_x_pos = star_margin + int(i * star_spacing)
             if i >= 3:  # Last 3 are gold
