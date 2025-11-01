@@ -473,7 +473,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         health_top = health_bottom - health_gap_to_money - health_bar_height
         health_rect_adjusted = (health_rect[0], int(health_top), health_rect[2], int(health_top + health_bar_height))
         
-        # Draw health bar with gradient and 3D effect
+        # Draw health bar with gradient and enhanced 3D bevel
         from PIL import ImageDraw
         # Create gradient from darker red (bottom) to brighter red (top)
         x1, y1, x2, y2 = health_rect_adjusted
@@ -487,10 +487,26 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Black border
         draw.rounded_rectangle(health_rect_adjusted, radius=4, outline='#000000', width=3, fill=None)
-        # Subtle white highlight on top edge for 3D effect
-        draw.line([(x1 + 5, y1 + 3), (x2 - 5, y1 + 3)], fill='#FFFFFF40', width=2)
         
-        # Draw money (green GTA style with warmer neon glow)
+        # Inner bevel for 3D embossed effect
+        # Bright highlight on top edge
+        draw.line([(x1 + 4, y1 + 3), (x2 - 4, y1 + 3)], fill='#FF6B6B', width=2)
+        # Dark shadow on bottom edge
+        draw.line([(x1 + 4, y2 - 3), (x2 - 4, y2 - 3)], fill='#8B0000', width=2)
+        
+        # Draw money with green neon glow effect
+        # First, draw outer green glow halos
+        for glow_radius in range(8, 0, -2):
+            alpha = int(80 / (glow_radius / 2))
+            for g_x in range(-glow_radius, glow_radius + 1, 2):
+                for g_y in range(-glow_radius, glow_radius + 1, 2):
+                    dist = math.sqrt(g_x**2 + g_y**2)
+                    if dist <= glow_radius and dist > 0:
+                        try:
+                            draw.text((money_x + g_x, money_y + g_y), points_text, fill=(15, 255, 80, alpha), font=money_font)
+                        except:
+                            pass
+        # Then draw the main text with outline and shadow
         draw_outlined_text(points_text, (money_x, money_y), money_font, fill_color='#0FFF50')
         
         # Draw stars aligned to money width (first 3 gray, last 3 gold)
@@ -499,6 +515,15 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             cx = int(star_first_x + index * star_gap_calculated)
             filled = index >= 3  # last 3 stars are gold/filled
             draw_star(cx, stars_y, star_radius, filled=filled)
+            
+            # Add shimmer to gold stars (white highlight at top point)
+            if filled:
+                shimmer_y = stars_y - star_radius + 2
+                shimmer_size = 4
+                draw.ellipse([cx - shimmer_size//2, shimmer_y - shimmer_size//2, 
+                             cx + shimmer_size//2, shimmer_y + shimmer_size//2], 
+                             fill='#FFFFCC')
+            
             star_positions.append({'index': index, 'x': cx, 'y': stars_y, 'radius': star_radius, 'filled': filled})
         try:
             layout_debug = {
