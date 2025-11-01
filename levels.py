@@ -196,8 +196,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
         next_rank = LEVEL_RANKS.get(next_rank_level, "👑 Max Rank") if next_rank_level else "👑 Max Rank"
         
-        # GTA SAN ANDREAS HUD STYLE - Small horizontal card like Discord stats
-        width, height = 400, 160  # Small horizontal card
+        # GTA SAN ANDREAS HUD STYLE - Square patch format matching uilook.png
+        width, height = 600, 600  # Square patch format
         
         # Load GTA SA background image (green cityscape)
         background_path = os.path.join(os.path.dirname(__file__), 'background.jpg')
@@ -311,22 +311,22 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.warning(f"Could not get profile photo: {e}")
         
-        # Layout positioning - Small horizontal card
-        hud_x = 10
-        hud_y = 10
-        icon_size = 70  # Small profile for compact card
+        # Layout positioning - Square patch matching uilook.png
+        hud_x = 35
+        hud_y = 35
+        icon_size = 180  # Large profile like patch
         
-        # 1. PROFILE PICTURE BOX (Top-Left) - Small for card
+        # 1. PROFILE PICTURE BOX (Top-Left) - Large like patch
         icon_x = hud_x
         icon_y = hud_y
         
-        # Double white border (thin for small card)
-        outer_border = 3
-        inner_border = 2
+        # Double white border like patch
+        outer_border = 6
+        inner_border = 3
         # Outer white border
         draw.rectangle([icon_x - outer_border, icon_y - outer_border, 
                        icon_x + icon_size + outer_border, icon_y + icon_size + outer_border], 
-                      fill='#FFFFFF', outline='#000000', width=1)
+                      fill='#FFFFFF', outline='#000000', width=2)
         # Inner black square
         draw.rectangle([icon_x - inner_border, icon_y - inner_border, 
                        icon_x + icon_size + inner_border, icon_y + icon_size + inner_border], 
@@ -337,60 +337,60 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Insert profile picture
         if profile_pic:
-            # Resize to small size for card
+            # Resize to large size like patch
             profile_pic_resized = profile_pic.resize((icon_size, icon_size), Image.Resampling.LANCZOS)
             img.paste(profile_pic_resized, (icon_x, icon_y))
         else:
-            # Weapon icon scaled for small size
-            gun_y = icon_y + 22
-            draw.rectangle([icon_x + 30, gun_y, icon_x + 65, gun_y + 8], fill='#CCCCCC', outline='#000000', width=1)
-            draw.rectangle([icon_x + 14, gun_y + 6, icon_x + 32, gun_y + 25], fill='#CCCCCC', outline='#000000', width=1)
-            draw.polygon([(icon_x + 22, gun_y + 25), (icon_x + 26, gun_y + 25), 
-                         (icon_x + 28, gun_y + 42), (icon_x + 20, gun_y + 42)], 
+            # Weapon icon for large size
+            gun_y = icon_y + 60
+            draw.rectangle([icon_x + 80, gun_y, icon_x + 170, gun_y + 22], fill='#CCCCCC', outline='#000000', width=2)
+            draw.rectangle([icon_x + 35, gun_y + 16, icon_x + 85, gun_y + 65], fill='#CCCCCC', outline='#000000', width=2)
+            draw.polygon([(icon_x + 58, gun_y + 65), (icon_x + 68, gun_y + 65), 
+                         (icon_x + 74, gun_y + 110), (icon_x + 52, gun_y + 110)], 
                          fill='#CCCCCC', outline='#000000')
         
         
-        # 2. TIME DISPLAY (Top-Right) - Small for card
+        # 2. TIME DISPLAY (Top-Right) - Large like patch
         time_text = "04:20"
-        time_x = icon_x + icon_size + 15
-        time_y = icon_y + 5
-        # Draw time for small card
+        time_x = icon_x + icon_size + 50
+        time_y = icon_y + 15
+        # Draw time large like patch
         if font_path_used:
             try:
-                time_font = ImageFont.truetype(font_path_used, 38)  # Small for card
+                time_font = ImageFont.truetype(font_path_used, 100)  # Large to match patch
             except:
                 time_font = label_font
         else:
             time_font = label_font
         draw_outlined_text(time_text, (time_x, time_y), 
-                         time_font, '#FFFFFF', outline_width=2)
+                         time_font, '#FFFFFF', outline_width=4)
         
-        # Time underline bar (thin for small card)
-        time_underline_y = time_y + 36
-        time_underline_width = 80
-        time_underline_height = 3
+        # Time underline bar like patch
+        time_underline_y = time_y + 96
+        time_underline_width = 220
+        time_underline_height = 9
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
-                      fill='#FFFFFF', outline='#000000', width=1)
+                      fill='#FFFFFF', outline='#000000', width=2)
         
-        # STARS AT BOTTOM - Small for card, EXACTLY SAME SIZE as money
-        stars_y = height - 28  # Position at bottom for small card
+        # STARS AT BOTTOM - Large like patch, EXACTLY SAME SIZE as money
+        stars_y = height - 85  # Position at bottom like patch
         total_stars = 6
-        star_margin = 12  # Small margins for card
+        star_margin = 40  # Margins to match patch
         
         # Calculate spacing - fit all 6 stars
         available_width = width - (2 * star_margin)
         star_spacing = available_width / (total_stars - 1)
         
-        # Star font - EXACTLY 26pt (SAME as money)
+        # Star font - EXACTLY 70pt (SAME as money, matching patch)
         if font_path_used:
             try:
-                star_font = ImageFont.truetype(font_path_used, 26)  # EXACT size
+                star_font = ImageFont.truetype(font_path_used, 70)  # EXACT size matching patch
             except:
                 star_font = label_font
         else:
             star_font = label_font
         
-        # Draw 6 stars (3 grey + 3 gold)
+        # Draw 6 stars (3 grey + 3 gold) like patch
         for i in range(total_stars):
             star_x_pos = star_margin + int(i * star_spacing)
             if i >= 3:  # Last 3 are gold
@@ -398,18 +398,18 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:  # First 3 are grey
                 star_color = '#AAAAAA'  # Grey
             
-            # Draw star with outline
+            # Draw star with thick outline like patch
             draw_outlined_text("★", (star_x_pos, stars_y), 
-                             star_font, star_color, outline_color='#000000', outline_width=2)
+                             star_font, star_color, outline_color='#000000', outline_width=4)
         
-        # MONEY TEXT (Above stars) - EXACTLY SAME SIZE as stars (26pt)
-        money_y = stars_y - 32  # Close above stars
+        # MONEY TEXT (Above stars) - EXACTLY SAME SIZE as stars (70pt)
+        money_y = stars_y - 85  # Close above stars like patch
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color) - EXACTLY 26pt (SAME as stars)
+        # Bright lime green (GTA SA money color) - EXACTLY 70pt (SAME as stars)
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 26)  # EXACT SAME size as stars
+                money_font_size = ImageFont.truetype(font_path_used, 70)  # EXACT SAME size as stars
             except:
                 money_font_size = money_font
         else:
@@ -418,16 +418,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
         text_width = bbox[2] - bbox[0]
         money_x = (width - text_width) // 2
-        # Draw with same outline as stars
+        # Draw with same thick outline as stars
         draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF00', outline_color='#000000', outline_width=2)
+                         money_font_size, '#00FF00', outline_color='#000000', outline_width=4)
         
-        # RED HEALTH BAR - Position just above money text
-        separator_y = money_y - 12  # Just above money
-        separator_height = 6  # Thin for small card
-        separator_margin = 10  # Small margins
+        # RED HEALTH BAR - Position just above money text like patch
+        separator_y = money_y - 35  # Just above money
+        separator_height = 14  # Thick like patch
+        separator_margin = 30  # Match patch margins
         draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
-                      fill='#DD0000', outline='#000000', width=1)
+                      fill='#DD0000', outline='#000000', width=2)
         
         # No pixelation needed for green cityscape background
         
