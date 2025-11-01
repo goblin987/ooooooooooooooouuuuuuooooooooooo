@@ -207,7 +207,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Time block will be measured and right-aligned to 60px margin
         time_top = 40
         time_right_margin = 60
-        time_underline_width, time_underline_height, time_underline_gap = 100, 8, 10
+        time_underline_width, time_underline_height, time_underline_gap = 100, 12, 10
         # Health bar slightly lower for better separation
         health_rect = (40, 230, 560, 250)
         money_font_size_px = 100
@@ -368,7 +368,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Stars geometry: align star row to match money width
         stars_y = 430
-        star_diameter = 56
+        star_diameter = 68  # larger for wireframe prominence
         star_radius = star_diameter // 2
         star_row_width = mw
         # Distribute 6 stars evenly across money width
@@ -376,14 +376,15 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         star_first_x = money_x + star_radius
         
         # Position money with equal gap above and below
-        vertical_gap = 32  # consistent spacing
+        vertical_gap = 36  # increased for breathing room
         star_top = stars_y - star_radius
         money_y = star_top - vertical_gap - mh - outline_w
         
         # Health bar: same gap above money as money has above stars
+        health_bar_height = 28  # thicker for visibility
         health_bottom = money_y - outline_w
-        health_top = health_bottom - vertical_gap - (health_rect[3] - health_rect[1])
-        health_rect_adjusted = (health_rect[0], int(health_top), health_rect[2], int(health_bottom - vertical_gap))
+        health_top = health_bottom - vertical_gap - health_bar_height
+        health_rect_adjusted = (health_rect[0], int(health_top), health_rect[2], int(health_top + health_bar_height))
         
         # Draw health bar
         draw.rectangle(health_rect_adjusted, outline='#000000', width=5, fill='#FFFFFF')
