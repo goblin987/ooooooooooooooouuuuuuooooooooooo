@@ -199,9 +199,15 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # GTA SAN ANDREAS HUD STYLE - DARK BACKGROUND LIKE PATCH
         width, height = 1080, 1920
         
-        # Very dark background like the patch (almost black)
-        img = Image.new('RGB', (width, height), color='#0A0A0A')
+        # Military green-grey background like the patch
+        img = Image.new('RGB', (width, height), color='#2B3A2F')
         draw = ImageDraw.Draw(img)
+        
+        # Add subtle gradient for depth (darker at bottom)
+        for y in range(height):
+            darkness = int(y / height * 30)
+            color = (43 - darkness, 58 - darkness, 47 - darkness)
+            draw.line([(0, y), (width, y)], fill=color)
         
         # Load GTA SA style fonts - try Pricedown first, fallback to bold
         import os
