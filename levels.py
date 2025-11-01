@@ -228,7 +228,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         font_path_used = None
         
         # Try Pricedown font (iconic GTA font) for money display
+        assets_dir = os.path.join(os.path.dirname(__file__), 'assets')
         pricedown_paths = [
+            (os.path.join(assets_dir, "pricedown.ttf"), "Pricedown Assets"),
+            (os.path.join(assets_dir, "Pricedown bl.ttf"), "Pricedown Assets"),
             ("C:/Windows/Fonts/pricedown bl.ttf", "Pricedown"),
             ("C:/Windows/Fonts/PRICEDOW.TTF", "Pricedown"),
             ("/usr/share/fonts/truetype/pricedown/pricedown.ttf", "Pricedown"),
