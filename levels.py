@@ -218,6 +218,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         import os
         money_font = None
         label_font = None
+        font_path_used = None
         
         # Try Pricedown font (iconic GTA font) for money display
         pricedown_paths = [
@@ -231,23 +232,39 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if os.path.exists(font_path):
                     money_font = ImageFont.truetype(font_path, 140)  # Large for money
                     label_font = ImageFont.truetype(font_path, 90)   # Large for stars (1:1 with patch)
+                    font_path_used = font_path
                     logger.info(f"Loaded GTA font: {font_name}")
                     break
             except:
                 continue
         
-        # Fallback to bold Arial if Pricedown not found
+        # Fallback to system fonts if Pricedown not found
         if not money_font:
-            try:
-                money_font = ImageFont.truetype("arialbd.ttf", 140)
-                label_font = ImageFont.truetype("arialbd.ttf", 90)
-            except:
+            fallback_fonts = [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",  # Linux
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",  # Linux
+                "C:/Windows/Fonts/arialbd.ttf",  # Windows
+                "C:/Windows/Fonts/arial.ttf",  # Windows
+                "/System/Library/Fonts/Helvetica.ttc",  # macOS
+            ]
+            
+            for font_path in fallback_fonts:
                 try:
-                    money_font = ImageFont.truetype("arial.ttf", 140)
-                    label_font = ImageFont.truetype("arial.ttf", 90)
+                    if os.path.exists(font_path):
+                        money_font = ImageFont.truetype(font_path, 140)
+                        label_font = ImageFont.truetype(font_path, 90)
+                        font_path_used = font_path
+                        logger.info(f"Loaded fallback font: {font_path}")
+                        break
                 except:
-                    money_font = ImageFont.load_default()
-                    label_font = ImageFont.load_default()
+                    continue
+            
+            # Ultimate fallback
+            if not money_font:
+                money_font = ImageFont.load_default()
+                label_font = ImageFont.load_default()
+                font_path_used = None
+                logger.warning("Using default font")
         
         # Helper function to apply pixelation effect to image
         def pixelate_image(image, scale_factor=0.5):
@@ -321,7 +338,13 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Ammo count below weapon (level-points_in_level)
         ammo_text = f"{level}-{points_in_level}"
-        ammo_font = ImageFont.truetype(label_font.path if hasattr(label_font, 'path') else "arialbd.ttf", 35)
+        if font_path_used:
+            try:
+                ammo_font = ImageFont.truetype(font_path_used, 35)
+            except:
+                ammo_font = label_font
+        else:
+            ammo_font = label_font
         draw_outlined_text(ammo_text, (icon_x + icon_size//2, icon_y + icon_size + 12), 
                          ammo_font, '#FFFFFF', outline_width=2, anchor='mm')
         
@@ -330,7 +353,13 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_x = icon_x + icon_size + 80
         time_y = icon_y
         # Draw time with smaller font
-        time_font = ImageFont.truetype(money_font.path if hasattr(money_font, 'path') else "arialbd.ttf", 85)
+        if font_path_used:
+            try:
+                time_font = ImageFont.truetype(font_path_used, 85)
+            except:
+                time_font = label_font
+        else:
+            time_font = label_font
         draw_outlined_text(time_text, (time_x, time_y), 
                          time_font, '#FFFFFF', outline_width=4)
         
@@ -379,7 +408,13 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         points_text = f"${current_points:08d}"
         
         # Bright lime green (GTA SA money color) - centered on patch
-        money_font_size = ImageFont.truetype(money_font.path if hasattr(money_font, 'path') else "arialbd.ttf", 100)
+        if font_path_used:
+            try:
+                money_font_size = ImageFont.truetype(font_path_used, 100)
+            except:
+                money_font_size = money_font
+        else:
+            money_font_size = money_font
         draw_outlined_text(points_text, (width//2 - 190, money_y), 
                          money_font_size, '#00FF00', outline_width=4)
         
