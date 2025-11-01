@@ -370,43 +370,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
                       fill='#FFFFFF', outline='#000000', width=1)
         
-        # 3. WHITE/GREY BAR (Middle-Right, below time)
-        bar_x = icon_x + icon_size + 20
-        bar_y = time_y + 85
-        bar_width = 360  # Shorter for square format
-        bar_height = 28
-        
-        # Black outline
-        draw.rectangle([bar_x - 4, bar_y - 4, bar_x + bar_width + 4, bar_y + bar_height + 4], 
-                     fill='#000000')
-        # Very dark background
-        draw.rectangle([bar_x, bar_y, bar_x + bar_width, bar_y + bar_height], 
-                     fill='#0A0A0A')
-        # Light grey fill (75% full, static)
-        white_fill = int(bar_width * 0.75)
-        draw.rectangle([bar_x, bar_y, bar_x + white_fill, bar_y + bar_height], 
-                      fill='#D0D0D0')
-        
-        # 4. RED BAR (Below white bar)
-        bar2_y = bar_y + bar_height + 6
-        
-        # Black outline
-        draw.rectangle([bar_x - 4, bar2_y - 4, bar_x + bar_width + 4, bar2_y + bar_height + 4], 
-                     fill='#000000')
-        # Very dark background
-        draw.rectangle([bar_x, bar2_y, bar_x + bar_width, bar2_y + bar_height], 
-                     fill='#0A0A0A')
-        # Bright red fill (dynamic based on level progress)
-        filled_width = int((progress / 100) * bar_width)
-        if filled_width < 12:
-            filled_width = max(12, int(bar_width * 0.05))
-        draw.rectangle([bar_x, bar2_y, bar_x + filled_width, bar2_y + bar_height], 
-                      fill='#DD0000')
-        
-        # PROMINENT RED SEPARATOR BAR (Full width like the patch)
-        separator_y = bar2_y + bar_height + 20
-        separator_height = 16
-        separator_margin = 40
+        # PROMINENT RED SEPARATOR BAR (Full width like the patch) - positioned below profile/time section
+        separator_y = icon_y + icon_size + 60
+        separator_height = 18
+        separator_margin = 35
         draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
                       fill='#DD0000', outline='#000000', width=2)
         
