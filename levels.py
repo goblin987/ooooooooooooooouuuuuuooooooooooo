@@ -353,9 +353,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_x = width - time_right_margin - tw
         time_y = time_top
         draw_outlined_text(time_text, (time_x, time_y), time_font)
-        # underline centered under the time text
+        # underline centered under the time text, with clearance for outline
         ul_x1 = time_x + (tw - time_underline_width) // 2
-        ul_y1 = time_y + th + outline_w + time_underline_gap
+        ul_y1 = time_y + th + (outline_w * 2) + time_underline_gap
         time_underline_rect = (ul_x1, ul_y1, ul_x1 + time_underline_width, ul_y1 + time_underline_height)
         draw.rectangle(time_underline_rect, outline='#000000', width=4, fill='#FFFFFF')
         
@@ -367,7 +367,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         money_x = (width - mw) // 2
         
         # Stars geometry: align star row to match money width
-        stars_y = 430
+        stars_y = height - 80  # move to bottom with small margin
         star_diameter = 68  # larger for wireframe prominence
         star_radius = star_diameter // 2
         star_row_width = mw
