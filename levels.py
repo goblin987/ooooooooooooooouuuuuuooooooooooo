@@ -199,39 +199,27 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # GTA SAN ANDREAS HUD STYLE - SQUARE FORMAT
         width, height = 800, 800  # Square
         
-        # GTA SA GREEN CITYSCAPE BACKGROUND (like the reference)
-        img = Image.new('RGB', (width, height), color='#87A96B')  # Green sky
+        # Load GTA SA background image (green cityscape)
+        background_path = os.path.join(os.path.dirname(__file__), 'assets', 'gta_background.png')
+        
+        try:
+            # Try to load the background image
+            img = Image.open(background_path)
+            # Resize to 800x800 if needed
+            if img.size != (width, height):
+                img = img.resize((width, height), Image.Resampling.LANCZOS)
+            logger.info(f"Loaded GTA background from {background_path}")
+        except Exception as e:
+            # Fallback: create simple green gradient if image not found
+            logger.warning(f"Could not load background image: {e}, using fallback")
+            img = Image.new('RGB', (width, height), color='#87A96B')
+            draw_temp = ImageDraw.Draw(img)
+            for y in range(height):
+                green_value = int(169 - (y / height * 40))
+                color = (135, green_value, 107)
+                draw_temp.line([(0, y), (width, y)], fill=color)
+        
         draw = ImageDraw.Draw(img)
-        
-        # Gradient green sky (lighter at top, darker at bottom)
-        for y in range(height):
-            # Gradient from light green to darker green
-            green_value = int(169 - (y / height * 40))  # 169 down to 129
-            color = (135, green_value, 107)
-            draw.line([(0, y), (width, y)], fill=color)
-        
-        # Draw city skyline silhouette at bottom (very subtle, low buildings)
-        # Building silhouettes (darker green, much shorter so they don't cover UI)
-        buildings = [
-            # (x, width, height_from_bottom)
-            (0, 80, 50),
-            (80, 60, 40),
-            (140, 90, 55),
-            (230, 70, 45),
-            (300, 100, 60),  # Tallest building
-            (400, 80, 52),
-            (480, 60, 42),
-            (540, 90, 48),
-            (630, 70, 40),
-            (700, 100, 50),
-        ]
-        
-        building_color = '#789F5F'  # Subtle darker green for buildings
-        for x, w, h in buildings:
-            draw.rectangle([x, height - h, x + w, height], fill=building_color)
-        
-        # Ground/horizon line (subtle)
-        draw.rectangle([0, height - 20, width, height], fill='#6B8E54')
         
         # Load GTA SA style fonts - try Pricedown first, fallback to bold
         import os
