@@ -218,8 +218,23 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Outline thickness used by draw_outlined_text (keep in sync)
         outline_w = 5
 
-        # Create clean white canvas
-        img = Image.new('RGB', (width, height), color='#FFFFFF')
+        # Load GTA SA background image (green cityscape)
+        background_path = os.path.join(os.path.dirname(__file__), 'background.jpg')
+        
+        try:
+            img = Image.open(background_path)
+            if img.size != (width, height):
+                img = img.resize((width, height), Image.Resampling.LANCZOS)
+            logger.info(f"Loaded GTA background from {background_path}")
+        except Exception as e:
+            # Fallback: create green gradient if image not found
+            logger.warning(f"Could not load background image: {e}, using fallback")
+            img = Image.new('RGB', (width, height), color='#87A96B')
+            draw_temp = ImageDraw.Draw(img)
+            for y in range(height):
+                green_value = int(169 - (y / height * 40))
+                color = (135, green_value, 107)
+                draw_temp.line([(0, y), (width, y)], fill=color)
         
         draw = ImageDraw.Draw(img)
         
@@ -296,14 +311,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     draw.text((x + adj, y + adj2), text, fill=outline_color, **kwargs)
             draw.text(position, text, fill=fill_color, **kwargs)
 
-        def draw_star(center_x, center_y, radius, outline_width=5):
+        def draw_star(center_x, center_y, radius, filled=False, outline_width=5):
             points = []
             for i in range(10):
                 angle_deg = -90 + i * 36
                 angle_rad = math.radians(angle_deg)
                 r = radius if i % 2 == 0 else radius * 0.45
                 points.append((center_x + r * math.cos(angle_rad), center_y + r * math.sin(angle_rad)))
-            draw.polygon(points, outline='#000000', fill='#FFFFFF', width=outline_width)
+            # Gray unfilled or gold filled
+            fill_color = '#FFD700' if filled else '#7A7A7A'
+            draw.polygon(points, outline='#000000', fill=fill_color, width=outline_width)
         
         # Get user profile photo (optional)
         profile_pic = None
@@ -387,18 +404,19 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         health_top = health_bottom - vertical_gap - health_bar_height
         health_rect_adjusted = (health_rect[0], int(health_top), health_rect[2], int(health_top + health_bar_height))
         
-        # Draw health bar
-        draw.rectangle(health_rect_adjusted, outline='#000000', width=5, fill='#FFFFFF')
+        # Draw health bar (red filled)
+        draw.rounded_rectangle(health_rect_adjusted, radius=4, fill='#D22B2B', outline='#000000', width=2)
         
-        # Draw money
-        draw_outlined_text(points_text, (money_x, money_y), money_font)
+        # Draw money (green GTA style)
+        draw_outlined_text(points_text, (money_x, money_y), money_font, fill_color='#00FF40')
         
-        # Draw stars aligned to money width
+        # Draw stars aligned to money width (first 3 gray, last 3 gold)
         star_positions = []
         for index in range(total_stars):
             cx = int(star_first_x + index * star_gap_calculated)
-            draw_star(cx, stars_y, star_radius)
-            star_positions.append({'index': index, 'x': cx, 'y': stars_y, 'radius': star_radius})
+            filled = index >= 3  # last 3 stars are gold/filled
+            draw_star(cx, stars_y, star_radius, filled=filled)
+            star_positions.append({'index': index, 'x': cx, 'y': stars_y, 'radius': star_radius, 'filled': filled})
         try:
             layout_debug = {
                 'canvas': {'width': width, 'height': height},
