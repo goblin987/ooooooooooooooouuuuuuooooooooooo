@@ -197,139 +197,96 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
         next_rank = LEVEL_RANKS.get(next_rank_level, "👑 Max Rank") if next_rank_level else "👑 Max Rank"
         
-        # GTA SAN ANDREAS HUD STYLE - Square patch format matching uilook.png
-        width, height = 600, 600  # Square patch format like reference
-
-        # Layout constants defined from the mock layout measurements
-        hud_margin = 40           # Global padding for primary HUD elements
-        icon_size = 140           # Avatar box size
+        # Layout constants taken from the mock layout
+        width, height = 600, 600
+        icon_size = 140
         icon_outer_border = 6
         icon_inner_border = 3
-        time_margin_top = hud_margin
-        time_margin_right = 60
-        time_underline_width = 100
-        time_underline_height = 8
-        time_underline_gap = 12
-        health_y_position = 270
-        health_height = 20
-        money_left = 150
-        money_top = 410
-        stars_center_y_constant = 470
-        star_left_margin = 90
-        star_gap = 75
+        icon_origin = (40, 40)
+        time_origin = (338, 40)
+        time_underline_rect = (440, 106, 540, 114)  # x1, y1, x2, y2
+        health_rect = (40, 220, 560, 238)
+        money_position = (150, 360)
+        money_font_size_px = 54
+        star_first_center = (60, 430)
+        star_gap = 70
+        star_radius = 28
         total_stars = 6
 
-        
-        # Load GTA SA background image (green cityscape)
-        background_path = os.path.join(os.path.dirname(__file__), 'background.jpg')
-        
-        try:
-            # Try to load the background image
-            img = Image.open(background_path)
-            # Resize to 800x800 if needed
-            if img.size != (width, height):
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
-            logger.info(f"Loaded GTA background from {background_path}")
-        except Exception as e:
-            # Fallback: create simple green gradient if image not found
-            logger.warning(f"Could not load background image: {e}, using fallback")
-            img = Image.new('RGB', (width, height), color='#87A96B')
-            draw_temp = ImageDraw.Draw(img)
-            for y in range(height):
-                green_value = int(169 - (y / height * 40))
-                color = (135, green_value, 107)
-                draw_temp.line([(0, y), (width, y)], fill=color)
+        # Create clean white canvas
+        img = Image.new('RGB', (width, height), color='#FFFFFF')
         
         draw = ImageDraw.Draw(img)
         
-        # Load GTA SA style fonts - try Pricedown first, fallback to bold
-        import os
-        money_font = None
-        label_font = None
-        font_path_used = None
-        
-        # Try Pricedown font (iconic GTA font) for money display
+        # Load Pricedown font (or fallback) for outline text
         assets_dir = os.path.join(os.path.dirname(__file__), 'assets')
-        pricedown_paths = [
-            (os.path.join(assets_dir, "Pricedown Bl.otf"), "Pricedown Assets OTF"),
-            (os.path.join(assets_dir, "pricedown.ttf"), "Pricedown Assets TTF"),
-            (os.path.join(assets_dir, "Pricedown bl.ttf"), "Pricedown Assets"),
-            ("C:/Windows/Fonts/pricedown bl.ttf", "Pricedown"),
-            ("C:/Windows/Fonts/PRICEDOW.TTF", "Pricedown"),
-            ("/usr/share/fonts/truetype/pricedown/pricedown.ttf", "Pricedown"),
+        font_candidates = [
+            os.path.join(assets_dir, "Pricedown Bl.otf"),
+            os.path.join(assets_dir, "pricedown.ttf"),
+            os.path.join(assets_dir, "Pricedown bl.ttf"),
+            "C:/Windows/Fonts/pricedown bl.ttf",
+            "C:/Windows/Fonts/PRICEDOW.TTF",
+            "/usr/share/fonts/truetype/pricedown/pricedown.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         ]
-        
-        for font_path, font_name in pricedown_paths:
-            try:
-                if os.path.exists(font_path):
-                    money_font = ImageFont.truetype(font_path, 140)  # Large for money
-                    label_font = ImageFont.truetype(font_path, 90)   # Large for stars (1:1 with patch)
-                    font_path_used = font_path
-                    logger.info(f"Loaded GTA font: {font_name}")
-                    break
-            except:
-                continue
-        
-        # Fallback to system fonts if Pricedown not found
-        if not money_font:
-            fallback_fonts = [
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",  # Linux
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",  # Linux
-                "C:/Windows/Fonts/arialbd.ttf",  # Windows
-                "C:/Windows/Fonts/arial.ttf",  # Windows
-                "/System/Library/Fonts/Helvetica.ttc",  # macOS
-            ]
-            
-            for font_path in fallback_fonts:
+
+        font_path_used = None
+        pricedown_font = None
+        for candidate in font_candidates:
+            if os.path.exists(candidate):
                 try:
-                    if os.path.exists(font_path):
-                        money_font = ImageFont.truetype(font_path, 140)
-                        label_font = ImageFont.truetype(font_path, 90)
-                        font_path_used = font_path
-                        logger.info(f"Loaded fallback font: {font_path}")
-                        break
-                except:
-                    continue
-            
-            # Ultimate fallback
-            if not money_font:
-                money_font = ImageFont.load_default()
-                label_font = ImageFont.load_default()
-                font_path_used = None
-                logger.warning("Using default font")
-        
-        # Helper function to apply pixelation effect to image
-        def pixelate_image(image, scale_factor=0.5):
-            """Apply pixelation effect by scaling down and back up"""
-            w, h = image.size
-            small = image.resize((int(w * scale_factor), int(h * scale_factor)), Image.Resampling.NEAREST)
-            pixelated = small.resize((w, h), Image.Resampling.NEAREST)
-            return pixelated
-        
-        # Helper function to draw text with thick black outline (GTA SA style)
-        def draw_outlined_text(text, position, font, fill_color, outline_color='#000000', outline_width=4, anchor=None, shadow_offset=None, shadow_color='#000000'):
+                    pricedown_font = ImageFont.truetype(candidate, money_font_size_px)
+                    font_path_used = candidate
+                    logger.info(f"Loaded HUD font: {candidate}")
+                    break
+                except Exception as font_error:
+                    logger.debug(f"Failed to load font {candidate}: {font_error}")
+
+        if not pricedown_font:
+            pricedown_font = ImageFont.load_default()
+            logger.warning("Falling back to default font for HUD")
+
+        def get_font(size):
+            if font_path_used:
+                try:
+                    return ImageFont.truetype(font_path_used, size)
+                except Exception as font_error:
+                    logger.warning(f"Failed resizing font {font_path_used} to {size}px: {font_error}")
+            if pricedown_font and hasattr(pricedown_font, "path"):
+                try:
+                    return ImageFont.truetype(pricedown_font.path, size)
+                except Exception:
+                    pass
+            if pricedown_font and hasattr(pricedown_font, "font_variant"):
+                try:
+                    return pricedown_font.font_variant(size=size)
+                except Exception:
+                    pass
+            return ImageFont.load_default()
+
+        def draw_outlined_text(text, position, font, fill_color='#FFFFFF', outline_color='#000000', outline_width=4, anchor=None):
             x, y = position
             kwargs = {'font': font}
             if anchor:
                 kwargs['anchor'] = anchor
-            
-            if shadow_offset:
-                shadow_x = x + shadow_offset[0]
-                shadow_y = y + shadow_offset[1]
-                draw.text((shadow_x, shadow_y), text, fill=shadow_color, **kwargs)
 
-            # Draw outline by drawing text multiple times at offsets
             for adj in range(-outline_width, outline_width + 1):
                 for adj2 in range(-outline_width, outline_width + 1):
-                    if adj != 0 or adj2 != 0:
-                        draw.text((x + adj, y + adj2), text, fill=outline_color, **kwargs)
-            # Draw main text on top
+                    if adj == 0 and adj2 == 0:
+                        continue
+                    draw.text((x + adj, y + adj2), text, fill=outline_color, **kwargs)
             draw.text(position, text, fill=fill_color, **kwargs)
+
+        def draw_star(center_x, center_y, radius, outline_width=4):
+            points = []
+            for i in range(10):
+                angle_deg = -90 + i * 36
+                angle_rad = math.radians(angle_deg)
+                r = radius if i % 2 == 0 else radius * 0.45
+                points.append((center_x + r * math.cos(angle_rad), center_y + r * math.sin(angle_rad)))
+            draw.polygon(points, outline='#000000', fill='#FFFFFF', width=outline_width)
         
-        # GTA SAN ANDREAS HUD - COMPLETE 1:1 REPLICA
-        # All 6 elements from patch: weapon box, time, 2 bars, money, stars
-        
-        # Get user profile photo for weapon icon
+        # Get user profile photo (optional)
         profile_pic = None
         try:
             photos = await context.bot.get_user_profile_photos(user_id, limit=1)
@@ -341,24 +298,23 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.warning(f"Could not get profile photo: {e}")
         
-        # Layout positioning - Square patch matching uilook.png
-        icon_x = hud_margin
-        icon_y = hud_margin
-        
-        # 1. PROFILE PICTURE BOX (Top-Left)
+        icon_x, icon_y = icon_origin
+
+        # Profile picture box (outer + inner outline only)
         outer_border = icon_outer_border
         inner_border = icon_inner_border
-        # Outer white border
-        draw.rectangle([icon_x - outer_border, icon_y - outer_border, 
-                       icon_x + icon_size + outer_border, icon_y + icon_size + outer_border], 
-                      fill='#FFFFFF', outline='#000000', width=2)
-        # Inner black square
-        draw.rectangle([icon_x - inner_border, icon_y - inner_border, 
-                       icon_x + icon_size + inner_border, icon_y + icon_size + inner_border], 
-                      fill='#000000')
-        # Photo area
-        draw.rectangle([icon_x, icon_y, icon_x + icon_size, icon_y + icon_size], 
-                      fill='#1A1A1A')
+        draw.rectangle(
+            [icon_x - outer_border, icon_y - outer_border, icon_x + icon_size + outer_border, icon_y + icon_size + outer_border],
+            fill='#FFFFFF', outline='#000000', width=4
+        )
+        draw.rectangle(
+            [icon_x - inner_border, icon_y - inner_border, icon_x + icon_size + inner_border, icon_y + icon_size + inner_border],
+            fill='#FFFFFF', outline='#000000', width=3
+        )
+        draw.rectangle(
+            [icon_x, icon_y, icon_x + icon_size, icon_y + icon_size],
+            fill='#FFFFFF', outline='#000000', width=3
+        )
         
         # Insert profile picture
         if profile_pic:
@@ -366,148 +322,49 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             profile_pic_resized = profile_pic.resize((icon_size, icon_size), Image.Resampling.LANCZOS)
             img.paste(profile_pic_resized, (icon_x, icon_y))
         else:
-            # Simple placeholder icon
-            center_x = icon_x + icon_size // 2
-            center_y = icon_y + icon_size // 2
-            head_radius = icon_size // 4
-            body_width = icon_size // 2
-            body_height = icon_size // 3
-            draw.ellipse(
-                [center_x - head_radius, center_y - head_radius - body_height // 2,
-                 center_x + head_radius, center_y + head_radius - body_height // 2],
-                fill='#CCCCCC', outline='#000000', width=2
-            )
-            draw.rectangle(
-                [center_x - body_width // 2, center_y,
-                 center_x + body_width // 2, center_y + body_height],
-                fill='#CCCCCC', outline='#000000', width=2
-            )
+            # Keep empty white box (matches mock)
+            pass
         
         
-        # 2. TIME DISPLAY (Top-Right) - positioned from right margin
+        # Time display (top-right)
         time_text = "04:20"
-        if font_path_used:
-            try:
-                time_font = ImageFont.truetype(font_path_used, 85)
-            except:
-                time_font = label_font
-        else:
-            time_font = label_font
-        time_bbox = draw.textbbox((0, 0), time_text, font=time_font)
-        time_width = time_bbox[2] - time_bbox[0]
-        time_height = time_bbox[3] - time_bbox[1]
-        time_x = width - time_margin_right - time_width
-        time_y = time_margin_top
-        draw_outlined_text(time_text, (time_x, time_y), time_font, '#FFFFFF', outline_width=4)
+        time_font = get_font(72)
+        time_x, time_y = time_origin
+        draw_outlined_text(time_text, (time_x, time_y), time_font)
         
-        # Time underline bar (100px wide, right-aligned under time)
-        underline_x = time_x + time_width - time_underline_width
-        underline_y = time_y + time_height + time_underline_gap
-        draw.rectangle(
-            [underline_x, underline_y, underline_x + time_underline_width, underline_y + time_underline_height],
-            fill='#FFFFFF', outline='#000000', width=2
-        )
+        # Time underline bar
+        draw.rectangle(time_underline_rect, outline='#000000', width=4, fill='#FFFFFF')
         
-        # RED HEALTH BAR
-        health_x = hud_margin
-        health_width = width - (2 * hud_margin)
-        health_y = health_y_position
-        draw.rounded_rectangle(
-            [health_x, health_y, health_x + health_width, health_y + health_height],
-            radius=4, fill='#D22B2B'
-        )
+        # Health bar (thin outline only)
+        draw.rectangle(health_rect, outline='#000000', width=4, fill='#FFFFFF')
         
-        # MONEY TEXT
+        # Money text (centered visually by design spec)
         points_text = f"${current_points:09d}"
-        # Load money font (54px)
-        try:
-            if font_path_used:
-                money_font_size = ImageFont.truetype(font_path_used, 54)
-            else:
-                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 54) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
-        except:
-            money_font_size = money_font
-        # Calculate text box size
-        money_bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
-        money_width = money_bbox[2] - money_bbox[0]
-        money_height = money_bbox[3] - money_bbox[1]
-        money_x = money_left
-        money_y = money_top
-        # Draw money with black outline
-        draw_outlined_text(
-            points_text,
-            (money_x, money_y),
-            money_font_size,
-            '#00FF40',
-            outline_color='#000000',
-            outline_width=2,
-            shadow_offset=(3, 3),
-            shadow_color='#000000'
-        )
+        money_font = get_font(money_font_size_px)
+        money_x, money_y = money_position
+        money_bbox = draw.textbbox((0, 0), points_text, font=money_font)
+        draw_outlined_text(points_text, (money_x, money_y), money_font)
         
-        # STARS ROW
-        stars_center_y = stars_center_y_constant
-
-        # Load star font (60px for 60x60 stars)
-        try:
-            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 72) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.load_default()
-        except:
-            try:
-                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 72)
-            except:
-                star_font = ImageFont.load_default()
-        
-        # Draw 6 stars (first 3 gray, last 3 gold)
+        # Stars
         star_positions = []
-        for i in range(total_stars):
-            star_x = star_left_margin + i * star_gap
-            if i < 3:
-                star_color = '#7A7A7A'  # Gray (unfilled)
-            else:
-                star_color = '#FFD700'  # Gold (filled)
-            star_positions.append({'index': i, 'x': star_x, 'y': stars_center_y, 'color': star_color})
-            # Draw star with outline
-            draw_outlined_text(
-                "★",
-                (star_x, stars_center_y),
-                star_font,
-                star_color,
-                outline_color='#000000',
-                outline_width=2,
-                anchor='mm'
-            )
+        start_x, stars_y = star_first_center
+        for index in range(total_stars):
+            cx = start_x + index * star_gap
+            draw_star(cx, stars_y, star_radius)
+            star_positions.append({'index': index, 'x': cx, 'y': stars_y, 'radius': star_radius})
         try:
             layout_debug = {
                 'canvas': {'width': width, 'height': height},
-                'icon': {
-                    'top_left': [icon_x, icon_y],
-                    'size': icon_size,
-                    'outer_border': icon_outer_border,
-                    'inner_border': icon_inner_border
-                },
-                'time': {
-                    'text': time_text,
-                    'position': [time_x, time_y],
-                    'bbox': {'width': time_width, 'height': time_height},
-                    'underline_start': [underline_x, underline_y],
-                    'underline_size': [time_underline_width, time_underline_height]
-                },
-                'health_bar': {
-                    'position': [health_x, health_y],
-                    'size': [health_width, health_height]
-                },
+                'icon': {'top_left': [icon_x, icon_y], 'size': icon_size},
+                'time': {'text': time_text, 'position': [time_x, time_y], 'underline': time_underline_rect},
+                'health_bar': {'rect': health_rect},
                 'money': {
                     'text': points_text,
                     'position': [money_x, money_y],
-                    'bbox': {'width': money_width, 'height': money_height},
-                    'shadow_offset': [3, 3],
-                    'font_path': font_path_used
+                    'font_path': font_path_used,
+                    'bbox': {'width': money_bbox[2] - money_bbox[0], 'height': money_bbox[3] - money_bbox[1]}
                 },
-                'stars': {
-                    'center_y': stars_center_y,
-                    'gap': star_gap,
-                    'positions': star_positions
-                }
+                'stars': {'gap': star_gap, 'radius': star_radius, 'positions': star_positions}
             }
             logger.info("HUD layout debug: %s", json.dumps(layout_debug))
         except Exception as debug_error:
