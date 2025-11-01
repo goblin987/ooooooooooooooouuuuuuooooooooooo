@@ -412,14 +412,15 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         available_width = width - (2 * star_margin)
         star_spacing = available_width / (total_stars - 1)
         
-        # Star font - 75pt (EXACTLY SAME as money, matching patch)
-        if font_path_used:
+        # Star font - Use system font for stars (Pricedown doesn't have star character)
+        # Use Arial or fallback for star symbols
+        try:
+            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 75) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 75)
+        except:
             try:
-                star_font = ImageFont.truetype(font_path_used, 75)  # SAME size as money
+                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 75)
             except:
-                star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 75) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else label_font
-        else:
-            star_font = label_font
+                star_font = ImageFont.load_default()
         
         # Draw 6 stars (3 grey + 3 gold) like patch
         for i in range(total_stars):
