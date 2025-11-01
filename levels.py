@@ -398,10 +398,11 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         star_top = stars_y - star_radius
         money_y = star_top - vertical_gap - mh - outline_w
         
-        # Health bar: same gap above money as money has above stars
-        health_bar_height = 28  # thicker for visibility
+        # Health bar: smaller and closer to money
+        health_bar_height = 22  # reduce from 28
+        health_gap_to_money = 24  # smaller gap than vertical_gap
         health_bottom = money_y - outline_w
-        health_top = health_bottom - vertical_gap - health_bar_height
+        health_top = health_bottom - health_gap_to_money - health_bar_height
         health_rect_adjusted = (health_rect[0], int(health_top), health_rect[2], int(health_top + health_bar_height))
         
         # Draw health bar (red filled)
