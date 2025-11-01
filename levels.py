@@ -365,19 +365,26 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw_outlined_text(time_text, (time_x, time_y), 
                          time_font, '#FFFFFF', outline_width=5)
         
-        # STARS AT BOTTOM - IDENTICAL SIZE TO MONEY
-        stars_y = height - 135  # Positioned at bottom
+        # RED HEALTH BAR - Position directly below profile/time section like patch
+        separator_y = icon_y + icon_size + 50  # Close to profile section
+        separator_height = 18  # Match patch thickness
+        separator_margin = 38  # Match patch margins
+        draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
+                      fill='#DD0000', outline='#000000', width=2)
+        
+        # STARS AT BOTTOM - Match patch exactly
+        stars_y = height - 100  # Position at very bottom like patch
         total_stars = 6
-        star_margin = 45  # Same margin as money text
+        star_margin = 40  # Tighter margins to match patch
         
         # Calculate spacing to fill entire width
         available_width = width - (2 * star_margin)
         star_spacing = available_width / (total_stars - 1)
         
-        # Star font - SAME SIZE AS MONEY (95pt)
+        # Star font - Match patch size
         if font_path_used:
             try:
-                star_font = ImageFont.truetype(font_path_used, 95)  # SAME as money
+                star_font = ImageFont.truetype(font_path_used, 85)  # Match patch star size
             except:
                 star_font = label_font
         else:
@@ -389,20 +396,20 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if i >= 3:  # Last 3 are gold
                 star_color = '#FFD700'  # Bright gold
             else:  # First 3 are grey
-                star_color = '#AAAAAA'  # Light grey
+                star_color = '#B0B0B0'  # Match patch grey
             
-            # Draw star with SAME THICK BLACK outline as money (6px)
+            # Draw star with thick black outline like patch
             draw_outlined_text("★", (star_x_pos, stars_y), 
-                             star_font, star_color, outline_color='#000000', outline_width=6)
+                             star_font, star_color, outline_color='#000000', outline_width=5)
         
-        # MONEY TEXT (Above stars) - IDENTICAL SIZE TO STARS
-        money_y = stars_y - 140  # Above stars with spacing
+        # MONEY TEXT (Above stars) - Match patch size and position
+        money_y = stars_y - 110  # Closer to stars like patch
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color) - SAME SIZE AS STARS (95pt)
+        # Bright lime green (GTA SA money color) - Match patch size
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 95)  # SAME as stars
+                money_font_size = ImageFont.truetype(font_path_used, 85)  # Match patch money size
             except:
                 money_font_size = money_font
         else:
@@ -411,16 +418,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
         text_width = bbox[2] - bbox[0]
         money_x = (width - text_width) // 2
-        # Draw with SAME THICK BLACK outline as stars (6px)
+        # Draw with thick black outline like patch
         draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF00', outline_color='#000000', outline_width=6)
-        
-        # RED HEALTH BAR (positioned between profile section and money)
-        separator_y = icon_y + icon_size + 100  # Below profile section
-        separator_height = 20  # Thick
-        separator_margin = 40
-        draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
-                      fill='#DD0000', outline='#000000', width=3)
+                         money_font_size, '#00FF00', outline_color='#000000', outline_width=5)
         
         # No pixelation needed for green cityscape background
         
