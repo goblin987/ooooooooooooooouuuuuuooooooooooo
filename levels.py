@@ -214,6 +214,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         star_gap = 70
         star_radius = 28
         total_stars = 6
+        # Outline thickness used by draw_outlined_text (keep in sync)
+        outline_w = 4
 
         # Create clean white canvas
         img = Image.new('RGB', (width, height), color='#FFFFFF')
@@ -338,7 +340,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw_outlined_text(time_text, (time_x, time_y), time_font)
         # underline anchored to right edge of text
         ul_x1 = time_x + tw - time_underline_width
-        ul_y1 = time_y + th + time_underline_gap
+        ul_y1 = time_y + th + outline_w + time_underline_gap
         time_underline_rect = (ul_x1, ul_y1, ul_x1 + time_underline_width, ul_y1 + time_underline_height)
         draw.rectangle(time_underline_rect, outline='#000000', width=4, fill='#FFFFFF')
         
@@ -354,9 +356,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mb = draw.textbbox((0, 0), points_text, font=money_font)
         mw, mh = mb[2] - mb[0], mb[3] - mb[1]
         money_x = (width - mw) // 2
-        gap_between_money_and_stars = 14
+        gap_between_money_and_stars = 24
         star_top = stars_y - star_radius
-        money_y = star_top - gap_between_money_and_stars - mh
+        money_y = star_top - gap_between_money_and_stars - mh - outline_w
         draw_outlined_text(points_text, (money_x, money_y), money_font)
         
         # Stars
