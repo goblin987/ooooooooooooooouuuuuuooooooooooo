@@ -209,14 +209,14 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_right_margin = 60
         time_underline_width, time_underline_height, time_underline_gap = 100, 8, 10
         # Health bar slightly lower for better separation
-        health_rect = (40, 230, 560, 248)
-        money_font_size_px = 72
+        health_rect = (40, 230, 560, 250)
+        money_font_size_px = 100
         star_first_center = (main_margin, 430)
         star_gap = 70
-        star_radius = 32
+        star_radius = 35
         total_stars = 6
         # Outline thickness used by draw_outlined_text (keep in sync)
-        outline_w = 4
+        outline_w = 5
 
         # Create clean white canvas
         img = Image.new('RGB', (width, height), color='#FFFFFF')
@@ -296,7 +296,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     draw.text((x + adj, y + adj2), text, fill=outline_color, **kwargs)
             draw.text(position, text, fill=fill_color, **kwargs)
 
-        def draw_star(center_x, center_y, radius, outline_width=4):
+        def draw_star(center_x, center_y, radius, outline_width=5):
             points = []
             for i in range(10):
                 angle_deg = -90 + i * 36
@@ -347,7 +347,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Time display (top-right) with dynamic right alignment and underline
         time_text = "04:20"
-        time_font = get_font(72)
+        time_font = get_font(100)
         tb = draw.textbbox((0, 0), time_text, font=time_font)
         tw, th = tb[2] - tb[0], tb[3] - tb[1]
         time_x = width - time_right_margin - tw
@@ -365,10 +365,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Stars geometry (we will place money relative to stars)
         start_x, stars_y = star_first_center
         
-        # Money text: explicit sizing to match wireframe (≈480px wide for 9 digits)
+        # Money text: explicit sizing to match wireframe (fill most of row width)
         points_text = f"${current_points:09d}"
-        # For Pricedown, size 90 gives roughly 480-500px for "$000000065"
-        money_font = get_font(90)
+        # For Pricedown, size 100 gives roughly 520px+ for "$000000065"
+        money_font = get_font(100)
         mb = draw.textbbox((0, 0), points_text, font=money_font)
         mw, mh = mb[2] - mb[0], mb[3] - mb[1]
         
