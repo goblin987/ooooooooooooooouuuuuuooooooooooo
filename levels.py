@@ -200,7 +200,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         width, height = 800, 800  # Square
         
         # Load GTA SA background image (green cityscape)
-        background_path = os.path.join(os.path.dirname(__file__), 'assets', 'gta_background.png')
+        background_path = os.path.join(os.path.dirname(__file__), 'background.jpg')
         
         try:
             # Try to load the background image
@@ -349,17 +349,6 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          (icon_x + 90, gun_y + 130), (icon_x + 60, gun_y + 130)], 
                          fill='#CCCCCC', outline='#000000')
         
-        # Ammo count below weapon
-        ammo_text = f"{level}-{points_in_level}"
-        if font_path_used:
-            try:
-                ammo_font = ImageFont.truetype(font_path_used, 50)  # Match patch size
-            except:
-                ammo_font = label_font
-        else:
-            ammo_font = label_font
-        draw_outlined_text(ammo_text, (icon_x + icon_size//2, icon_y + icon_size + 25), 
-                         ammo_font, '#FFFFFF', outline_color='#000000', outline_width=4, anchor='mm')
         
         # 2. TIME DISPLAY (Top-Right) - MUCH BIGGER like reference patch
         time_text = "04:20"
@@ -376,32 +365,25 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw_outlined_text(time_text, (time_x, time_y), 
                          time_font, '#FFFFFF', outline_width=5)
         
-        # Time underline bar (like in reference patch) - positioned correctly
-        time_underline_y = time_y + 120
-        time_underline_width = 270
-        time_underline_height = 10
-        draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
-                      fill='#FFFFFF', outline='#000000', width=2)
-        
-        # STARS AT BOTTOM - HUGE AND THICK like embroidered patch
+        # STARS AT BOTTOM - IDENTICAL SIZE TO MONEY
         stars_y = height - 135  # Positioned at bottom
         total_stars = 6
-        star_margin = 45  # Margins
+        star_margin = 45  # Same margin as money text
         
         # Calculate spacing to fill entire width
         available_width = width - (2 * star_margin)
         star_spacing = available_width / (total_stars - 1)
         
-        # Star font - HUGE like the patch
+        # Star font - SAME SIZE AS MONEY (95pt)
         if font_path_used:
             try:
-                star_font = ImageFont.truetype(font_path_used, 110)  # HUGE thick stars
+                star_font = ImageFont.truetype(font_path_used, 95)  # SAME as money
             except:
                 star_font = label_font
         else:
             star_font = label_font
         
-        # Draw 6 THICK stars spanning full width (3 grey + 3 gold like patch)
+        # Draw 6 stars spanning full width (3 grey + 3 gold like patch)
         for i in range(total_stars):
             star_x_pos = star_margin + int(i * star_spacing)
             if i >= 3:  # Last 3 are gold
@@ -409,18 +391,18 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:  # First 3 are grey
                 star_color = '#AAAAAA'  # Light grey
             
-            # Draw star with THICK BLACK outline (embroidered look)
+            # Draw star with SAME THICK BLACK outline as money (6px)
             draw_outlined_text("★", (star_x_pos, stars_y), 
                              star_font, star_color, outline_color='#000000', outline_width=6)
         
-        # MONEY TEXT (Above stars) - HUGE like patch
+        # MONEY TEXT (Above stars) - IDENTICAL SIZE TO STARS
         money_y = stars_y - 140  # Above stars with spacing
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color) - HUGE like patch
+        # Bright lime green (GTA SA money color) - SAME SIZE AS STARS (95pt)
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 115)  # HUGE to match patch
+                money_font_size = ImageFont.truetype(font_path_used, 95)  # SAME as stars
             except:
                 money_font_size = money_font
         else:
@@ -429,7 +411,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
         text_width = bbox[2] - bbox[0]
         money_x = (width - text_width) // 2
-        # Draw with THICK BLACK outline (embroidered look)
+        # Draw with SAME THICK BLACK outline as stars (6px)
         draw_outlined_text(points_text, (money_x, money_y), 
                          money_font_size, '#00FF00', outline_color='#000000', outline_width=6)
         
