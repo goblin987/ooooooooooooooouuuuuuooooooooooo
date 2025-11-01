@@ -383,16 +383,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
                       fill='#DD0000', outline='#000000', width=2)
         
-        # MONEY TEXT - Sized to match star width in patch
-        money_y = separator_y + separator_height + 60  # Gap below red bar
+        # MONEY TEXT - LARGE like in patch (bigger than stars)
+        money_y = separator_y + separator_height + 50  # Gap below red bar
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color) - 68pt to match star width
+        # Bright lime green (GTA SA money color) - 95pt (LARGE like patch)
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 68)  # Sized to match stars width
+                money_font_size = ImageFont.truetype(font_path_used, 95)  # Large like patch
             except:
-                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 68) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
+                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 95) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
         else:
             money_font_size = money_font
         # Calculate exact center positioning for money
@@ -401,24 +401,23 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         money_x = (width - text_width) // 2
         # Draw with THICK outline like patch
         draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF00', outline_color='#000000', outline_width=5)
+                         money_font_size, '#00FF00', outline_color='#000000', outline_width=6)
         
-        # STARS - Large like patch, VERY CLOSE below money (EXACTLY SAME SIZE as money)
-        stars_y = money_y + 85  # Very close below money (tight grouping)
+        # STARS - SMALLER than money (like in patch), tightly grouped below
+        stars_y = money_y + 110  # Close below money (tight grouping like patch)
         total_stars = 6
-        star_margin = 50  # Margins to fit all stars
+        star_margin = 45  # Tight margins like patch
         
-        # Calculate spacing - fit all 6 stars
+        # Calculate spacing - fit all 6 stars tightly
         available_width = width - (2 * star_margin)
         star_spacing = available_width / (total_stars - 1)
         
-        # Star font - Use system font for stars (Pricedown doesn't have star character)
-        # 68pt to match money text height
+        # Star font - SMALLER than money (52pt vs 95pt money)
         try:
-            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 68) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 68)
+            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 52) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 52)
         except:
             try:
-                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 68)
+                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
             except:
                 star_font = ImageFont.load_default()
         
@@ -432,7 +431,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Draw star with THICK outline like patch
             draw_outlined_text("★", (star_x_pos, stars_y), 
-                             star_font, star_color, outline_color='#000000', outline_width=5)
+                             star_font, star_color, outline_color='#000000', outline_width=6)
         
         # No pixelation needed for green cityscape background
         
