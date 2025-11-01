@@ -210,30 +210,28 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             color = (135, green_value, 107)
             draw.line([(0, y), (width, y)], fill=color)
         
-        # Draw city skyline silhouette at bottom (simple buildings)
-        building_y_start = height - 220  # Buildings start lower
-        
-        # Building silhouettes (darker green, semi-transparent look)
+        # Draw city skyline silhouette at bottom (very subtle, low buildings)
+        # Building silhouettes (darker green, much shorter so they don't cover UI)
         buildings = [
             # (x, width, height_from_bottom)
-            (0, 80, 180),
-            (80, 60, 140),
-            (140, 90, 200),
-            (230, 70, 160),
-            (300, 100, 220),  # Tallest building in center
-            (400, 80, 190),
-            (480, 60, 150),
-            (540, 90, 170),
-            (630, 70, 140),
-            (700, 100, 160),
+            (0, 80, 50),
+            (80, 60, 40),
+            (140, 90, 55),
+            (230, 70, 45),
+            (300, 100, 60),  # Tallest building
+            (400, 80, 52),
+            (480, 60, 42),
+            (540, 90, 48),
+            (630, 70, 40),
+            (700, 100, 50),
         ]
         
-        building_color = '#6B8E54'  # Darker green for buildings
+        building_color = '#789F5F'  # Subtle darker green for buildings
         for x, w, h in buildings:
             draw.rectangle([x, height - h, x + w, height], fill=building_color)
         
-        # Ground/horizon line (even darker green)
-        draw.rectangle([0, height - 30, width, height], fill='#5A7A45')
+        # Ground/horizon line (subtle)
+        draw.rectangle([0, height - 20, width, height], fill='#6B8E54')
         
         # Load GTA SA style fonts - try Pricedown first, fallback to bold
         import os
@@ -393,10 +391,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
                       fill='#FFFFFF', outline='#000000', width=2)
         
-        # STARS AT BOTTOM - FULL WIDTH like reference patch (above buildings)
-        stars_y = height - 90  # Above ground/buildings
+        # STARS AT BOTTOM - FULL WIDTH like reference patch
+        stars_y = height - 130  # Higher up to not get cut off
         total_stars = 6
-        star_margin = 35  # Margins from edges
+        star_margin = 50  # More margin to prevent cutoff
         
         # Calculate spacing to fill entire width
         available_width = width - (2 * star_margin)
@@ -405,7 +403,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Star font - sized to fit properly
         if font_path_used:
             try:
-                star_font = ImageFont.truetype(font_path_used, 95)  # Sized to fit in frame
+                star_font = ImageFont.truetype(font_path_used, 90)  # Slightly smaller to fit
             except:
                 star_font = label_font
         else:
@@ -417,20 +415,20 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if i >= 3:  # Last 3 are gold
                 star_color = '#FFD700'  # Gold
             else:  # First 3 are grey
-                star_color = '#AAAAAA'  # Grey
+                star_color = '#999999'  # Grey
             
-            # Draw star with thick outline
+            # Draw star with BLACK outline (not green!)
             draw_outlined_text("★", (star_x_pos, stars_y), 
-                             star_font, star_color, outline_width=4)
+                             star_font, star_color, outline_color='#000000', outline_width=4)
         
-        # MONEY TEXT (Above stars) - FULL WIDTH, sized to fit
-        money_y = stars_y - 120  # Above stars with spacing
+        # MONEY TEXT (Above stars) - FULL WIDTH, sized to fit with BLACK outline
+        money_y = stars_y - 130  # Above stars with spacing
         points_text = f"${current_points:08d}"
         
         # Bright lime green (GTA SA money color) - sized to fit properly
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 105)  # Sized to fit in frame
+                money_font_size = ImageFont.truetype(font_path_used, 100)  # Sized to fit in frame with margin
             except:
                 money_font_size = money_font
         else:
@@ -439,8 +437,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
         text_width = bbox[2] - bbox[0]
         money_x = (width - text_width) // 2
+        # Draw with BLACK outline (not green background!)
         draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF00', outline_width=5)
+                         money_font_size, '#00FF00', outline_color='#000000', outline_width=5)
         
         # RED HEALTH BAR (positioned between profile section and money)
         separator_y = icon_y + icon_size + 100  # Below profile section
