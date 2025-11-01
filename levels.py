@@ -372,8 +372,35 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
                       fill='#FFFFFF', outline='#000000', width=2)
         
-        # STARS AT BOTTOM - Large like patch, EXACTLY SAME SIZE as money
-        stars_y = height - 85  # Position at bottom like patch
+        # RED HEALTH BAR - Position VERY CLOSE below profile like patch
+        separator_y = icon_y + icon_size + 25  # Very close below profile
+        separator_height = 14  # Thick like patch
+        separator_margin = 30  # Match patch margins
+        draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
+                      fill='#DD0000', outline='#000000', width=2)
+        
+        # MONEY TEXT - Position close below red bar (grouped together)
+        money_y = separator_y + separator_height + 40  # Close below red bar
+        points_text = f"${current_points:08d}"
+        
+        # Bright lime green (GTA SA money color) - 70pt matching patch
+        if font_path_used:
+            try:
+                money_font_size = ImageFont.truetype(font_path_used, 70)  # Match patch
+            except:
+                money_font_size = money_font
+        else:
+            money_font_size = money_font
+        # Calculate exact center positioning for money
+        bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
+        text_width = bbox[2] - bbox[0]
+        money_x = (width - text_width) // 2
+        # Draw with thick outline like patch
+        draw_outlined_text(points_text, (money_x, money_y), 
+                         money_font_size, '#00FF00', outline_color='#000000', outline_width=4)
+        
+        # STARS - Position VERY CLOSE below money (grouped together like patch)
+        stars_y = money_y + 82  # Very close below money
         total_stars = 6
         star_margin = 40  # Margins to match patch
         
@@ -401,33 +428,6 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Draw star with thick outline like patch
             draw_outlined_text("★", (star_x_pos, stars_y), 
                              star_font, star_color, outline_color='#000000', outline_width=4)
-        
-        # MONEY TEXT (Above stars) - EXACTLY SAME SIZE as stars (70pt)
-        money_y = stars_y - 85  # Close above stars like patch
-        points_text = f"${current_points:08d}"
-        
-        # Bright lime green (GTA SA money color) - EXACTLY 70pt (SAME as stars)
-        if font_path_used:
-            try:
-                money_font_size = ImageFont.truetype(font_path_used, 70)  # EXACT SAME size as stars
-            except:
-                money_font_size = money_font
-        else:
-            money_font_size = money_font
-        # Calculate exact center positioning for money
-        bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
-        text_width = bbox[2] - bbox[0]
-        money_x = (width - text_width) // 2
-        # Draw with same thick outline as stars
-        draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF00', outline_color='#000000', outline_width=4)
-        
-        # RED HEALTH BAR - Position close below profile section like patch
-        separator_y = icon_y + icon_size + 35  # Close below profile (small gap)
-        separator_height = 14  # Thick like patch
-        separator_margin = 30  # Match patch margins
-        draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
-                      fill='#DD0000', outline='#000000', width=2)
         
         # No pixelation needed for green cityscape background
         
