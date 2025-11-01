@@ -388,7 +388,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # MONEY TEXT
         points_text = f"${current_points:09d}"
-        money_y = 420
+        money_y = 480
         
         # Load money font (54px)
         try:
@@ -408,8 +408,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # STARS ROW
         star_start_x = 90
-        star_y = 460
-        star_size = 35
+        star_y = 525
+        star_size = 50
         # Gap: 80px
         total_stars = 6
         
@@ -424,7 +424,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Draw 6 stars (first 3 gray, last 3 gold)
         for i in range(total_stars):
-            star_x = 90 + i * 80
+            star_x = 90 + i * 70
             if i < 3:
                 star_color = '#7A7A7A'  # Gray (unfilled)
             else:
