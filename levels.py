@@ -311,51 +311,55 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.warning(f"Could not get profile photo: {e}")
         
-        # Layout positioning - EXACT match to reference patch
+        # Layout positioning - EXACT match to reference patch (embroidered square)
         hud_x = 50
-        hud_y = 50
-        icon_size = 200  # Larger to match reference patch
+        hud_y = 45
+        icon_size = 210  # Exact size to match patch
         
-        # 1. WEAPON ICON BOX (Top-Left) - BIGGER and more prominent
+        # 1. WEAPON ICON BOX (Top-Left) - EXACT PATCH SIZE
         icon_x = hud_x
         icon_y = hud_y
         
-        # White border, black fill (thicker border like patch)
-        border_width = 6
-        draw.rectangle([icon_x - border_width, icon_y - border_width, 
-                       icon_x + icon_size + border_width, icon_y + icon_size + border_width], 
-                      fill='#FFFFFF')
-        draw.rectangle([icon_x, icon_y, icon_x + icon_size, icon_y + icon_size], 
+        # Double white border like embroidered patch
+        outer_border = 8
+        inner_border = 4
+        # Outer white border
+        draw.rectangle([icon_x - outer_border, icon_y - outer_border, 
+                       icon_x + icon_size + outer_border, icon_y + icon_size + outer_border], 
+                      fill='#FFFFFF', outline='#000000', width=2)
+        # Inner black square
+        draw.rectangle([icon_x - inner_border, icon_y - inner_border, 
+                       icon_x + icon_size + inner_border, icon_y + icon_size + inner_border], 
                       fill='#000000')
+        # Photo area
+        draw.rectangle([icon_x, icon_y, icon_x + icon_size, icon_y + icon_size], 
+                      fill='#1A1A1A')
         
-        # Insert profile picture or weapon graphic
+        # Insert profile picture
         if profile_pic:
-            # Resize to fit square box perfectly (matching reference patch size)
-            profile_pic_resized = profile_pic.resize((icon_size - 10, icon_size - 10), Image.Resampling.LANCZOS)
-            # Light pixelation to match patch texture
-            profile_pic_small = profile_pic_resized.resize((50, 50), Image.Resampling.NEAREST)
-            profile_pic_pixelated = profile_pic_small.resize((icon_size - 10, icon_size - 10), Image.Resampling.NEAREST)
-            img.paste(profile_pic_pixelated, (icon_x + 5, icon_y + 5))
+            # Resize to exact square (no pixelation, clean look like patch)
+            profile_pic_resized = profile_pic.resize((icon_size, icon_size), Image.Resampling.LANCZOS)
+            img.paste(profile_pic_resized, (icon_x, icon_y))
         else:
-            # Simple weapon shape in light grey (scaled up)
-            gun_y = icon_y + 60
-            draw.rectangle([icon_x + 90, gun_y, icon_x + 190, gun_y + 22], fill='#DDDDDD', outline='#000000', width=3)
-            draw.rectangle([icon_x + 40, gun_y + 15, icon_x + 95, gun_y + 70], fill='#DDDDDD', outline='#000000', width=3)
-            draw.polygon([(icon_x + 65, gun_y + 70), (icon_x + 78, gun_y + 70), 
-                         (icon_x + 85, gun_y + 120), (icon_x + 58, gun_y + 120)], 
-                         fill='#DDDDDD', outline='#000000')
+            # Simple weapon icon in center
+            gun_y = icon_y + 70
+            draw.rectangle([icon_x + 95, gun_y, icon_x + 200, gun_y + 25], fill='#CCCCCC', outline='#000000', width=3)
+            draw.rectangle([icon_x + 45, gun_y + 18, icon_x + 100, gun_y + 75], fill='#CCCCCC', outline='#000000', width=3)
+            draw.polygon([(icon_x + 68, gun_y + 75), (icon_x + 82, gun_y + 75), 
+                         (icon_x + 90, gun_y + 130), (icon_x + 60, gun_y + 130)], 
+                         fill='#CCCCCC', outline='#000000')
         
-        # Ammo count below weapon (level-points_in_level)
+        # Ammo count below weapon
         ammo_text = f"{level}-{points_in_level}"
         if font_path_used:
             try:
-                ammo_font = ImageFont.truetype(font_path_used, 45)  # Larger to match patch
+                ammo_font = ImageFont.truetype(font_path_used, 50)  # Match patch size
             except:
                 ammo_font = label_font
         else:
             ammo_font = label_font
-        draw_outlined_text(ammo_text, (icon_x + icon_size//2, icon_y + icon_size + 18), 
-                         ammo_font, '#FFFFFF', outline_width=3, anchor='mm')
+        draw_outlined_text(ammo_text, (icon_x + icon_size//2, icon_y + icon_size + 25), 
+                         ammo_font, '#FFFFFF', outline_color='#000000', outline_width=4, anchor='mm')
         
         # 2. TIME DISPLAY (Top-Right) - MUCH BIGGER like reference patch
         time_text = "04:20"
@@ -379,44 +383,44 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
                       fill='#FFFFFF', outline='#000000', width=2)
         
-        # STARS AT BOTTOM - FULL WIDTH like reference patch
-        stars_y = height - 130  # Higher up to not get cut off
+        # STARS AT BOTTOM - HUGE AND THICK like embroidered patch
+        stars_y = height - 135  # Positioned at bottom
         total_stars = 6
-        star_margin = 50  # More margin to prevent cutoff
+        star_margin = 45  # Margins
         
         # Calculate spacing to fill entire width
         available_width = width - (2 * star_margin)
         star_spacing = available_width / (total_stars - 1)
         
-        # Star font - sized to fit properly
+        # Star font - HUGE like the patch
         if font_path_used:
             try:
-                star_font = ImageFont.truetype(font_path_used, 90)  # Slightly smaller to fit
+                star_font = ImageFont.truetype(font_path_used, 110)  # HUGE thick stars
             except:
                 star_font = label_font
         else:
             star_font = label_font
         
-        # Draw 6 stars spanning full width (3 grey + 3 gold like patch)
+        # Draw 6 THICK stars spanning full width (3 grey + 3 gold like patch)
         for i in range(total_stars):
             star_x_pos = star_margin + int(i * star_spacing)
             if i >= 3:  # Last 3 are gold
-                star_color = '#FFD700'  # Gold
+                star_color = '#FFD700'  # Bright gold
             else:  # First 3 are grey
-                star_color = '#999999'  # Grey
+                star_color = '#AAAAAA'  # Light grey
             
-            # Draw star with BLACK outline (not green!)
+            # Draw star with THICK BLACK outline (embroidered look)
             draw_outlined_text("★", (star_x_pos, stars_y), 
-                             star_font, star_color, outline_color='#000000', outline_width=4)
+                             star_font, star_color, outline_color='#000000', outline_width=6)
         
-        # MONEY TEXT (Above stars) - FULL WIDTH, sized to fit with BLACK outline
-        money_y = stars_y - 130  # Above stars with spacing
+        # MONEY TEXT (Above stars) - HUGE like patch
+        money_y = stars_y - 140  # Above stars with spacing
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color) - sized to fit properly
+        # Bright lime green (GTA SA money color) - HUGE like patch
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 100)  # Sized to fit in frame with margin
+                money_font_size = ImageFont.truetype(font_path_used, 115)  # HUGE to match patch
             except:
                 money_font_size = money_font
         else:
@@ -425,9 +429,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
         text_width = bbox[2] - bbox[0]
         money_x = (width - text_width) // 2
-        # Draw with BLACK outline (not green background!)
+        # Draw with THICK BLACK outline (embroidered look)
         draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF00', outline_color='#000000', outline_width=5)
+                         money_font_size, '#00FF00', outline_color='#000000', outline_width=6)
         
         # RED HEALTH BAR (positioned between profile section and money)
         separator_y = icon_y + icon_size + 100  # Below profile section
