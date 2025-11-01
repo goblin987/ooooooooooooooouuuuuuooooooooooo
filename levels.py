@@ -225,7 +225,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 if os.path.exists(font_path):
                     money_font = ImageFont.truetype(font_path, 140)  # Large for money
-                    label_font = ImageFont.truetype(font_path, 45)   # Small for labels
+                    label_font = ImageFont.truetype(font_path, 90)   # Large for stars (1:1 with patch)
                     logger.info(f"Loaded GTA font: {font_name}")
                     break
             except:
@@ -235,11 +235,11 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not money_font:
             try:
                 money_font = ImageFont.truetype("arialbd.ttf", 140)
-                label_font = ImageFont.truetype("arialbd.ttf", 45)
+                label_font = ImageFont.truetype("arialbd.ttf", 90)
             except:
                 try:
                     money_font = ImageFont.truetype("arial.ttf", 140)
-                    label_font = ImageFont.truetype("arial.ttf", 45)
+                    label_font = ImageFont.truetype("arial.ttf", 90)
                 except:
                     money_font = ImageFont.load_default()
                     label_font = ImageFont.load_default()
@@ -368,8 +368,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          money_font, '#00FF00', outline_width=5)
         
         # 6. STARS (Below money - 6 total: 3 grey + 3 gold)
-        stars_y = money_y + 75
-        star_spacing = 55
+        stars_y = money_y + 85
+        star_spacing = 70
         total_stars = 6
         
         # Always show 3 grey + 3 gold (like patch)
@@ -378,11 +378,11 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if i >= 3:  # Last 3 are gold
                 star_color = '#FFD700'
             else:  # First 3 are grey
-                star_color = '#3A3A3A'
+                star_color = '#999999'  # Lighter grey - clearly visible like patch
             
             # Draw star
             draw_outlined_text("★", (star_x_pos, stars_y), 
-                             label_font, star_color, outline_width=2)
+                             label_font, star_color, outline_width=3)
         
         # Apply retro pixelation effect to entire image (lighter effect to preserve details)
         img = pixelate_image(img, scale_factor=0.75)  # Less aggressive pixelation
