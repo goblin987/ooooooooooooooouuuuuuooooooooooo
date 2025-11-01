@@ -203,6 +203,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         icon_outer_border = 6
         icon_inner_border = 3
         icon_origin = (40, 40)
+        main_margin = 60  # matches wireframe baseline text "60 px"
         # Time block will be measured and right-aligned to 60px margin
         time_top = 40
         time_right_margin = 60
@@ -210,9 +211,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Health bar slightly lower for better separation
         health_rect = (40, 230, 560, 248)
         money_font_size_px = 72
-        star_first_center = (60, 430)
+        star_first_center = (main_margin, 430)
         star_gap = 70
-        star_radius = 28
+        star_radius = 32
         total_stars = 6
         # Outline thickness used by draw_outlined_text (keep in sync)
         outline_w = 4
@@ -267,6 +268,20 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     pass
             return ImageFont.load_default()
+
+        def fit_font_size(text: str, target_width: int, start_size: int, max_size: int = 140) -> int:
+            """Increase font size until text width approaches target_width (<= target),
+            then return the size. Keeps a little side padding (98% of target).
+            """
+            size = max(8, start_size)
+            while size < max_size:
+                f = get_font(size)
+                bbox = draw.textbbox((0, 0), text, font=f)
+                w = bbox[2] - bbox[0]
+                if w >= int(target_width * 0.98):
+                    break
+                size += 2
+            return size
 
         def draw_outlined_text(text, position, font, fill_color='#FFFFFF', outline_color='#000000', outline_width=4, anchor=None):
             x, y = position
@@ -350,9 +365,12 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Stars geometry (we will place money relative to stars)
         start_x, stars_y = star_first_center
         
-        # Money text: centered horizontally, placed above stars by a fixed gap
+        # Money text: auto-fit width, centered horizontally, placed above stars by a fixed gap
         points_text = f"${current_points:09d}"
-        money_font = get_font(money_font_size_px)
+        # Aim to use most of the row while keeping left/right margins
+        target_money_width = width - (2 * main_margin) - 20
+        fitted_size = fit_font_size(points_text, target_money_width, money_font_size_px)
+        money_font = get_font(fitted_size)
         mb = draw.textbbox((0, 0), points_text, font=money_font)
         mw, mh = mb[2] - mb[0], mb[3] - mb[1]
         money_x = (width - mw) // 2
