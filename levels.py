@@ -376,63 +376,62 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
                       fill='#FFFFFF', outline='#000000', width=2)
         
-        # RED HEALTH BAR - Position VERY close below profile like patch
-        separator_y = icon_y + icon_size + 8  # VERY TIGHT gap
-        separator_height = 16  # Thick like patch
-        separator_margin = 32  # Match patch margins
-        draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
-                      fill='#DD0000', outline='#000000', width=2)
+        # RED HEALTH BAR
+        health_x = 40
+        health_y = 200
+        health_width = 520
+        health_height = 18
+        draw.rounded_rectangle(
+            [health_x, health_y, health_x + health_width, health_y + health_height],
+            radius=4, fill='#D22B2B'
+        )
         
-        # MONEY TEXT - 1-3px gap below health bar
-        money_y = separator_y + separator_height + 2  # 1-3px gap
-        points_text = f"${current_points:08d}"
+        # MONEY TEXT
+        points_text = f"${current_points:09d}"
+        money_y = 440
         
-        # Font sized to fit perfectly
-        if font_path_used:
-            try:
-                money_font_size = ImageFont.truetype(font_path_used, 110)  # Large money text
-            except:
-                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 110) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
-        else:
-            money_font_size = money_font
-        # Calculate exact center positioning for money
-        bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        money_x = (width - text_width) // 2
-        # Draw with THICK outline like patch
-        draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF00', outline_color='#000000', outline_width=6)
-        
-        # STARS - 1-3px gap below money, fit ALL stars perfectly
-        stars_y = money_y + text_height + 2  # 1-3px gap below money
-        total_stars = 6
-        star_margin = 15  # Tight margins to fit all stars
-        
-        # Calculate spacing - fit all 6 stars perfectly
-        available_width = width - (2 * star_margin)
-        star_spacing = available_width / (total_stars - 1)
-        
-        # Star font - slightly smaller to ensure they ALL fit
+        # Load money font (54px)
         try:
-            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 85) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 85)
+            if font_path_used:
+                money_font_size = ImageFont.truetype(font_path_used, 54)
+            else:
+                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 54) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
+        except:
+            money_font_size = money_font
+        # Calculate center position
+        money_bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
+        money_width = money_bbox[2] - money_bbox[0]
+        money_x = (width - money_width) // 2
+        # Draw money with black outline
+        draw_outlined_text(points_text, (money_x, money_y), 
+                         money_font_size, '#00FF40', outline_color='#000000', outline_width=2)
+        
+        # STARS ROW
+        star_start_x = 60
+        star_y = 500
+        star_size = 60
+        star_gap = 20
+        total_stars = 6
+        
+        # Load star font (60px for 60x60 stars)
+        try:
+            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 60) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.load_default()
         except:
             try:
-                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 85)
+                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
             except:
                 star_font = ImageFont.load_default()
         
-        # Draw 6 stars (3 grey + 3 gold) - ALL fit perfectly
+        # Draw 6 stars (first 3 gray, last 3 gold)
         for i in range(total_stars):
-            star_x_pos = star_margin + int(i * star_spacing)
-            if i >= 3:  # Last 3 are gold
-                star_color = '#FFD700'  # Bright gold
-            else:  # First 3 are grey
-                star_color = '#AAAAAA'  # Grey
-            
-            # Draw star with THICK outline like patch
-            draw_outlined_text("★", (star_x_pos, stars_y), 
-                             star_font, star_color, outline_color='#000000', outline_width=6)
+            star_x = star_start_x + i * (star_size + star_gap)
+            if i < 3:
+                star_color = '#7A7A7A'  # Gray (unfilled)
+            else:
+                star_color = '#FFD700'  # Gold (filled)
+            # Draw star with outline
+            draw_outlined_text("★", (star_x, star_y), 
+                             star_font, star_color, outline_color='#000000', outline_width=2)
         
         # No pixelation needed for green cityscape background
         
