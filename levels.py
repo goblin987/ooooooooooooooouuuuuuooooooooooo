@@ -206,10 +206,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Time block will be measured and right-aligned to 60px margin
         time_top = 40
         time_right_margin = 60
-        time_underline_width, time_underline_height, time_underline_gap = 100, 8, 6
+        time_underline_width, time_underline_height, time_underline_gap = 100, 8, 10
         # Health bar slightly lower for better separation
         health_rect = (40, 230, 560, 248)
-        money_font_size_px = 54
+        money_font_size_px = 72
         star_first_center = (60, 430)
         star_gap = 70
         star_radius = 28
@@ -338,8 +338,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_x = width - time_right_margin - tw
         time_y = time_top
         draw_outlined_text(time_text, (time_x, time_y), time_font)
-        # underline anchored to right edge of text
-        ul_x1 = time_x + tw - time_underline_width
+        # underline centered under the time text
+        ul_x1 = time_x + (tw - time_underline_width) // 2
         ul_y1 = time_y + th + outline_w + time_underline_gap
         time_underline_rect = (ul_x1, ul_y1, ul_x1 + time_underline_width, ul_y1 + time_underline_height)
         draw.rectangle(time_underline_rect, outline='#000000', width=4, fill='#FFFFFF')
