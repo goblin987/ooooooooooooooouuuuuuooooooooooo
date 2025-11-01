@@ -203,10 +203,12 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         icon_outer_border = 6
         icon_inner_border = 3
         icon_origin = (40, 40)
-        time_origin = (338, 40)
-        time_underline_rect = (440, 106, 540, 114)  # x1, y1, x2, y2
-        health_rect = (40, 220, 560, 238)
-        money_position = (150, 360)
+        # Time block will be measured and right-aligned to 60px margin
+        time_top = 40
+        time_right_margin = 60
+        time_underline_width, time_underline_height, time_underline_gap = 100, 8, 6
+        # Health bar slightly lower for better separation
+        health_rect = (40, 230, 560, 248)
         money_font_size_px = 54
         star_first_center = (60, 430)
         star_gap = 70
@@ -326,28 +328,40 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         
         
-        # Time display (top-right)
+        # Time display (top-right) with dynamic right alignment and underline
         time_text = "04:20"
         time_font = get_font(72)
-        time_x, time_y = time_origin
+        tb = draw.textbbox((0, 0), time_text, font=time_font)
+        tw, th = tb[2] - tb[0], tb[3] - tb[1]
+        time_x = width - time_right_margin - tw
+        time_y = time_top
         draw_outlined_text(time_text, (time_x, time_y), time_font)
-        
-        # Time underline bar
+        # underline anchored to right edge of text
+        ul_x1 = time_x + tw - time_underline_width
+        ul_y1 = time_y + th + time_underline_gap
+        time_underline_rect = (ul_x1, ul_y1, ul_x1 + time_underline_width, ul_y1 + time_underline_height)
         draw.rectangle(time_underline_rect, outline='#000000', width=4, fill='#FFFFFF')
         
         # Health bar (thin outline only)
         draw.rectangle(health_rect, outline='#000000', width=4, fill='#FFFFFF')
         
-        # Money text (centered visually by design spec)
+        # Stars geometry (we will place money relative to stars)
+        start_x, stars_y = star_first_center
+        
+        # Money text: centered horizontally, placed above stars by a fixed gap
         points_text = f"${current_points:09d}"
         money_font = get_font(money_font_size_px)
-        money_x, money_y = money_position
-        money_bbox = draw.textbbox((0, 0), points_text, font=money_font)
+        mb = draw.textbbox((0, 0), points_text, font=money_font)
+        mw, mh = mb[2] - mb[0], mb[3] - mb[1]
+        money_x = (width - mw) // 2
+        gap_between_money_and_stars = 14
+        star_top = stars_y - star_radius
+        money_y = star_top - gap_between_money_and_stars - mh
         draw_outlined_text(points_text, (money_x, money_y), money_font)
         
         # Stars
         star_positions = []
-        start_x, stars_y = star_first_center
+        # Star row (positions unchanged, drawn after money)
         for index in range(total_stars):
             cx = start_x + index * star_gap
             draw_star(cx, stars_y, star_radius)
@@ -356,13 +370,13 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             layout_debug = {
                 'canvas': {'width': width, 'height': height},
                 'icon': {'top_left': [icon_x, icon_y], 'size': icon_size},
-                'time': {'text': time_text, 'position': [time_x, time_y], 'underline': time_underline_rect},
+                'time': {'text': time_text, 'position': [time_x, time_y], 'underline': list(time_underline_rect), 'text_size': [tw, th]},
                 'health_bar': {'rect': health_rect},
                 'money': {
                     'text': points_text,
                     'position': [money_x, money_y],
                     'font_path': font_path_used,
-                    'bbox': {'width': money_bbox[2] - money_bbox[0], 'height': money_bbox[3] - money_bbox[1]}
+                    'bbox': {'width': mw, 'height': mh}
                 },
                 'stars': {'gap': star_gap, 'radius': star_radius, 'positions': star_positions}
             }
