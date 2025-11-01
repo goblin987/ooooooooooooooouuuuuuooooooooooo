@@ -365,16 +365,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Stars geometry (we will place money relative to stars)
         start_x, stars_y = star_first_center
         
-        # Money text: auto-fit width, centered horizontally, placed above stars by a fixed gap
+        # Money text: explicit sizing to match wireframe (≈480px wide for 9 digits)
         points_text = f"${current_points:09d}"
-        # Aim to use most of the row while keeping left/right margins
-        target_money_width = width - (2 * main_margin) - 20
-        fitted_size = fit_font_size(points_text, target_money_width, money_font_size_px)
-        money_font = get_font(fitted_size)
+        # For Pricedown, size 90 gives roughly 480-500px for "$000000065"
+        money_font = get_font(90)
         mb = draw.textbbox((0, 0), points_text, font=money_font)
         mw, mh = mb[2] - mb[0], mb[3] - mb[1]
+        
         money_x = (width - mw) // 2
-        gap_between_money_and_stars = 24
+        # Increase gap so money sits well above stars (currently at y=430, radius=32 → top at 398)
+        gap_between_money_and_stars = 36
         star_top = stars_y - star_radius
         money_y = star_top - gap_between_money_and_stars - mh - outline_w
         draw_outlined_text(points_text, (money_x, money_y), money_font)
