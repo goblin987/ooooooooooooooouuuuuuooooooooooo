@@ -197,7 +197,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         next_rank = LEVEL_RANKS.get(next_rank_level, "👑 Max Rank") if next_rank_level else "👑 Max Rank"
         
         # GTA SAN ANDREAS HUD STYLE - Square patch format matching uilook.png
-        width, height = 600, 600  # Square patch format
+        width, height = 800, 800  # Larger canvas to fit all elements properly
         
         # Load GTA SA background image (green cityscape)
         background_path = os.path.join(os.path.dirname(__file__), 'background.jpg')
@@ -358,10 +358,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_text = "04:20"
         time_x = icon_x + icon_size + 50
         time_y = icon_y + 15
-        # Draw time large like patch
+        # Draw time - scaled to fit
         if font_path_used:
             try:
-                time_font = ImageFont.truetype(font_path_used, 100)  # Large to match patch
+                time_font = ImageFont.truetype(font_path_used, 72)  # Scaled down to fit
             except:
                 time_font = label_font
         else:
@@ -370,9 +370,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          time_font, '#FFFFFF', outline_width=4)
         
         # Time underline bar like patch
-        time_underline_y = time_y + 96
-        time_underline_width = 220
-        time_underline_height = 9
+        time_underline_y = time_y + 70
+        time_underline_width = 180
+        time_underline_height = 8
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
                       fill='#FFFFFF', outline='#000000', width=2)
         
@@ -387,12 +387,12 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         money_y = separator_y + separator_height + 35  # TIGHTER gap below red bar (was 50)
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color) - 95pt (LARGE like patch)
+        # Bright lime green (GTA SA money color) - scaled to fit
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 95)  # Large like patch
+                money_font_size = ImageFont.truetype(font_path_used, 70)  # Scaled to fit properly
             except:
-                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 95) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
+                money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 70) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
         else:
             money_font_size = money_font
         # Calculate exact center positioning for money
@@ -404,20 +404,20 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          money_font_size, '#00FF00', outline_color='#000000', outline_width=6)
         
         # STARS - SMALLER than money (like in patch), tightly grouped below
-        stars_y = money_y + 95  # VERY close below money (tight grouping like patch, was 110)
+        stars_y = money_y + 75  # VERY close below money (tight grouping like patch)
         total_stars = 6
-        star_margin = 45  # Tight margins like patch
+        star_margin = 60  # Margins adjusted for 800px width
         
         # Calculate spacing - fit all 6 stars tightly
         available_width = width - (2 * star_margin)
         star_spacing = available_width / (total_stars - 1)
         
-        # Star font - SMALLER than money (52pt vs 95pt money)
+        # Star font - SMALLER than money (proportional)
         try:
-            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 52) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 52)
+            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 42) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 42)
         except:
             try:
-                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
+                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
             except:
                 star_font = ImageFont.load_default()
         
