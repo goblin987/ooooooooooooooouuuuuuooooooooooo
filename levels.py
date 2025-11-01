@@ -210,12 +210,13 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_underline_width = 100
         time_underline_height = 8
         time_underline_gap = 12
-        health_gap_from_icon = 40
-        health_height = 18
-        money_baseline_offset = 110  # Distance from bottom to money text baseline
-        stars_baseline_offset = 60   # Distance from bottom to star centres (mock layout)
-        star_left_margin = 60        # From wireframe
-        star_gap = 70                # Distance between star centres
+        health_y_position = 270
+        health_height = 20
+        money_left = 150
+        money_top = 410
+        stars_center_y_constant = 470
+        star_left_margin = 90
+        star_gap = 75
         total_stars = 6
 
         
@@ -306,12 +307,17 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return pixelated
         
         # Helper function to draw text with thick black outline (GTA SA style)
-        def draw_outlined_text(text, position, font, fill_color, outline_color='#000000', outline_width=4, anchor=None):
+        def draw_outlined_text(text, position, font, fill_color, outline_color='#000000', outline_width=4, anchor=None, shadow_offset=None, shadow_color='#000000'):
             x, y = position
             kwargs = {'font': font}
             if anchor:
                 kwargs['anchor'] = anchor
             
+            if shadow_offset:
+                shadow_x = x + shadow_offset[0]
+                shadow_y = y + shadow_offset[1]
+                draw.text((shadow_x, shadow_y), text, fill=shadow_color, **kwargs)
+
             # Draw outline by drawing text multiple times at offsets
             for adj in range(-outline_width, outline_width + 1):
                 for adj2 in range(-outline_width, outline_width + 1):
@@ -405,7 +411,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # RED HEALTH BAR
         health_x = hud_margin
         health_width = width - (2 * hud_margin)
-        health_y = icon_y + icon_size + health_gap_from_icon
+        health_y = health_y_position
         draw.rounded_rectangle(
             [health_x, health_y, health_x + health_width, health_y + health_height],
             radius=4, fill='#D22B2B'
@@ -421,25 +427,33 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 money_font_size = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 54) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else money_font
         except:
             money_font_size = money_font
-        # Calculate center position
+        # Calculate text box size
         money_bbox = draw.textbbox((0, 0), points_text, font=money_font_size)
         money_width = money_bbox[2] - money_bbox[0]
         money_height = money_bbox[3] - money_bbox[1]
-        money_x = (width - money_width) // 2
-        money_y = height - money_baseline_offset - money_height
+        money_x = money_left
+        money_y = money_top
         # Draw money with black outline
-        draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF40', outline_color='#000000', outline_width=2)
+        draw_outlined_text(
+            points_text,
+            (money_x, money_y),
+            money_font_size,
+            '#00FF40',
+            outline_color='#000000',
+            outline_width=2,
+            shadow_offset=(3, 3),
+            shadow_color='#000000'
+        )
         
         # STARS ROW
-        stars_center_y = height - stars_baseline_offset
+        stars_center_y = stars_center_y_constant
 
         # Load star font (60px for 60x60 stars)
         try:
-            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 60) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.load_default()
+            star_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 72) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.load_default()
         except:
             try:
-                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
+                star_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 72)
             except:
                 star_font = ImageFont.load_default()
         
@@ -466,27 +480,27 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             layout_debug = {
                 'canvas': {'width': width, 'height': height},
                 'icon': {
-                    'top_left': (icon_x, icon_y),
+                    'top_left': [icon_x, icon_y],
                     'size': icon_size,
                     'outer_border': icon_outer_border,
                     'inner_border': icon_inner_border
                 },
                 'time': {
                     'text': time_text,
-                    'position': (time_x, time_y),
+                    'position': [time_x, time_y],
                     'bbox': {'width': time_width, 'height': time_height},
-                    'underline_start': (underline_x, underline_y),
-                    'underline_size': (time_underline_width, time_underline_height)
+                    'underline_start': [underline_x, underline_y],
+                    'underline_size': [time_underline_width, time_underline_height]
                 },
                 'health_bar': {
-                    'position': (health_x, health_y),
-                    'size': (health_width, health_height)
+                    'position': [health_x, health_y],
+                    'size': [health_width, health_height]
                 },
                 'money': {
                     'text': points_text,
-                    'position': (money_x, money_y),
+                    'position': [money_x, money_y],
                     'bbox': {'width': money_width, 'height': money_height},
-                    'baseline_offset': money_baseline_offset,
+                    'shadow_offset': [3, 3],
                     'font_path': font_path_used
                 },
                 'stars': {
