@@ -359,31 +359,42 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_underline_rect = (ul_x1, ul_y1, ul_x1 + time_underline_width, ul_y1 + time_underline_height)
         draw.rectangle(time_underline_rect, outline='#000000', width=4, fill='#FFFFFF')
         
-        # Health bar (thin outline only)
-        draw.rectangle(health_rect, outline='#000000', width=4, fill='#FFFFFF')
-        
-        # Stars geometry (we will place money relative to stars)
-        start_x, stars_y = star_first_center
-        
-        # Money text: explicit sizing to match wireframe (fill most of row width)
+        # Money text: size to fill most of row width
         points_text = f"${current_points:09d}"
-        # For Pricedown, size 100 gives roughly 520px+ for "$000000065"
-        money_font = get_font(100)
+        money_font = get_font(95)  # slightly smaller to avoid edge-to-edge
         mb = draw.textbbox((0, 0), points_text, font=money_font)
         mw, mh = mb[2] - mb[0], mb[3] - mb[1]
-        
         money_x = (width - mw) // 2
-        # Increase gap so money sits well above stars (currently at y=430, radius=32 → top at 398)
-        gap_between_money_and_stars = 36
+        
+        # Stars geometry: align star row to match money width
+        stars_y = 430
+        star_diameter = 56
+        star_radius = star_diameter // 2
+        star_row_width = mw
+        # Distribute 6 stars evenly across money width
+        star_gap_calculated = (star_row_width - star_diameter) / 5 if total_stars > 1 else 0
+        star_first_x = money_x + star_radius
+        
+        # Position money with equal gap above and below
+        vertical_gap = 32  # consistent spacing
         star_top = stars_y - star_radius
-        money_y = star_top - gap_between_money_and_stars - mh - outline_w
+        money_y = star_top - vertical_gap - mh - outline_w
+        
+        # Health bar: same gap above money as money has above stars
+        health_bottom = money_y - outline_w
+        health_top = health_bottom - vertical_gap - (health_rect[3] - health_rect[1])
+        health_rect_adjusted = (health_rect[0], int(health_top), health_rect[2], int(health_bottom - vertical_gap))
+        
+        # Draw health bar
+        draw.rectangle(health_rect_adjusted, outline='#000000', width=5, fill='#FFFFFF')
+        
+        # Draw money
         draw_outlined_text(points_text, (money_x, money_y), money_font)
         
-        # Stars
+        # Draw stars aligned to money width
         star_positions = []
-        # Star row (positions unchanged, drawn after money)
         for index in range(total_stars):
-            cx = start_x + index * star_gap
+            cx = int(star_first_x + index * star_gap_calculated)
             draw_star(cx, stars_y, star_radius)
             star_positions.append({'index': index, 'x': cx, 'y': stars_y, 'radius': star_radius})
         try:
@@ -391,14 +402,14 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'canvas': {'width': width, 'height': height},
                 'icon': {'top_left': [icon_x, icon_y], 'size': icon_size},
                 'time': {'text': time_text, 'position': [time_x, time_y], 'underline': list(time_underline_rect), 'text_size': [tw, th]},
-                'health_bar': {'rect': health_rect},
+                'health_bar': {'rect': health_rect_adjusted},
                 'money': {
                     'text': points_text,
                     'position': [money_x, money_y],
                     'font_path': font_path_used,
                     'bbox': {'width': mw, 'height': mh}
                 },
-                'stars': {'gap': star_gap, 'radius': star_radius, 'positions': star_positions}
+                'stars': {'gap': star_gap_calculated, 'radius': star_radius, 'positions': star_positions}
             }
             logger.info("HUD layout debug: %s", json.dumps(layout_debug))
         except Exception as debug_error:
