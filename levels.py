@@ -350,24 +350,31 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # 2. TIME DISPLAY (Top-Right)
         time_text = "04:20"
-        time_x = icon_x + icon_size + 80
-        time_y = icon_y
+        time_x = icon_x + icon_size + 50
+        time_y = icon_y - 5
         # Draw time with smaller font
         if font_path_used:
             try:
-                time_font = ImageFont.truetype(font_path_used, 85)
+                time_font = ImageFont.truetype(font_path_used, 70)
             except:
                 time_font = label_font
         else:
             time_font = label_font
         draw_outlined_text(time_text, (time_x, time_y), 
-                         time_font, '#FFFFFF', outline_width=4)
+                         time_font, '#FFFFFF', outline_width=3)
+        
+        # Time underline bar (like in reference patch)
+        time_underline_y = time_y + 70
+        time_underline_width = 170
+        time_underline_height = 8
+        draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
+                      fill='#FFFFFF', outline='#000000', width=1)
         
         # 3. WHITE/GREY BAR (Middle-Right, below time)
-        bar_x = icon_x + icon_size + 30
-        bar_y = icon_y + 65
-        bar_width = 380  # Shorter for square format
-        bar_height = 32
+        bar_x = icon_x + icon_size + 20
+        bar_y = time_y + 85
+        bar_width = 360  # Shorter for square format
+        bar_height = 28
         
         # Black outline
         draw.rectangle([bar_x - 4, bar_y - 4, bar_x + bar_width + 4, bar_y + bar_height + 4], 
@@ -381,7 +388,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                       fill='#D0D0D0')
         
         # 4. RED BAR (Below white bar)
-        bar2_y = bar_y + bar_height + 8
+        bar2_y = bar_y + bar_height + 6
         
         # Black outline
         draw.rectangle([bar_x - 4, bar2_y - 4, bar_x + bar_width + 4, bar2_y + bar_height + 4], 
@@ -397,35 +404,36 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                       fill='#DD0000')
         
         # PROMINENT RED SEPARATOR BAR (Full width like the patch)
-        separator_y = bar2_y + bar_height + 25
-        separator_height = 18
-        separator_margin = 60
+        separator_y = bar2_y + bar_height + 20
+        separator_height = 16
+        separator_margin = 40
         draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
                       fill='#DD0000', outline='#000000', width=2)
         
         # 5. MONEY TEXT (Below red separator) - FULL WIDTH CENTERED
-        money_y = bar2_y + bar_height + 50
+        money_y = separator_y + separator_height + 30
         points_text = f"${current_points:08d}"
         
         # Bright lime green (GTA SA money color) - centered on patch
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 100)
+                money_font_size = ImageFont.truetype(font_path_used, 95)
             except:
                 money_font_size = money_font
         else:
             money_font_size = money_font
-        draw_outlined_text(points_text, (width//2 - 190, money_y), 
+        # Center the money text properly
+        draw_outlined_text(points_text, (width//2 - 200, money_y), 
                          money_font_size, '#00FF00', outline_width=4)
         
         # 6. STARS (Below money - 6 total: 3 grey + 3 gold) - CENTERED
-        stars_y = money_y + 120
-        star_spacing = 70
+        stars_y = money_y + 110
+        star_spacing = 68
         total_stars = 6
         
         # Center the stars on the patch
         total_star_width = (total_stars - 1) * star_spacing
-        stars_start_x = (width - total_star_width) // 2 - 20
+        stars_start_x = (width - total_star_width) // 2 - 10
         
         # Always show 3 grey + 3 gold (like patch)
         for i in range(total_stars):
