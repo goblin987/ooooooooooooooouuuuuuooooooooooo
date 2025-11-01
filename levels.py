@@ -426,6 +426,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Keep empty white box (matches mock)
             pass
         
+        # Username label below profile icon
+        username_y = icon_y + icon_size + 8
+        username_text = f"@{username}" if username else first_name
+        username_font = get_font(24)
+        # Measure and center under icon
+        ub = draw.textbbox((0, 0), username_text, font=username_font)
+        uw = ub[2] - ub[0]
+        username_x = icon_x + (icon_size - uw) // 2
+        draw_outlined_text(username_text, (username_x, username_y), username_font, fill_color='#FFFFFF', outline_width=3, shadow=True)
+        
         
         # Time display (top-right) with dynamic right alignment and underline
         time_text = "04:20"
@@ -439,11 +449,21 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ul_x1 = time_x + (tw - time_underline_width) // 2
         icon_bottom = icon_y + icon_size  # align with icon bottom
         ul_y1 = icon_bottom + 10  # small gap below icon
-        time_underline_rect = (ul_x1, ul_y1, ul_x1 + time_underline_width, ul_y1 + time_underline_height)
-        # Time underline with rounded ends and subtle 3D bevel
-        draw.rounded_rectangle(time_underline_rect, radius=6, fill='#FFFFFF', outline='#000000', width=3)
-        # Highlight on top for 3D effect
-        draw.line([(ul_x1 + 5, ul_y1 + 2), (ul_x1 + time_underline_width - 5, ul_y1 + 2)], fill='#CCCCCC', width=2)
+        # Armor bar (blue, like GTA SA) instead of static underline
+        armor_bar_height = 12
+        armor_rect = (ul_x1, ul_y1, ul_x1 + time_underline_width, ul_y1 + armor_bar_height)
+        ax1, ay1, ax2, ay2 = armor_rect
+        
+        # Blue gradient for armor bar
+        for y_offset in range(int(ay2 - ay1)):
+            ratio = y_offset / (ay2 - ay1)
+            blue_val = int(180 + (220 - 180) * (1 - ratio))  # lighter at top
+            color = (100, 149, blue_val)
+            draw.line([(ax1 + 2, ay1 + y_offset), (ax2 - 2, ay1 + y_offset)], fill=color, width=1)
+        
+        draw.rounded_rectangle(armor_rect, radius=4, outline='#000000', width=3, fill=None)
+        # Highlight on top
+        draw.line([(ax1 + 4, ay1 + 2), (ax2 - 4, ay1 + 2)], fill='#B8D4FF', width=1)
         
         # Money text: size to fill most of row width
         points_text = f"${current_points:09d}"
@@ -494,19 +514,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Dark shadow on bottom edge
         draw.line([(x1 + 4, y2 - 3), (x2 - 4, y2 - 3)], fill='#8B0000', width=2)
         
-        # Draw money with green neon glow effect
-        # First, draw outer green glow halos
-        for glow_radius in range(8, 0, -2):
-            alpha = int(80 / (glow_radius / 2))
-            for g_x in range(-glow_radius, glow_radius + 1, 2):
-                for g_y in range(-glow_radius, glow_radius + 1, 2):
-                    dist = math.sqrt(g_x**2 + g_y**2)
-                    if dist <= glow_radius and dist > 0:
-                        try:
-                            draw.text((money_x + g_x, money_y + g_y), points_text, fill=(15, 255, 80, alpha), font=money_font)
-                        except:
-                            pass
-        # Then draw the main text with outline and shadow
+        # Draw money (clean GTA style without excessive glow)
         draw_outlined_text(points_text, (money_x, money_y), money_font, fill_color='#0FFF50')
         
         # Draw stars aligned to money width (first 3 gray, last 3 gold)
