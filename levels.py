@@ -196,18 +196,23 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
         next_rank = LEVEL_RANKS.get(next_rank_level, "👑 Max Rank") if next_rank_level else "👑 Max Rank"
         
-        # GTA SAN ANDREAS HUD STYLE - DARK BACKGROUND LIKE PATCH
-        width, height = 1080, 1920
+        # GTA SAN ANDREAS HUD STYLE - SQUARE EMBROIDERED PATCH
+        width, height = 800, 800  # Square like the patch
         
-        # Military green-grey background like the patch
-        img = Image.new('RGB', (width, height), color='#2B3A2F')
+        # Dark black background like patch fabric
+        img = Image.new('RGB', (width, height), color='#1A1A1A')
         draw = ImageDraw.Draw(img)
         
-        # Add subtle gradient for depth (darker at bottom)
+        # Very subtle texture variation for fabric look
         for y in range(height):
-            darkness = int(y / height * 30)
-            color = (43 - darkness, 58 - darkness, 47 - darkness)
+            darkness = int(y / height * 8)  # Much more subtle
+            color = (26 - darkness, 26 - darkness, 26 - darkness)
             draw.line([(0, y), (width, y)], fill=color)
+        
+        # Add stitched border like an embroidered patch
+        border_width = 8
+        border_color = '#333333'
+        draw.rectangle([0, 0, width, height], outline=border_color, width=border_width)
         
         # Load GTA SA style fonts - try Pricedown first, fallback to bold
         import os
@@ -282,10 +287,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.warning(f"Could not get profile photo: {e}")
         
-        # Layout positioning - all in top-left/right quadrant
-        hud_x = 50
-        hud_y = 60
-        icon_size = 180
+        # Layout positioning - compact square patch layout
+        hud_x = 40
+        hud_y = 40
+        icon_size = 160  # Slightly smaller for square format
         
         # 1. WEAPON ICON BOX (Top-Left)
         icon_x = hud_x
@@ -316,21 +321,24 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Ammo count below weapon (level-points_in_level)
         ammo_text = f"{level}-{points_in_level}"
+        ammo_font = ImageFont.truetype(label_font.path if hasattr(label_font, 'path') else "arialbd.ttf", 35)
         draw_outlined_text(ammo_text, (icon_x + icon_size//2, icon_y + icon_size + 12), 
-                         label_font, '#FFFFFF', outline_width=3, anchor='mm')
+                         ammo_font, '#FFFFFF', outline_width=2, anchor='mm')
         
         # 2. TIME DISPLAY (Top-Right)
         time_text = "04:20"
-        time_x = icon_x + icon_size + 220
-        time_y = icon_y + 5
+        time_x = icon_x + icon_size + 80
+        time_y = icon_y
+        # Draw time with smaller font
+        time_font = ImageFont.truetype(money_font.path if hasattr(money_font, 'path') else "arialbd.ttf", 85)
         draw_outlined_text(time_text, (time_x, time_y), 
-                         money_font, '#FFFFFF', outline_width=5)
+                         time_font, '#FFFFFF', outline_width=4)
         
         # 3. WHITE/GREY BAR (Middle-Right, below time)
         bar_x = icon_x + icon_size + 30
-        bar_y = icon_y + 78
-        bar_width = 520
-        bar_height = 38
+        bar_y = icon_y + 65
+        bar_width = 380  # Shorter for square format
+        bar_height = 32
         
         # Black outline
         draw.rectangle([bar_x - 4, bar_y - 4, bar_x + bar_width + 4, bar_y + bar_height + 4], 
@@ -344,7 +352,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                       fill='#D0D0D0')
         
         # 4. RED BAR (Below white bar)
-        bar2_y = bar_y + bar_height + 10
+        bar2_y = bar_y + bar_height + 8
         
         # Black outline
         draw.rectangle([bar_x - 4, bar2_y - 4, bar_x + bar_width + 4, bar2_y + bar_height + 4], 
@@ -359,22 +367,34 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([bar_x, bar2_y, bar_x + filled_width, bar2_y + bar_height], 
                       fill='#DD0000')
         
-        # 5. MONEY TEXT (Below red bar)
-        money_y = bar2_y + bar_height + 22
+        # PROMINENT RED SEPARATOR BAR (Full width like the patch)
+        separator_y = bar2_y + bar_height + 25
+        separator_height = 18
+        separator_margin = 60
+        draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
+                      fill='#DD0000', outline='#000000', width=2)
+        
+        # 5. MONEY TEXT (Below red separator) - FULL WIDTH CENTERED
+        money_y = bar2_y + bar_height + 50
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color)
-        draw_outlined_text(points_text, (bar_x, money_y), 
-                         money_font, '#00FF00', outline_width=5)
+        # Bright lime green (GTA SA money color) - centered on patch
+        money_font_size = ImageFont.truetype(money_font.path if hasattr(money_font, 'path') else "arialbd.ttf", 100)
+        draw_outlined_text(points_text, (width//2 - 190, money_y), 
+                         money_font_size, '#00FF00', outline_width=4)
         
-        # 6. STARS (Below money - 6 total: 3 grey + 3 gold)
-        stars_y = money_y + 85
+        # 6. STARS (Below money - 6 total: 3 grey + 3 gold) - CENTERED
+        stars_y = money_y + 120
         star_spacing = 70
         total_stars = 6
         
+        # Center the stars on the patch
+        total_star_width = (total_stars - 1) * star_spacing
+        stars_start_x = (width - total_star_width) // 2 - 20
+        
         # Always show 3 grey + 3 gold (like patch)
         for i in range(total_stars):
-            star_x_pos = bar_x + (i * star_spacing)
+            star_x_pos = stars_start_x + (i * star_spacing)
             if i >= 3:  # Last 3 are gold
                 star_color = '#FFD700'
             else:  # First 3 are grey
