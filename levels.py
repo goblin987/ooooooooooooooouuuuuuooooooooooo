@@ -353,9 +353,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_x = width - time_right_margin - tw
         time_y = time_top
         draw_outlined_text(time_text, (time_x, time_y), time_font)
-        # underline centered under the time text, with clearance for outline
+        # underline centered under the time text, positioned at icon bottom level for alignment
         ul_x1 = time_x + (tw - time_underline_width) // 2
-        ul_y1 = time_y + th + (outline_w * 2) + time_underline_gap
+        icon_bottom = icon_y + icon_size  # align with icon bottom
+        ul_y1 = icon_bottom + 10  # small gap below icon
         time_underline_rect = (ul_x1, ul_y1, ul_x1 + time_underline_width, ul_y1 + time_underline_height)
         draw.rectangle(time_underline_rect, outline='#000000', width=4, fill='#FFFFFF')
         
