@@ -11,6 +11,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from database import database
 from datetime import datetime, timedelta
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -443,12 +444,14 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 star_font = ImageFont.load_default()
         
         # Draw 6 stars (first 3 gray, last 3 gold)
+        star_positions = []
         for i in range(total_stars):
             star_x = star_left_margin + i * star_gap
             if i < 3:
                 star_color = '#7A7A7A'  # Gray (unfilled)
             else:
                 star_color = '#FFD700'  # Gold (filled)
+            star_positions.append({'index': i, 'x': star_x, 'y': stars_center_y, 'color': star_color})
             # Draw star with outline
             draw_outlined_text(
                 "★",
@@ -459,6 +462,42 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 outline_width=2,
                 anchor='mm'
             )
+        try:
+            layout_debug = {
+                'canvas': {'width': width, 'height': height},
+                'icon': {
+                    'top_left': (icon_x, icon_y),
+                    'size': icon_size,
+                    'outer_border': icon_outer_border,
+                    'inner_border': icon_inner_border
+                },
+                'time': {
+                    'text': time_text,
+                    'position': (time_x, time_y),
+                    'bbox': {'width': time_width, 'height': time_height},
+                    'underline_start': (underline_x, underline_y),
+                    'underline_size': (time_underline_width, time_underline_height)
+                },
+                'health_bar': {
+                    'position': (health_x, health_y),
+                    'size': (health_width, health_height)
+                },
+                'money': {
+                    'text': points_text,
+                    'position': (money_x, money_y),
+                    'bbox': {'width': money_width, 'height': money_height},
+                    'baseline_offset': money_baseline_offset,
+                    'font_path': font_path_used
+                },
+                'stars': {
+                    'center_y': stars_center_y,
+                    'gap': star_gap,
+                    'positions': star_positions
+                }
+            }
+            logger.info("HUD layout debug: %s", json.dumps(layout_debug))
+        except Exception as debug_error:
+            logger.warning(f"Failed to serialize HUD layout debug data: {debug_error}")
         
         # No pixelation needed for green cityscape background
         
