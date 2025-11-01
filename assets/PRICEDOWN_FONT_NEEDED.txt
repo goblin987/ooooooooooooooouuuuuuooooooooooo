@@ -1,13 +1,1 @@
-PRICEDOWN FONT NEEDED FOR GTA SA STYLE
-
-Download the Pricedown font (the iconic GTA San Andreas font):
-
-Download from: https://www.dafont.com/pricedown.font
-Or: https://fontmeme.com/fonts/pricedown-font/
-
-Save as one of these filenames in this folder:
-- pricedown.ttf
-- Pricedown bl.ttf
-
-This will make the money text look authentic like GTA San Andreas!
-
+ 
