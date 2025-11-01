@@ -376,15 +376,15 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
                       fill='#FFFFFF', outline='#000000', width=2)
         
-        # RED HEALTH BAR - Position close below profile like patch
-        separator_y = icon_y + icon_size + 20  # Small gap like patch
+        # RED HEALTH BAR - Position VERY close below profile like patch
+        separator_y = icon_y + icon_size + 12  # TIGHT gap like patch (was 20)
         separator_height = 16  # Thick like patch
         separator_margin = 32  # Match patch margins
         draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
                       fill='#DD0000', outline='#000000', width=2)
         
         # MONEY TEXT - LARGE like in patch (bigger than stars)
-        money_y = separator_y + separator_height + 50  # Gap below red bar
+        money_y = separator_y + separator_height + 35  # TIGHTER gap below red bar (was 50)
         points_text = f"${current_points:08d}"
         
         # Bright lime green (GTA SA money color) - 95pt (LARGE like patch)
@@ -404,7 +404,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          money_font_size, '#00FF00', outline_color='#000000', outline_width=6)
         
         # STARS - SMALLER than money (like in patch), tightly grouped below
-        stars_y = money_y + 110  # Close below money (tight grouping like patch)
+        stars_y = money_y + 95  # VERY close below money (tight grouping like patch, was 110)
         total_stars = 6
         star_margin = 45  # Tight margins like patch
         
