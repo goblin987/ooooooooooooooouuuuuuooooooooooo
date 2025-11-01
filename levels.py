@@ -372,32 +372,25 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
                       fill='#FFFFFF', outline='#000000', width=2)
         
-        # RED HEALTH BAR - Thick and prominent like patch
-        separator_y = icon_y + icon_size + 50  # Below profile section
-        separator_height = 20  # Thick like patch
-        separator_margin = 40  # Match patch margins
-        draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
-                      fill='#DD0000', outline='#000000', width=2)
-        
-        # STARS AT BOTTOM - LARGE like patch
-        stars_y = height - 120  # Position at bottom like patch
+        # STARS AT BOTTOM - LARGE and CLOSE TOGETHER like patch
+        stars_y = height - 100  # Position at bottom like patch
         total_stars = 6
-        star_margin = 50  # Margins to match patch
+        star_margin = 60  # Margins that fit all 6 stars
         
-        # Calculate spacing to fill entire width
+        # Calculate spacing - closer together
         available_width = width - (2 * star_margin)
         star_spacing = available_width / (total_stars - 1)
         
         # Star font - LARGE to match patch (SAME SIZE as money)
         if font_path_used:
             try:
-                star_font = ImageFont.truetype(font_path_used, 100)  # LARGE stars matching patch
+                star_font = ImageFont.truetype(font_path_used, 95)  # LARGE stars matching patch
             except:
                 star_font = label_font
         else:
             star_font = label_font
         
-        # Draw 6 stars spanning full width (3 grey + 3 gold)
+        # Draw 6 stars close together (3 grey + 3 gold)
         for i in range(total_stars):
             star_x_pos = star_margin + int(i * star_spacing)
             if i >= 3:  # Last 3 are gold
@@ -407,16 +400,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Draw star with thick outline like patch
             draw_outlined_text("★", (star_x_pos, stars_y), 
-                             star_font, star_color, outline_color='#000000', outline_width=6)
+                             star_font, star_color, outline_color='#000000', outline_width=5)
         
-        # MONEY TEXT (Above stars) - LARGE like patch (SAME SIZE as stars)
-        money_y = stars_y - 130  # Above stars with spacing
+        # MONEY TEXT (Above stars) - SAME SIZE as stars, close spacing
+        money_y = stars_y - 110  # Close above stars like patch
         points_text = f"${current_points:08d}"
         
-        # Bright lime green (GTA SA money color) - LARGE to match patch
+        # Bright lime green (GTA SA money color) - SAME SIZE as stars
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 100)  # LARGE matching stars and patch
+                money_font_size = ImageFont.truetype(font_path_used, 95)  # SAME size as stars
             except:
                 money_font_size = money_font
         else:
@@ -427,7 +420,14 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         money_x = (width - text_width) // 2
         # Draw with thick black outline like patch
         draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF00', outline_color='#000000', outline_width=6)
+                         money_font_size, '#00FF00', outline_color='#000000', outline_width=5)
+        
+        # RED HEALTH BAR - Position JUST ABOVE money text (grouped together)
+        separator_y = money_y - 50  # Just above money text
+        separator_height = 18  # Thick like patch
+        separator_margin = 40  # Match patch margins
+        draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
+                      fill='#DD0000', outline='#000000', width=2)
         
         # No pixelation needed for green cityscape background
         
