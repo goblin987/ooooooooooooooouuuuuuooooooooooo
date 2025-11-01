@@ -350,43 +350,66 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw_outlined_text(ammo_text, (icon_x + icon_size//2, icon_y + icon_size + 18), 
                          ammo_font, '#FFFFFF', outline_width=3, anchor='mm')
         
-        # 2. TIME DISPLAY (Top-Right) - matching reference patch
+        # 2. TIME DISPLAY (Top-Right) - MUCH BIGGER like reference patch
         time_text = "04:20"
         time_x = icon_x + icon_size + 80  # Adjusted spacing
-        time_y = icon_y + 10
-        # Draw time with proper size
+        time_y = icon_y
+        # Draw time MUCH BIGGER
         if font_path_used:
             try:
-                time_font = ImageFont.truetype(font_path_used, 85)  # Larger to match patch
+                time_font = ImageFont.truetype(font_path_used, 140)  # MUCH larger to match patch
             except:
                 time_font = label_font
         else:
             time_font = label_font
         draw_outlined_text(time_text, (time_x, time_y), 
-                         time_font, '#FFFFFF', outline_width=4)
+                         time_font, '#FFFFFF', outline_width=5)
         
         # Time underline bar (like in reference patch) - more prominent
-        time_underline_y = time_y + 85
-        time_underline_width = 200
-        time_underline_height = 10
+        time_underline_y = time_y + 135
+        time_underline_width = 290
+        time_underline_height = 12
         draw.rectangle([time_x, time_underline_y, time_x + time_underline_width, time_underline_y + time_underline_height], 
                       fill='#FFFFFF', outline='#000000', width=2)
         
-        # PROMINENT RED SEPARATOR BAR (Full width like the patch) - positioned below profile/time section
-        separator_y = icon_y + icon_size + 80  # More space
-        separator_height = 22  # Thicker like patch
-        separator_margin = 40
-        draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
-                      fill='#DD0000', outline='#000000', width=3)
+        # STARS AT BOTTOM - FULL WIDTH like reference patch
+        stars_y = height - 150  # At the very bottom
+        total_stars = 6
+        star_margin = 50  # Margins from edges
         
-        # 5. MONEY TEXT (Below red separator) - FULL WIDTH CENTERED EXACTLY like patch
-        money_y = separator_y + separator_height + 50  # More spacing
-        points_text = f"${current_points:08d}"
+        # Calculate spacing to fill entire width
+        available_width = width - (2 * star_margin)
+        star_spacing = available_width / (total_stars - 1)
         
-        # Bright lime green (GTA SA money color) - perfectly centered
+        # Star font - HUGE to match patch
         if font_path_used:
             try:
-                money_font_size = ImageFont.truetype(font_path_used, 110)  # Larger to match patch
+                star_font = ImageFont.truetype(font_path_used, 130)  # MUCH bigger stars
+            except:
+                star_font = label_font
+        else:
+            star_font = label_font
+        
+        # Draw 6 stars spanning full width (3 grey + 3 gold like patch)
+        for i in range(total_stars):
+            star_x_pos = star_margin + int(i * star_spacing)
+            if i >= 3:  # Last 3 are gold
+                star_color = '#FFD700'  # Gold
+            else:  # First 3 are grey
+                star_color = '#AAAAAA'  # Grey
+            
+            # Draw star with thick outline
+            draw_outlined_text("★", (star_x_pos, stars_y), 
+                             star_font, star_color, outline_width=5)
+        
+        # MONEY TEXT (Above stars) - SAME WIDTH as stars
+        money_y = stars_y - 150  # Above stars
+        points_text = f"${current_points:08d}"
+        
+        # Bright lime green (GTA SA money color) - HUGE to span full width
+        if font_path_used:
+            try:
+                money_font_size = ImageFont.truetype(font_path_used, 140)  # HUGE to match patch
             except:
                 money_font_size = money_font
         else:
@@ -396,37 +419,14 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text_width = bbox[2] - bbox[0]
         money_x = (width - text_width) // 2
         draw_outlined_text(points_text, (money_x, money_y), 
-                         money_font_size, '#00FF00', outline_width=5)
+                         money_font_size, '#00FF00', outline_width=6)
         
-        # 6. STARS (Below money - 6 total: 3 grey + 3 gold) - PERFECTLY CENTERED like patch
-        stars_y = money_y + 130  # More spacing
-        star_spacing = 75  # Wider spacing like patch
-        total_stars = 6
-        
-        # Center the stars perfectly on the patch
-        total_star_width = (total_stars - 1) * star_spacing
-        stars_start_x = (width - total_star_width) // 2
-        
-        # Star font - larger to match patch
-        if font_path_used:
-            try:
-                star_font = ImageFont.truetype(font_path_used, 100)  # Bigger stars
-            except:
-                star_font = label_font
-        else:
-            star_font = label_font
-        
-        # Always show 3 grey + 3 gold (like patch)
-        for i in range(total_stars):
-            star_x_pos = stars_start_x + (i * star_spacing)
-            if i >= 3:  # Last 3 are gold
-                star_color = '#FFD700'  # Gold
-            else:  # First 3 are grey
-                star_color = '#AAAAAA'  # Lighter grey - clearly visible like patch
-            
-            # Draw star with thick outline
-            draw_outlined_text("★", (star_x_pos, stars_y), 
-                             star_font, star_color, outline_width=4)
+        # RED HEALTH BAR (Above money) - FULL WIDTH
+        separator_y = money_y - 100  # Above money
+        separator_height = 24  # Thick like patch
+        separator_margin = 45
+        draw.rectangle([separator_margin, separator_y, width - separator_margin, separator_y + separator_height], 
+                      fill='#DD0000', outline='#000000', width=3)
         
         # Apply retro pixelation effect to entire image (lighter effect to preserve details)
         img = pixelate_image(img, scale_factor=0.75)  # Less aggressive pixelation
