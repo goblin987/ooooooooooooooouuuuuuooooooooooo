@@ -60,6 +60,7 @@ import voting
 import stats
 import bajorai
 import levels
+import exchange
 
 # Telegram imports
 import telegram
@@ -726,9 +727,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             update.effective_user.last_name
         )
     
-    # Grant XP for messages (with cooldown)
+    # Grant XP for messages (with anti-spam checks)
     if update.effective_chat.type in ['group', 'supergroup'] and update.message and update.message.text:
-        xp_result = levels.grant_message_xp(update.effective_user.id)
+        xp_result = levels.grant_message_xp(
+            update.effective_user.id,
+            update.message.text,
+            update.message.message_id,
+            update.effective_chat.id
+        )
         if xp_result and xp_result.get('leveled_up'):
             # Notify user of level up with money bonus
             try:
@@ -992,6 +998,7 @@ def create_application():
     application.add_handler(CommandHandler("barygos", voting.barygos_command))  # Scoreboard leaderboard
     application.add_handler(CommandHandler("bajorai", bajorai.bajorai_command))  # Top balances & game stats
     application.add_handler(CommandHandler("points", levels.points_command))  # XP & Level system
+    application.add_handler(CommandHandler("exchange", exchange.exchange_command))  # Points→Crypto exchange
     application.add_handler(CommandHandler("updatevoting", voting.updatevoting_command))
     application.add_handler(CommandHandler("resetvotes", voting.reset_voting_cooldowns_command))
     

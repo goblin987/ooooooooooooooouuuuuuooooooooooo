@@ -153,17 +153,32 @@ class Database:
             )
         ''')
         
-        # Users table - for points and crypto balance
+        # Users table - for points (money), XP, level, and crypto balance
         conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
                 username TEXT,
                 points INTEGER DEFAULT 0,
+                xp INTEGER DEFAULT 0,
+                level INTEGER DEFAULT 1,
                 balance REAL DEFAULT 0.0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        
+        # Migration: Add xp and level columns if they don't exist
+        try:
+            conn.execute('ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 0')
+            logger.info("Added xp column to users table")
+        except:
+            pass  # Column already exists
+        
+        try:
+            conn.execute('ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1')
+            logger.info("Added level column to users table")
+        except:
+            pass  # Column already exists
         
         # Pending bans table - for users to be banned when they join
         conn.execute('''
@@ -238,6 +253,41 @@ class Database:
                 target_groups TEXT,
                 voting_group_link TEXT,
                 last_sent TIMESTAMP
+            )
+        ''')
+        
+        # Daily message tracking for anti-spam
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS daily_message_stats (
+                user_id INTEGER,
+                date TEXT,
+                messages_counted INTEGER DEFAULT 0,
+                PRIMARY KEY (user_id, date)
+            )
+        ''')
+        
+        # Recent messages for duplicate detection
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS recent_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                message_text TEXT,
+                message_id INTEGER,
+                chat_id INTEGER,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                xp_awarded INTEGER DEFAULT 0
+            )
+        ''')
+        
+        # Point exchange history
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS point_exchanges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                points_spent INTEGER,
+                usd_amount REAL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                week_number INTEGER
             )
         ''')
     
@@ -859,4 +909,168 @@ class Database:
             return False
 
 # Global database instance
+    # ============================================================================
+    # ANTI-SPAM & EXCHANGE HELPER METHODS
+    # ============================================================================
+    
+    def get_account_age_days(self, user_id: int) -> int:
+        """Get user account age in days"""
+        try:
+            conn = self.get_sync_connection()
+            cursor = conn.execute("SELECT created_at FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result and result[0]:
+                from datetime import datetime
+                created = datetime.fromisoformat(result[0]) if isinstance(result[0], str) else result[0]
+                return (datetime.now() - created).days
+            return 0
+        except Exception as e:
+            logger.error(f"Error getting account age: {e}")
+            return 0
+    
+    def get_daily_message_count(self, user_id: int, date_str: str) -> int:
+        """Get message count for a specific day"""
+        try:
+            conn = self.get_sync_connection()
+            cursor = conn.execute(
+                "SELECT messages_counted FROM daily_message_stats WHERE user_id = ? AND date = ?",
+                (user_id, date_str)
+            )
+            result = cursor.fetchone()
+            conn.close()
+            return result[0] if result else 0
+        except Exception as e:
+            logger.error(f"Error getting daily count: {e}")
+            return 0
+    
+    def increment_daily_count(self, user_id: int, date_str: str):
+        """Increment daily message count"""
+        try:
+            conn = self.get_sync_connection()
+            conn.execute("""
+                INSERT INTO daily_message_stats (user_id, date, messages_counted)
+                VALUES (?, ?, 1)
+                ON CONFLICT(user_id, date) DO UPDATE SET messages_counted = messages_counted + 1
+            """, (user_id, date_str))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error incrementing daily count: {e}")
+    
+    def is_duplicate_message(self, user_id: int, message_text: str) -> bool:
+        """Check if message is duplicate within last 5 minutes"""
+        try:
+            from datetime import datetime, timedelta
+            conn = self.get_sync_connection()
+            five_min_ago = (datetime.now() - timedelta(minutes=5)).isoformat()
+            
+            cursor = conn.execute("""
+                SELECT COUNT(*) FROM recent_messages 
+                WHERE user_id = ? AND message_text = ? AND timestamp > ?
+            """, (user_id, message_text, five_min_ago))
+            result = cursor.fetchone()
+            conn.close()
+            
+            return result[0] > 0 if result else False
+        except Exception as e:
+            logger.error(f"Error checking duplicate: {e}")
+            return False
+    
+    def track_message(self, user_id: int, message_id: int, chat_id: int, message_text: str, xp_awarded: int):
+        """Track message for deletion penalty"""
+        try:
+            conn = self.get_sync_connection()
+            conn.execute("""
+                INSERT INTO recent_messages (user_id, message_text, message_id, chat_id, xp_awarded)
+                VALUES (?, ?, ?, ?, ?)
+            """, (user_id, message_text, message_id, chat_id, xp_awarded))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error tracking message: {e}")
+    
+    def cleanup_old_messages(self):
+        """Delete messages older than 10 minutes"""
+        try:
+            from datetime import datetime, timedelta
+            conn = self.get_sync_connection()
+            ten_min_ago = (datetime.now() - timedelta(minutes=10)).isoformat()
+            conn.execute("DELETE FROM recent_messages WHERE timestamp < ?", (ten_min_ago,))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error cleanup old messages: {e}")
+    
+    def get_weekly_exchange_total(self, user_id: int, week_number: int) -> float:
+        """Get total USD exchanged this week"""
+        try:
+            conn = self.get_sync_connection()
+            cursor = conn.execute("""
+                SELECT SUM(usd_amount) FROM point_exchanges 
+                WHERE user_id = ? AND week_number = ?
+            """, (user_id, week_number))
+            result = cursor.fetchone()
+            conn.close()
+            return result[0] if result and result[0] else 0.0
+        except Exception as e:
+            logger.error(f"Error getting weekly exchange: {e}")
+            return 0.0
+    
+    def process_point_exchange(self, user_id: int, points_spent: int, usd_amount: float, week_number: int) -> bool:
+        """Process points→crypto exchange transaction"""
+        try:
+            conn = self.get_sync_connection()
+            
+            # Deduct points from user
+            cursor = conn.execute("SELECT points, balance FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            if not result:
+                conn.close()
+                return False
+            
+            current_points = result[0] if result[0] else 0
+            current_balance = result[1] if result[1] else 0.0
+            
+            if current_points < points_spent:
+                conn.close()
+                return False
+            
+            # Update balances
+            new_points = current_points - points_spent
+            new_balance = current_balance + usd_amount
+            
+            conn.execute("""
+                UPDATE users SET points = ?, balance = ? WHERE user_id = ?
+            """, (new_points, new_balance, user_id))
+            
+            # Record exchange
+            conn.execute("""
+                INSERT INTO point_exchanges (user_id, points_spent, usd_amount, week_number)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, points_spent, usd_amount, week_number))
+            
+            conn.commit()
+            conn.close()
+            
+            logger.info(f"Exchange processed: User {user_id} exchanged {points_spent} points for ${usd_amount:.2f}")
+            return True
+        except Exception as e:
+            logger.error(f"Error processing exchange: {e}")
+            return False
+    
+    def get_user_balance(self, user_id: int) -> float:
+        """Get user's crypto balance"""
+        try:
+            conn = self.get_sync_connection()
+            cursor = conn.execute("SELECT balance FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            conn.close()
+            return result[0] if result and result[0] else 0.0
+        except Exception as e:
+            logger.error(f"Error getting balance: {e}")
+            return 0.0
+
+
 database = Database()

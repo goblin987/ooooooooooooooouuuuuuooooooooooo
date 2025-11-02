@@ -186,13 +186,48 @@ def can_gain_message_xp(user_id: int) -> bool:
     return (datetime.now() - last_time).total_seconds() >= MESSAGE_XP_COOLDOWN
 
 
-def grant_message_xp(user_id: int):
-    """Grant points for sending a message (with cooldown)"""
-    if can_gain_message_xp(user_id):
-        result = add_xp(user_id, XP_REWARDS['message'], 'message')
+def grant_message_xp(user_id: int, message_text: str = '', message_id: int = 0, chat_id: int = 0):
+    """Grant XP for sending a message (with comprehensive anti-spam checks)"""
+    
+    # 1. Message length check (minimum 3 characters)
+    if len(message_text.strip()) < 3:
+        return None
+    
+    # 2. Account age check (30 days minimum)
+    account_age = database.get_account_age_days(user_id)
+    if account_age < 30:
+        return None
+    
+    # 3. Daily message cap (300 messages per day)
+    today = datetime.now().date().isoformat()
+    daily_count = database.get_daily_message_count(user_id, today)
+    if daily_count >= 300:
+        return None
+    
+    # 4. Cooldown check (60 seconds between earning)
+    if not can_gain_message_xp(user_id):
+        return None
+    
+    # 5. Duplicate detection (no repeats within 5 minutes)
+    if database.is_duplicate_message(user_id, message_text):
+        return None
+    
+    # Award XP
+    result = add_xp(user_id, XP_REWARDS['message'], 'message')
+    
+    if result:
+        # Track message for potential deletion penalty
+        database.track_message(user_id, message_id, chat_id, message_text, XP_REWARDS['message'])
+        # Increment daily count
+        database.increment_daily_count(user_id, today)
+        # Update cooldown timestamp
         last_message_xp[user_id] = datetime.now()
-        return result
-    return None
+        # Cleanup old messages periodically (every 100 calls)
+        import random
+        if random.randint(1, 100) == 1:
+            database.cleanup_old_messages()
+    
+    return result
 
 
 # Level rank titles
