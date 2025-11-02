@@ -664,46 +664,20 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 points_list.append((cx + r * math.cos(angle_rad), stars_y + r * math.sin(angle_rad)))
             
             if filled == 'partial':
-                # Draw gray base
-                draw.polygon(points_list, outline='#000000', fill='#6A6A6A', width=5)
-                # Create clipping mask for partial yellow fill (bottom-up fill)
-                from PIL import Image as PILImage
-                mask = PILImage.new('L', (int(star_radius * 2.5), int(star_radius * 2.5)), 0)
-                mask_draw = ImageDraw.Draw(mask)
-                # Calculate fill height based on progress
-                fill_height = int(star_radius * 2 * partial_progress)
-                mask_top = int(star_radius * 2 * (1 - partial_progress))
-                mask_draw.rectangle([0, mask_top, star_radius * 2.5, star_radius * 2.5], fill=255)
+                # Draw yellow star first (full)
+                draw.polygon(points_list, outline=None, fill=gta_yellow)
                 
-                # Draw yellow layer with mask
-                yellow_layer = PILImage.new('RGBA', img.size, (255, 255, 0, 0))
-                yellow_draw = ImageDraw.Draw(yellow_layer)
-                yellow_draw.polygon(points_list, fill=gta_yellow)
+                # Cover right portion with gray (left-to-right fill)
+                fill_width_star = int(star_radius * 2 * partial_progress)
+                cutoff_x = cx - star_radius + fill_width_star
                 
-                try:
-                    # Composite yellow on top (only where progress allows)
-                    # Simplified: just draw filled portion from bottom
-                    cutoff_y = stars_y + star_radius - (star_radius * 2 * partial_progress)
-                    for y_scan in range(int(cutoff_y), int(stars_y + star_radius + 2)):
-                        for px in points_list:
-                            if int(px[1]) >= int(cutoff_y):
-                                # This point is in the filled region
-                                pass
-                    # Actually, just overdraw yellow polygon clipped
-                    import numpy as np
-                    # Simpler approach: draw yellow star, then cover top with gray rectangle
-                    draw.polygon(points_list, outline=None, fill=gta_yellow)
-                    # Cover top portion with gray
-                    cover_height = int(star_radius * 2 * (1 - partial_progress))
-                    draw.rectangle([cx - star_radius - 5, stars_y - star_radius, 
-                                   cx + star_radius + 5, stars_y - star_radius + cover_height], 
-                                  fill='#6A6A6A')
-                    # Redraw outline
-                    draw.polygon(points_list, outline='#000000', fill=None, width=5)
-                except:
-                    # Fallback: use blended color
-                    star_color = blend_colors('#6A6A6A', gta_yellow, partial_progress)
-                    draw.polygon(points_list, outline='#000000', fill=star_color, width=5)
+                # Cover the unfilled (right) portion with gray
+                draw.rectangle([cutoff_x, stars_y - star_radius - 5, 
+                               cx + star_radius + 5, stars_y + star_radius + 5], 
+                              fill='#6A6A6A')
+                
+                # Redraw the star outline on top
+                draw.polygon(points_list, outline='#000000', fill=None, width=5)
             elif filled:
                 # Fully yellow
                 draw.polygon(points_list, outline='#000000', fill=gta_yellow, width=5)
