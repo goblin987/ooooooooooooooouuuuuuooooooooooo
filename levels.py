@@ -647,25 +647,69 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if index < stars_earned:
                 # Fully earned star (bright GTA yellow)
-                star_color = gta_yellow
                 filled = True
             elif index == stars_earned:
-                # Partially earned star (blend gray → bright yellow)
-                star_color = blend_colors('#6A6A6A', gta_yellow, partial_progress)
-                filled = partial_progress > 0.5  # treat as filled if > 50%
+                # Partially earned star - draw with vertical split fill
+                filled = 'partial'
             else:
                 # Not earned yet (gray)
-                star_color = '#6A6A6A'
                 filled = False
             
-            # Draw star with custom color
+            # Draw star polygon
             points_list = []
             for i in range(10):
                 angle_deg = -90 + i * 36
                 angle_rad = math.radians(angle_deg)
                 r = star_radius if i % 2 == 0 else star_radius * 0.45
                 points_list.append((cx + r * math.cos(angle_rad), stars_y + r * math.sin(angle_rad)))
-            draw.polygon(points_list, outline='#000000', fill=star_color, width=5)
+            
+            if filled == 'partial':
+                # Draw gray base
+                draw.polygon(points_list, outline='#000000', fill='#6A6A6A', width=5)
+                # Create clipping mask for partial yellow fill (bottom-up fill)
+                from PIL import Image as PILImage
+                mask = PILImage.new('L', (int(star_radius * 2.5), int(star_radius * 2.5)), 0)
+                mask_draw = ImageDraw.Draw(mask)
+                # Calculate fill height based on progress
+                fill_height = int(star_radius * 2 * partial_progress)
+                mask_top = int(star_radius * 2 * (1 - partial_progress))
+                mask_draw.rectangle([0, mask_top, star_radius * 2.5, star_radius * 2.5], fill=255)
+                
+                # Draw yellow layer with mask
+                yellow_layer = PILImage.new('RGBA', img.size, (255, 255, 0, 0))
+                yellow_draw = ImageDraw.Draw(yellow_layer)
+                yellow_draw.polygon(points_list, fill=gta_yellow)
+                
+                try:
+                    # Composite yellow on top (only where progress allows)
+                    # Simplified: just draw filled portion from bottom
+                    cutoff_y = stars_y + star_radius - (star_radius * 2 * partial_progress)
+                    for y_scan in range(int(cutoff_y), int(stars_y + star_radius + 2)):
+                        for px in points_list:
+                            if int(px[1]) >= int(cutoff_y):
+                                # This point is in the filled region
+                                pass
+                    # Actually, just overdraw yellow polygon clipped
+                    import numpy as np
+                    # Simpler approach: draw yellow star, then cover top with gray rectangle
+                    draw.polygon(points_list, outline=None, fill=gta_yellow)
+                    # Cover top portion with gray
+                    cover_height = int(star_radius * 2 * (1 - partial_progress))
+                    draw.rectangle([cx - star_radius - 5, stars_y - star_radius, 
+                                   cx + star_radius + 5, stars_y - star_radius + cover_height], 
+                                  fill='#6A6A6A')
+                    # Redraw outline
+                    draw.polygon(points_list, outline='#000000', fill=None, width=5)
+                except:
+                    # Fallback: use blended color
+                    star_color = blend_colors('#6A6A6A', gta_yellow, partial_progress)
+                    draw.polygon(points_list, outline='#000000', fill=star_color, width=5)
+            elif filled:
+                # Fully yellow
+                draw.polygon(points_list, outline='#000000', fill=gta_yellow, width=5)
+            else:
+                # Gray
+                draw.polygon(points_list, outline='#000000', fill='#6A6A6A', width=5)
             
             # Add shimmer to fully gold stars only
             if index < stars_earned:
