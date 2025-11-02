@@ -1025,45 +1025,66 @@ class Database:
             return 0.0
     
     def process_point_exchange(self, user_id: int, points_spent: int, usd_amount: float, week_number: int) -> bool:
-        """Process points→crypto exchange transaction"""
+        """Process points→crypto exchange transaction with atomic safety"""
+        conn = None
         try:
             conn = self.get_sync_connection()
             
-            # Deduct points from user
-            cursor = conn.execute("SELECT points, balance FROM users WHERE user_id = ?", (user_id,))
+            # Begin atomic transaction
+            conn.execute("BEGIN IMMEDIATE TRANSACTION")
+            
+            # Lock row and read current balances
+            cursor = conn.execute("""
+                SELECT points, balance FROM users WHERE user_id = ?
+            """, (user_id,))
             result = cursor.fetchone()
+            
             if not result:
+                logger.warning(f"User {user_id} not found in database")
+                conn.execute("ROLLBACK")
                 conn.close()
                 return False
             
             current_points = result[0] if result[0] else 0
             current_balance = result[1] if result[1] else 0.0
             
+            # Final validation inside transaction
             if current_points < points_spent:
+                logger.warning(f"User {user_id} insufficient points: has {current_points}, needs {points_spent}")
+                conn.execute("ROLLBACK")
                 conn.close()
                 return False
             
-            # Update balances
+            # Calculate new balances
             new_points = current_points - points_spent
             new_balance = current_balance + usd_amount
             
+            # Update balances atomically
             conn.execute("""
                 UPDATE users SET points = ?, balance = ? WHERE user_id = ?
             """, (new_points, new_balance, user_id))
             
-            # Record exchange
+            # Record transaction
             conn.execute("""
                 INSERT INTO point_exchanges (user_id, points_spent, usd_amount, week_number)
                 VALUES (?, ?, ?, ?)
             """, (user_id, points_spent, usd_amount, week_number))
             
-            conn.commit()
+            # Commit transaction
+            conn.execute("COMMIT")
             conn.close()
             
-            logger.info(f"Exchange processed: User {user_id} exchanged {points_spent} points for ${usd_amount:.2f}")
+            logger.info(f"✅ Exchange SUCCESS: User {user_id} exchanged {points_spent} points for ${usd_amount:.2f} (new balances: {new_points} pts, ${new_balance:.2f})")
             return True
+            
         except Exception as e:
-            logger.error(f"Error processing exchange: {e}")
+            logger.error(f"❌ Exchange FAILED for user {user_id}: {e}")
+            if conn:
+                try:
+                    conn.execute("ROLLBACK")
+                    conn.close()
+                except:
+                    pass
             return False
     
     def get_user_balance(self, user_id: int) -> float:

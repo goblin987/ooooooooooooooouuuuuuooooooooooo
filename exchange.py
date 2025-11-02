@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Points Exchange System - Convert earned points to crypto balance
-Includes anti-spam measures and weekly limits
+Points Exchange System - Button-driven flow for converting points to crypto
+Dummy-proof UI with multiple validation layers
 """
 
 import logging
 from datetime import datetime
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from database import database
 import levels
@@ -22,159 +22,293 @@ MIN_LEVEL = 15        # minimum level to exchange
 MIN_ACCOUNT_AGE = 30  # minimum account age in days
 
 
-async def exchange_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Exchange points for crypto balance"""
-    user_id = update.effective_user.id
-    
-    # Show info if no arguments
-    if not context.args:
-        return await show_exchange_info(update, user_id)
-    
-    # Parse amount
-    try:
-        points_amount = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("❌ Neteisingas kiekis! Naudokite skaičių.")
-        return
-    
-    # Validation: minimum exchange
-    if points_amount < MIN_EXCHANGE:
-        await update.message.reply_text(
-            f"❌ Minimalus keitimas: {MIN_EXCHANGE:,} taškų ($1 USD)\n\n"
-            f"Jūsų taškai: {levels.get_user_money(user_id):,}"
-        )
-        return
-    
-    # Check if valid increment
-    if points_amount % MIN_EXCHANGE != 0:
-        await update.message.reply_text(
-            f"❌ Suma turi būti {MIN_EXCHANGE:,} kartotinis\n"
-            f"Pavyzdžiai: 2000, 4000, 10000"
-        )
-        return
-    
-    # Account age check
+def can_exchange(user_id: int) -> tuple:
+    """Check if user meets basic requirements to exchange"""
+    # Account age
     account_age = database.get_account_age_days(user_id)
     if account_age < MIN_ACCOUNT_AGE:
-        await update.message.reply_text(
-            f"❌ Paskyra turi būti {MIN_ACCOUNT_AGE}+ dienų sena\n\n"
-            f"Jūsų paskyros amžius: {account_age} dienų\n"
-            f"Liko: {MIN_ACCOUNT_AGE - account_age} dienų"
-        )
-        return
+        return False, f"❌ Paskyra turi būti {MIN_ACCOUNT_AGE}+ dienų sena\n\nJūsų amžius: {account_age} dienų"
     
-    # Level check
-    user_xp = levels.get_user_xp(user_id)
-    level, _, _, _ = levels.get_xp_to_next_level(user_xp)
-    
+    # Level requirement
+    level = database.get_user_level(user_id)
     if level < MIN_LEVEL:
-        await update.message.reply_text(
-            f"❌ Minimalus lygis: {MIN_LEVEL}\n\n"
-            f"Jūsų lygis: {level}\n"
-            f"Liko: {MIN_LEVEL - level} lygių"
-        )
-        return
+        return False, f"❌ Minimalus lygis: {MIN_LEVEL}\n\nJūsų lygis: {level}"
     
-    # Weekly limit check
-    week_number = datetime.now().isocalendar()[1]
-    weekly_used = database.get_weekly_exchange_total(user_id, week_number)
-    usd_amount = points_amount / EXCHANGE_RATE
-    
-    if weekly_used + usd_amount > MAX_WEEKLY_USD:
-        remaining = MAX_WEEKLY_USD - weekly_used
-        await update.message.reply_text(
-            f"❌ Savaitinis limitas: ${MAX_WEEKLY_USD}\n\n"
-            f"Šią savaitę panaudota: ${weekly_used:.2f}\n"
-            f"Liko: ${remaining:.2f}\n\n"
-            f"Limitas atsinaujina pirmadienį"
-        )
-        return
-    
-    # Balance check
+    # Minimum points
     user_points = levels.get_user_money(user_id)
-    if points_amount > user_points:
-        await update.message.reply_text(
-            f"❌ Nepakanka taškų!\n\n"
-            f"💎 Jūsų taškai: {user_points:,}\n"
-            f"💎 Reikia: {points_amount:,}\n"
-            f"💎 Trūksta: {points_amount - user_points:,}"
-        )
-        return
+    if user_points < MIN_EXCHANGE:
+        return False, f"❌ Reikia bent {MIN_EXCHANGE:,} taškų\n\nJūsų taškai: {user_points:,}"
     
-    # Process exchange
-    success = database.process_point_exchange(user_id, points_amount, usd_amount, week_number)
-    
-    if success:
-        new_crypto = database.get_user_balance(user_id)
-        new_points = levels.get_user_money(user_id)
-        
-        await update.message.reply_text(
-            f"✅ Keitimas sėkmingas!\n\n"
-            f"💎 Išleista: {points_amount:,} taškų\n"
-            f"💵 Gauta: ${usd_amount:.2f} USD\n\n"
-            f"💰 Naujas kripto balansas: ${new_crypto:.2f}\n"
-            f"💎 Liko taškų: {new_points:,}\n\n"
-            f"Naudokite /pinigine balansui peržiūrėti"
-        )
-        logger.info(f"User {user_id} exchanged {points_amount} points for ${usd_amount:.2f}")
-    else:
-        await update.message.reply_text("❌ Klaida vykdant keitimą. Bandykite vėliau.")
+    return True, None
 
 
-async def show_exchange_info(update: Update, user_id: int):
-    """Show exchange information and user stats"""
-    user_points = levels.get_user_money(user_id)
-    user_xp = levels.get_user_xp(user_id)
-    level, xp_in_level, xp_needed, progress = levels.get_xp_to_next_level(user_xp)
-    account_age = database.get_account_age_days(user_id)
+async def exchange_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Main exchange command - shows initial menu"""
+    user_id = update.effective_user.id
     
-    week_number = datetime.now().isocalendar()[1]
-    weekly_used = database.get_weekly_exchange_total(user_id, week_number)
+    # Check if user can exchange
+    can_exchange_result, error_msg = can_exchange(user_id)
+    
+    if not can_exchange_result:
+        await update.message.reply_text(error_msg)
+        return
+    
+    # Show main exchange menu
+    await show_exchange_menu(update, context, user_id)
+
+
+async def show_exchange_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, edit_message=False):
+    """Show the main exchange menu"""
+    user_points = levels.get_user_money(user_id)
+    crypto_balance = database.get_user_balance(user_id)
+    
+    week_num = datetime.now().isocalendar()[1]
+    weekly_used = database.get_weekly_exchange_total(user_id, week_num)
     weekly_remaining = MAX_WEEKLY_USD - weekly_used
     
-    # Check requirements status
-    age_ok = "✅" if account_age >= MIN_ACCOUNT_AGE else "❌"
-    level_ok = "✅" if level >= MIN_LEVEL else "❌"
-    
-    # Calculate possible exchanges
-    max_points_can_exchange = min(user_points, int(weekly_remaining * EXCHANGE_RATE))
-    
     text = (
-        f"💱 Taškų Keitimas\n\n"
-        f"💎 Jūsų taškai: {user_points:,}\n"
-        f"📊 Lygis: {level}\n"
-        f"📅 Paskyros amžius: {account_age} dienų\n\n"
-        f"💵 Keitimo kursas:\n"
-        f"• 2,000 taškų = $1.00 USD\n"
-        f"• 4,000 taškų = $2.00 USD\n"
-        f"• 10,000 taškų = $5.00 USD\n\n"
-        f"📋 Reikalavimai:\n"
-        f"{age_ok} Paskyra {MIN_ACCOUNT_AGE}+ dienų (jūsų: {account_age})\n"
-        f"{level_ok} Lygis {MIN_LEVEL}+ (jūsų: {level})\n\n"
-        f"⚠️ Limitai:\n"
-        f"• Maksimalus keitimas: ${MAX_WEEKLY_USD}/savaitę\n"
-        f"• Šią savaitę panaudota: ${weekly_used:.2f}\n"
+        f"💱 <b>Taškų Keitimas</b>\n\n"
+        f"💎 Jūsų taškai: <b>{user_points:,}</b>\n"
+        f"💵 Kripto balansas: <b>${crypto_balance:.2f}</b>\n\n"
+        f"📊 Šios savaitės limitas:\n"
+        f"• Panaudota: ${weekly_used:.2f}\n"
         f"• Liko: ${weekly_remaining:.2f}\n\n"
+        f"💡 Kursas: 2,000 taškų = $1.00 USD"
     )
     
-    if account_age >= MIN_ACCOUNT_AGE and level >= MIN_LEVEL:
-        if max_points_can_exchange >= MIN_EXCHANGE:
-            text += (
-                f"✅ Galite keisti iki {max_points_can_exchange:,} taškų\n\n"
-                f"📝 Naudojimas:\n"
-                f"/exchange <taškai>\n\n"
-                f"Pavyzdžiai:\n"
-                f"• /exchange 2000 → $1.00\n"
-                f"• /exchange 10000 → $5.00"
-            )
-        else:
-            text += f"⚠️ Pasiektas savaitinis limitas arba nepakanka taškų"
-    else:
-        text += "❌ Neatitinkate reikalavimų keitimui"
+    keyboard = [
+        [InlineKeyboardButton("💱 Keisti Taškus → USD", callback_data="exchange_start")],
+        [InlineKeyboardButton("📜 Keitimo Istorija", callback_data="exchange_history")],
+        [InlineKeyboardButton("❌ Uždaryti", callback_data="exchange_close")]
+    ]
     
-    await update.message.reply_text(text)
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if edit_message and update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=reply_markup, parse_mode='HTML')
+    else:
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')
+
+
+async def handle_exchange_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle all exchange button callbacks"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    data = query.data
+    
+    if not data.startswith('exchange_'):
+        return False
+    
+    # Main menu / start
+    if data == "exchange_start":
+        await show_amount_selection(query, context, user_id)
+        return True
+    
+    # Amount selection buttons
+    elif data.startswith("exchange_select_"):
+        points_str = data.replace("exchange_select_", "")
+        try:
+            points_amount = int(points_str)
+            await show_confirmation(query, context, user_id, points_amount)
+        except ValueError:
+            await query.answer("❌ Klaida!", show_alert=True)
+        return True
+    
+    # Confirmation
+    elif data.startswith("exchange_confirm_"):
+        points_str = data.replace("exchange_confirm_", "")
+        try:
+            points_amount = int(points_str)
+            await process_exchange(query, context, user_id, points_amount)
+        except ValueError:
+            await query.answer("❌ Klaida!", show_alert=True)
+        return True
+    
+    # Cancel
+    elif data == "exchange_cancel":
+        await query.edit_message_text("❌ Keitimas atšauktas.")
+        return True
+    
+    # Close
+    elif data == "exchange_close":
+        await query.delete_message()
+        return True
+    
+    # History
+    elif data == "exchange_history":
+        await show_exchange_history(query, user_id)
+        return True
+    
+    # Back to menu
+    elif data == "exchange_back":
+        await show_exchange_menu(update, context, user_id, edit_message=True)
+        return True
+    
+    return False
+
+
+async def show_amount_selection(query, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """Show amount selection buttons"""
+    user_points = levels.get_user_money(user_id)
+    week_num = datetime.now().isocalendar()[1]
+    weekly_used = database.get_weekly_exchange_total(user_id, week_num)
+    weekly_remaining = MAX_WEEKLY_USD - weekly_used
+    max_points_can_exchange = int(weekly_remaining * EXCHANGE_RATE)
+    
+    text = (
+        f"💱 <b>Pasirinkite Sumą</b>\n\n"
+        f"💎 Turimi taškai: <b>{user_points:,}</b>\n"
+        f"📊 Liko šią savaitę: <b>${weekly_remaining:.2f}</b>\n\n"
+        f"Pasirinkite keitimo sumą:"
+    )
+    
+    keyboard = []
+    
+    # Preset amounts (only show if user can afford and within weekly limit)
+    presets = [
+        (2000, 1.00),
+        (4000, 2.00),
+        (6000, 3.00),
+        (10000, 5.00)
+    ]
+    
+    for points, usd in presets:
+        if points <= user_points and points <= max_points_can_exchange:
+            keyboard.append([InlineKeyboardButton(
+                f"💎 {points:,} pts → ${usd:.2f}",
+                callback_data=f"exchange_select_{points}"
+            )])
+    
+    if not keyboard:
+        text += "\n\n⚠️ Nepakanka taškų arba pasiektas savaitinis limitas"
+    
+    keyboard.append([InlineKeyboardButton("❌ Atšaukti", callback_data="exchange_cancel")])
+    
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+
+
+async def show_confirmation(query, context: ContextTypes.DEFAULT_TYPE, user_id: int, points_amount: int):
+    """Show confirmation screen with preview"""
+    # Re-validate before showing confirmation
+    user_points = levels.get_user_money(user_id)
+    crypto_balance = database.get_user_balance(user_id)
+    usd_amount = points_amount / EXCHANGE_RATE
+    
+    if points_amount > user_points:
+        await query.answer("❌ Nepakanka taškų!", show_alert=True)
+        await show_amount_selection(query, context, user_id)
+        return
+    
+    # Check weekly limit
+    week_num = datetime.now().isocalendar()[1]
+    weekly_used = database.get_weekly_exchange_total(user_id, week_num)
+    if weekly_used + usd_amount > MAX_WEEKLY_USD:
+        await query.answer("❌ Viršytas savaitinis limitas!", show_alert=True)
+        await show_amount_selection(query, context, user_id)
+        return
+    
+    new_points = user_points - points_amount
+    new_crypto = crypto_balance + usd_amount
+    
+    text = (
+        f"⚠️ <b>Patvirtinkite Keitimą</b>\n\n"
+        f"💎 Išleisti: <b>{points_amount:,}</b> taškų\n"
+        f"💵 Gauti: <b>${usd_amount:.2f}</b> USD\n\n"
+        f"<b>Po keitimo:</b>\n"
+        f"💎 Taškai: {new_points:,}\n"
+        f"💵 Kripto: ${new_crypto:.2f}\n\n"
+        f"Ar tikrai norite keisti?"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ Patvirtinti", callback_data=f"exchange_confirm_{points_amount}")],
+        [InlineKeyboardButton("❌ Atšaukti", callback_data="exchange_cancel")]
+    ]
+    
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+
+
+async def process_exchange(query, context: ContextTypes.DEFAULT_TYPE, user_id: int, points_amount: int):
+    """Process the exchange with atomic transaction"""
+    usd_amount = points_amount / EXCHANGE_RATE
+    week_num = datetime.now().isocalendar()[1]
+    
+    # Final validation before processing
+    user_points = levels.get_user_money(user_id)
+    
+    if points_amount > user_points:
+        await query.edit_message_text("❌ Klaida: Nepakanka taškų!")
+        return
+    
+    weekly_used = database.get_weekly_exchange_total(user_id, week_num)
+    if weekly_used + usd_amount > MAX_WEEKLY_USD:
+        await query.edit_message_text("❌ Klaida: Viršytas savaitinis limitas!")
+        return
+    
+    # Process with atomic transaction
+    success = database.process_point_exchange(user_id, points_amount, usd_amount, week_num)
+    
+    if success:
+        new_points = levels.get_user_money(user_id)
+        new_crypto = database.get_user_balance(user_id)
+        
+        text = (
+            f"✅ <b>Keitimas Sėkmingas!</b>\n\n"
+            f"💎 Išleista: <b>{points_amount:,}</b> taškų\n"
+            f"💵 Gauta: <b>${usd_amount:.2f}</b> USD\n\n"
+            f"<b>Nauji balansai:</b>\n"
+            f"💎 Taškai: {new_points:,}\n"
+            f"💵 Kripto: ${new_crypto:.2f}\n\n"
+            f"Naudokite /pinigine balansui peržiūrėti"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("🔄 Keisti Dar", callback_data="exchange_start")],
+            [InlineKeyboardButton("❌ Uždaryti", callback_data="exchange_close")]
+        ]
+        
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+        logger.info(f"✅ Exchange successful: User {user_id} exchanged {points_amount} pts for ${usd_amount:.2f}")
+    else:
+        await query.edit_message_text(
+            "❌ Keitimas nepavyko!\n\nPabandykite vėliau arba susisiekite su administratoriumi."
+        )
+        logger.error(f"❌ Exchange failed for user {user_id}")
+
+
+async def show_exchange_history(query, user_id: int):
+    """Show user's exchange history"""
+    try:
+        conn = database.get_sync_connection()
+        cursor = conn.execute("""
+            SELECT points_spent, usd_amount, timestamp 
+            FROM point_exchanges 
+            WHERE user_id = ? 
+            ORDER BY timestamp DESC 
+            LIMIT 10
+        """, (user_id,))
+        
+        exchanges = cursor.fetchall()
+        conn.close()
+        
+        if not exchanges:
+            text = "📜 <b>Keitimo Istorija</b>\n\nNėra keitimų"
+        else:
+            text = "📜 <b>Keitimo Istorija</b>\n\n"
+            for points, usd, timestamp in exchanges:
+                dt = datetime.fromisoformat(timestamp) if isinstance(timestamp, str) else timestamp
+                date_str = dt.strftime("%Y-%m-%d %H:%M")
+                text += f"• {date_str}\n  {points:,} pts → ${usd:.2f}\n\n"
+        
+        keyboard = [[InlineKeyboardButton("🔙 Atgal", callback_data="exchange_back")]]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+        
+    except Exception as e:
+        logger.error(f"Error showing history: {e}")
+        await query.answer("❌ Klaida!", show_alert=True)
 
 
 # Export
-__all__ = ['exchange_command']
-
+__all__ = ['exchange_command', 'handle_exchange_buttons']

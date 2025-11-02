@@ -1061,6 +1061,12 @@ def create_application():
         pattern="^(deposit|withdraw|cancel_deposit_)"
     ))
     
+    # Exchange system callbacks
+    application.add_handler(CallbackQueryHandler(
+        exchange.handle_exchange_buttons,
+        pattern="^exchange_"
+    ))
+    
     # Message handler (for private chat input and group messages)
     application.add_handler(MessageHandler(~filters.COMMAND, handle_message))
     
