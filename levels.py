@@ -490,23 +490,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Keep empty white box (matches mock)
             pass
         
-        # Location text above profile icon (GTA SA style) - bigger and bolder
-        location_text = "APSISAUGOK"
-        try:
-            location_font = ImageFont.truetype("C:/Windows/Fonts/impact.ttf", 28) if os.path.exists("C:/Windows/Fonts/impact.ttf") else ImageFont.load_default()
-        except:
-            location_font = ImageFont.load_default()
-        loc_bbox = draw.textbbox((0, 0), location_text, font=location_font)
-        loc_w = loc_bbox[2] - loc_bbox[0]
-        loc_x = icon_x + (icon_size - loc_w) // 2  # center over icon
-        loc_y = icon_y - 36  # more space above icon
-        # Draw with thicker outline
-        for adj in range(-3, 4):
-            for adj2 in range(-3, 4):
-                if adj == 0 and adj2 == 0:
-                    continue
-                draw.text((loc_x + adj, loc_y + adj2), location_text, fill='#000000', font=location_font)
-        draw.text((loc_x, loc_y), location_text, fill='#FFFFFF', font=location_font)
+        # Location text removed for cleaner look
         
         
         # Time display (top-right) with dynamic right alignment and underline
@@ -626,23 +610,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             draw.line([(x1 + 4, y1 + 3), (min(x1 + fill_width, x2 - 4), y1 + 3)], fill='#FF6B6B', width=2)
             draw.line([(x1 + 4, y2 - 3), (min(x1 + fill_width, x2 - 4), y2 - 3)], fill='#8B0000', width=2)
         
-        # Add XP numbers on health bar for clarity
-        xp_text = f"{xp_in_level}/{xp_needed} XP"
-        try:
-            xp_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 16) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.load_default()
-        except:
-            xp_font = ImageFont.load_default()
-        xp_bbox = draw.textbbox((0, 0), xp_text, font=xp_font)
-        xp_w = xp_bbox[2] - xp_bbox[0]
-        xp_x = x1 + (health_width_total - xp_w) // 2
-        xp_y = y1 + 3
-        # White text with black outline for visibility on red bar
-        for adj in range(-2, 3):
-            for adj2 in range(-2, 3):
-                if adj == 0 and adj2 == 0:
-                    continue
-                draw.text((xp_x + adj, xp_y + adj2), xp_text, fill='#000000', font=xp_font)
-        draw.text((xp_x, xp_y), xp_text, fill='#FFFFFF', font=xp_font)
+        # XP text removed for cleaner health bar
         
         # Draw money (clean GTA style with thicker outline)
         # Thicker outline for more authentic GTA look
@@ -670,8 +638,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             blended = tuple(int(c1[i] + (c2[i] - c1[i]) * ratio) for i in range(3))
             return '#{:02x}{:02x}{:02x}'.format(*blended)
         
-        # Bright GTA SA yellow for stars (extremely vibrant)
-        gta_yellow = '#FFF200'  # even brighter, more saturated yellow
+        # Extremely bright GTA SA yellow for stars (x10 brighter, like real GTA SA)
+        gta_yellow = '#FFFF00'  # pure bright yellow, maximum saturation
         
         star_positions = []
         for index in range(total_stars):
