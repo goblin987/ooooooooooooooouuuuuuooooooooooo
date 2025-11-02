@@ -503,9 +503,13 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Username text (ALL CAPS, clean sans-serif font for readability)
         username_display = username.upper() if username else first_name.upper()
-        # Use clean bold font instead of decorative Pricedown
+        # Try multiple fonts for best appearance (Impact/Franklin Gothic for GTA look)
         try:
-            if os.path.exists("C:/Windows/Fonts/arialbd.ttf"):
+            if os.path.exists("C:/Windows/Fonts/impact.ttf"):
+                username_font = ImageFont.truetype("C:/Windows/Fonts/impact.ttf", 32)
+            elif os.path.exists("C:/Windows/Fonts/framd.ttf"):  # Franklin Gothic Medium
+                username_font = ImageFont.truetype("C:/Windows/Fonts/framd.ttf", 32)
+            elif os.path.exists("C:/Windows/Fonts/arialbd.ttf"):
                 username_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 32)
             elif os.path.exists("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
                 username_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
@@ -524,7 +528,11 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Level text below username (ALL CAPS, clean sans-serif font)
         level_display = f"LEVEL {level}"
         try:
-            if os.path.exists("C:/Windows/Fonts/arialbd.ttf"):
+            if os.path.exists("C:/Windows/Fonts/impact.ttf"):
+                level_font = ImageFont.truetype("C:/Windows/Fonts/impact.ttf", 28)
+            elif os.path.exists("C:/Windows/Fonts/framd.ttf"):
+                level_font = ImageFont.truetype("C:/Windows/Fonts/framd.ttf", 28)
+            elif os.path.exists("C:/Windows/Fonts/arialbd.ttf"):
                 level_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 28)
             elif os.path.exists("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
                 level_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
@@ -617,17 +625,20 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             blended = tuple(int(c1[i] + (c2[i] - c1[i]) * ratio) for i in range(3))
             return '#{:02x}{:02x}{:02x}'.format(*blended)
         
+        # Bright GTA SA yellow for stars (much brighter than standard gold)
+        gta_yellow = '#FFEE00'  # vibrant bright yellow like GTA SA
+        
         star_positions = []
         for index in range(total_stars):
             cx = int(star_first_x + index * star_gap_calculated)
             
             if index < stars_earned:
-                # Fully earned star (gold)
-                star_color = '#FFD700'
+                # Fully earned star (bright GTA yellow)
+                star_color = gta_yellow
                 filled = True
             elif index == stars_earned:
-                # Partially earned star (blend gray → gold)
-                star_color = blend_colors('#6A6A6A', '#FFD700', partial_progress)
+                # Partially earned star (blend gray → bright yellow)
+                star_color = blend_colors('#6A6A6A', gta_yellow, partial_progress)
                 filled = partial_progress > 0.5  # treat as filled if > 50%
             else:
                 # Not earned yet (gray)
