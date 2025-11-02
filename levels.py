@@ -623,13 +623,13 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.text((money_x, money_y), points_text, fill='#0FFF50', font=money_font)
         
         # Draw stars with gradual filling based on level (1 star per 100 levels)
-        # All users start with first star at 50% (level 1 = 0.5 progress)
+        # All users start with first star at 1/3 filled
         stars_earned = min(6, level // 100)  # 0-6 full stars
         partial_progress = (level % 100) / 100.0  # 0.0-1.0 progress to next star
         
-        # Override: if level < 100 and progress < 0.5, set minimum to 0.5 (50% filled first star)
-        if stars_earned == 0 and partial_progress < 0.5:
-            partial_progress = 0.5
+        # Override: new users start with first star at 33% filled (1/3)
+        if stars_earned == 0 and partial_progress < 0.33:
+            partial_progress = 0.33
         
         def blend_colors(color1_hex, color2_hex, ratio):
             """Blend two hex colors by ratio (0=color1, 1=color2)"""
