@@ -497,9 +497,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_x = width - time_right_margin - tw
         time_y = time_top
         draw_outlined_text(time_text, (time_x, time_y), time_font)
-        # Username and level display below time (stacked vertically, aligned to time's right edge)
-        # Start well below time to avoid overlap
-        info_start_y = time_y + th + (outline_w * 2) + 20  # proper clearance below outlined time
+        # Username and level display below time (stacked vertically, aligned to time's left edge)
+        # Larger gap for better visual separation
+        info_start_y = time_y + th + (outline_w * 2) + 70  # 70px gap from clock
         
         # Username text (ALL CAPS, clean, white)
         username_display = username.upper() if username else first_name.upper()
@@ -558,15 +558,15 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         progress_ratio = xp_in_level / xp_needed if xp_needed > 0 else 1.0
         fill_width = int((health_width_total - 4) * progress_ratio)
         
-        # Draw background (dark gray for unfilled portion)
-        draw.rounded_rectangle(health_rect_adjusted, radius=4, fill='#2A2A2A', outline=None)
+        # Draw background (dark red for unfilled portion to add depth)
+        draw.rounded_rectangle(health_rect_adjusted, radius=4, fill='#4A1616', outline=None)
         
-        # Draw filled portion with red gradient (only up to progress)
+        # Draw filled portion with brighter red gradient (only up to progress)
         for y_offset in range(int(y2 - y1)):
             ratio = y_offset / (y2 - y1)
-            red_val = int(210 + (230 - 210) * (1 - ratio))
-            green_val = int(35 + (70 - 35) * (1 - ratio))
-            color = (red_val, green_val, 43)
+            red_val = int(220 + (245 - 220) * (1 - ratio))  # brighter red range
+            green_val = int(40 + (75 - 40) * (1 - ratio))
+            color = (red_val, green_val, 45)
             # Only draw up to fill_width
             if fill_width > 0:
                 draw.line([(x1 + 2, y1 + y_offset), (min(x1 + 2 + fill_width, x2 - 2), y1 + y_offset)], fill=color, width=1)
