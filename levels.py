@@ -765,6 +765,14 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                              cx + shimmer_size//2, shimmer_y + shimmer_size//2], 
                              fill='#FFFFCC')
             
+            # Determine star color for debugging
+            if filled == True:
+                star_color = gta_yellow
+            elif filled == 'partial':
+                star_color = 'partial_fill'
+            else:
+                star_color = '#6A6A6A'
+            
             star_positions.append({'index': index, 'x': cx, 'y': stars_y, 'radius': star_radius, 'color': star_color, 'progress': partial_progress if index == stars_earned else (1.0 if index < stars_earned else 0.0)})
         try:
             layout_debug = {
