@@ -482,15 +482,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Keep empty white box (matches mock)
             pass
         
-        # Username label below profile icon
-        username_y = icon_y + icon_size + 8
-        username_text = f"@{username}" if username else first_name
-        username_font = get_font(24)
-        # Measure and center under icon
-        ub = draw.textbbox((0, 0), username_text, font=username_font)
-        uw = ub[2] - ub[0]
-        username_x = icon_x + (icon_size - uw) // 2
-        draw_outlined_text(username_text, (username_x, username_y), username_font, fill_color='#FFFFFF', outline_width=3, shadow=True)
+        # Username now displayed under time clock (removed from below icon)
         
         
         # Time display (top-right) with dynamic right alignment and underline
@@ -501,25 +493,29 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_x = width - time_right_margin - tw
         time_y = time_top
         draw_outlined_text(time_text, (time_x, time_y), time_font)
-        # underline centered under the time text, positioned at icon bottom level for alignment
-        ul_x1 = time_x + (tw - time_underline_width) // 2
-        icon_bottom = icon_y + icon_size  # align with icon bottom
-        ul_y1 = icon_bottom + 10  # small gap below icon
-        # Armor bar (blue, like GTA SA) instead of static underline
-        armor_bar_height = 12
-        armor_rect = (ul_x1, ul_y1, ul_x1 + time_underline_width, ul_y1 + armor_bar_height)
-        ax1, ay1, ax2, ay2 = armor_rect
+        # Username and level display below time (stacked vertically)
+        icon_bottom = icon_y + icon_size
+        info_start_y = icon_bottom + 10
         
-        # Blue gradient for armor bar
-        for y_offset in range(int(ay2 - ay1)):
-            ratio = y_offset / (ay2 - ay1)
-            blue_val = int(180 + (220 - 180) * (1 - ratio))  # lighter at top
-            color = (100, 149, blue_val)
-            draw.line([(ax1 + 2, ay1 + y_offset), (ax2 - 2, ay1 + y_offset)], fill=color, width=1)
+        # Username text
+        username_display = f"@{username}" if username else first_name
+        username_font = get_font(28)
+        ub = draw.textbbox((0, 0), username_display, font=username_font)
+        uw, uh = ub[2] - ub[0], ub[3] - ub[1]
+        # Center under time
+        username_x = time_x + (tw - uw) // 2
+        username_y = info_start_y
+        draw_outlined_text(username_display, (username_x, username_y), username_font, fill_color='#FFFFFF', outline_width=3, shadow=True)
         
-        draw.rounded_rectangle(armor_rect, radius=4, outline='#000000', width=3, fill=None)
-        # Highlight on top
-        draw.line([(ax1 + 4, ay1 + 2), (ax2 - 4, ay1 + 2)], fill='#B8D4FF', width=1)
+        # Level text below username
+        level_display = f"Level {level}"
+        level_font = get_font(26)
+        lb = draw.textbbox((0, 0), level_display, font=level_font)
+        lw, lh = lb[2] - lb[0], lb[3] - lb[1]
+        # Center under username
+        level_x = time_x + (tw - lw) // 2
+        level_y = username_y + uh + 6
+        draw_outlined_text(level_display, (level_x, level_y), level_font, fill_color='#FFFFFF', outline_width=3, shadow=True)
         
         # Money text: display money balance (not XP)
         points_text = f"${current_money:09d}"
