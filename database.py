@@ -180,6 +180,12 @@ class Database:
         except:
             pass  # Column already exists
         
+        try:
+            conn.execute('ALTER TABLE users ADD COLUMN total_messages INTEGER DEFAULT 0')
+            logger.info("Added total_messages column to users table")
+        except:
+            pass  # Column already exists
+        
         # Pending bans table - for users to be banned when they join
         conn.execute('''
             CREATE TABLE IF NOT EXISTS pending_bans (
@@ -1071,6 +1077,66 @@ class Database:
         except Exception as e:
             logger.error(f"Error getting balance: {e}")
             return 0.0
+    
+    def get_total_messages(self, user_id: int) -> int:
+        """Get user's total message count"""
+        try:
+            conn = self.get_sync_connection()
+            cursor = conn.execute("SELECT total_messages FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            conn.close()
+            return result[0] if result and result[0] else 0
+        except Exception as e:
+            logger.error(f"Error getting total messages: {e}")
+            return 0
+    
+    def increment_total_messages(self, user_id: int):
+        """Increment user's total message count"""
+        try:
+            conn = self.get_sync_connection()
+            conn.execute("""
+                INSERT INTO users (user_id, total_messages) VALUES (?, 1)
+                ON CONFLICT(user_id) DO UPDATE SET total_messages = total_messages + 1
+            """, (user_id,))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error incrementing messages: {e}")
+    
+    def update_user_level(self, user_id: int, new_level: int):
+        """Update user's level"""
+        try:
+            conn = self.get_sync_connection()
+            conn.execute("UPDATE users SET level = ? WHERE user_id = ?", (new_level, user_id))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error updating level: {e}")
+    
+    def get_user_level(self, user_id: int) -> int:
+        """Get user's current level"""
+        try:
+            conn = self.get_sync_connection()
+            cursor = conn.execute("SELECT level FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            conn.close()
+            return result[0] if result and result[0] else 1
+        except Exception as e:
+            logger.error(f"Error getting level: {e}")
+            return 1
+    
+    def add_user_points(self, user_id: int, points_to_add: int):
+        """Add points (money) to user balance"""
+        try:
+            conn = self.get_sync_connection()
+            conn.execute("""
+                INSERT INTO users (user_id, points) VALUES (?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET points = points + ?
+            """, (user_id, points_to_add, points_to_add))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error adding points: {e}")
 
 
 database = Database()

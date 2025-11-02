@@ -198,10 +198,10 @@ def grant_message_xp(user_id: int, message_text: str = '', message_id: int = 0, 
     if account_age < 30:
         return None
     
-    # 3. Daily message cap (300 messages per day)
+    # 3. Daily message cap (400 messages per day)
     today = datetime.now().date().isoformat()
     daily_count = database.get_daily_message_count(user_id, today)
-    if daily_count >= 300:
+    if daily_count >= 400:
         return None
     
     # 4. Cooldown check (60 seconds between earning)
@@ -212,22 +212,56 @@ def grant_message_xp(user_id: int, message_text: str = '', message_id: int = 0, 
     if database.is_duplicate_message(user_id, message_text):
         return None
     
-    # Award XP
-    result = add_xp(user_id, XP_REWARDS['message'], 'message')
+    # Award POINTS (money) directly - 5 points per message
+    points_to_add = 5
+    database.add_user_points(user_id, points_to_add)
     
-    if result:
-        # Track message for potential deletion penalty
-        database.track_message(user_id, message_id, chat_id, message_text, XP_REWARDS['message'])
-        # Increment daily count
-        database.increment_daily_count(user_id, today)
-        # Update cooldown timestamp
-        last_message_xp[user_id] = datetime.now()
-        # Cleanup old messages periodically (every 100 calls)
-        import random
-        if random.randint(1, 100) == 1:
-            database.cleanup_old_messages()
+    # Increment total message count for leveling (1000 messages = 1 level)
+    database.increment_total_messages(user_id)
+    total_messages = database.get_total_messages(user_id)
     
-    return result
+    # Calculate new level (1000 messages per level, linear)
+    new_level = (total_messages // 1000) + 1
+    old_level = database.get_user_level(user_id)
+    
+    # Check for level up
+    leveled_up = False
+    points_earned = 0
+    if new_level > old_level:
+        database.update_user_level(user_id, new_level)
+        # Award 150 points bonus per level
+        levels_gained = new_level - old_level
+        points_earned = levels_gained * 150
+        database.add_user_points(user_id, points_earned)
+        leveled_up = True
+        logger.info(f"🎉 User {user_id} leveled up: {old_level} → {new_level} (+{points_earned} points bonus)")
+    
+    # Track message for potential deletion penalty
+    database.track_message(user_id, message_id, chat_id, message_text, points_to_add)
+    # Increment daily count
+    database.increment_daily_count(user_id, today)
+    # Update cooldown timestamp
+    last_message_xp[user_id] = datetime.now()
+    
+    # Cleanup old messages periodically
+    import random
+    if random.randint(1, 100) == 1:
+        database.cleanup_old_messages()
+    
+    # Return result
+    messages_in_level = total_messages % 1000
+    messages_needed = 1000
+    
+    return {
+        'old_level': old_level,
+        'new_level': new_level,
+        'leveled_up': leveled_up,
+        'points_gained': points_to_add,
+        'points_earned': points_earned,
+        'total_messages': total_messages,
+        'messages_in_level': messages_in_level,
+        'messages_needed': messages_needed
+    }
 
 
 # Level rank titles
@@ -277,10 +311,13 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         import requests
         import os
         
-        # Get user stats (XP for leveling, points for money display)
-        current_xp = get_user_xp(user_id)
+        # Get user stats (message count for leveling, points for money display)
+        total_messages = database.get_total_messages(user_id)
         current_money = get_user_money(user_id)
-        level, xp_in_level, xp_needed, progress = get_xp_to_next_level(current_xp)
+        level = database.get_user_level(user_id)
+        messages_in_level = total_messages % 1000
+        messages_needed = 1000
+        progress = (messages_in_level / messages_needed * 100) if messages_needed > 0 else 100
         rank_title = get_rank_title(level)
         leaderboard_pos = await get_leaderboard_position(user_id)
         
@@ -615,13 +652,13 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         health_top = health_bottom - health_gap_to_money - health_bar_height
         health_rect_adjusted = (health_rect[0], int(health_top), health_rect[2], int(health_top + health_bar_height))
         
-        # Draw health bar showing XP progress to next level
+        # Draw health bar showing message progress to next level
         from PIL import ImageDraw
         x1, y1, x2, y2 = health_rect_adjusted
         health_width_total = x2 - x1
         
-        # Calculate fill width based on XP progress
-        progress_ratio = xp_in_level / xp_needed if xp_needed > 0 else 1.0
+        # Calculate fill width based on message progress (X/1000 messages)
+        progress_ratio = messages_in_level / messages_needed if messages_needed > 0 else 1.0
         fill_width = int((health_width_total - 4) * progress_ratio)
         
         # Draw background (dark red for unfilled portion to add depth)
@@ -658,7 +695,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw.text((money_x, money_y), points_text, fill='#0FFF50', font=money_font)
         
         # Draw stars with gradual filling based on level (1 star per 100 levels)
-        # All users start with first star at 1/3 filled
+        # Level based on messages: 1000 messages = 1 level
         stars_earned = min(6, level // 100)  # 0-6 full stars
         partial_progress = (level % 100) / 100.0  # 0.0-1.0 progress to next star
         

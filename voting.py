@@ -146,7 +146,7 @@ async def handle_vote_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer("Šis pardavėjas nebegalioja!")
         return
     
-    # Check 7-day cooldown
+    # Check weekly cooldown (user can vote once per week)
     now = datetime.now(TIMEZONE)
     last_vote = last_vote_attempt.get(user_id, datetime.min.replace(tzinfo=TIMEZONE))
     cooldown_remaining = timedelta(days=7) - (now - last_vote)
@@ -168,17 +168,8 @@ async def handle_vote_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     voters.add(user_id)
     vote_history[seller].append((user_id, "up", "Button vote", now))
     
-    # Add money points to DATABASE (not pickle!)
-    current_points = get_user_points(user_id)
-    update_user_points(user_id, current_points + 15)
-    
-    # Add XP for voting (with level-up detection)
-    levelup_result = None
-    try:
-        import levels
-        levelup_result = levels.add_xp(user_id, levels.XP_REWARDS['vote'], 'voting')
-    except Exception as e:
-        logger.error(f"Error adding XP for vote: {e}")
+    # Add 50 points for voting (no XP, just money points)
+    database.add_user_points(user_id, 50)
     
     last_vote_attempt[user_id] = now
     
@@ -191,15 +182,8 @@ async def handle_vote_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     data_manager.save_data(voters, 'voters.pkl')
     
     # Success message
-    success_msg = "✅ Ačiū už jūsų balsą!\n+15 💰 points\n+50 ⭐ XP"
-    
-    # Add level-up notification if applicable
-    if levelup_result and levelup_result.get('leveled_up'):
-        new_level = levelup_result['new_level']
-        bonus = levelup_result['points_earned']
-        success_msg += f"\n\n🎉 LEVEL UP! → Level {new_level}\n💰 Bonus: +{bonus} points!"
-    
-    await query.answer(success_msg, show_alert=levelup_result and levelup_result.get('leveled_up'))
+    success_msg = "✅ Ačiū už jūsų balsą!\n💰 +50 points"
+    await query.answer(success_msg)
     
     # Get voter info
     if query.from_user.username:
