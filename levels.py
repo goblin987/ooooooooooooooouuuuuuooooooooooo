@@ -501,25 +501,25 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Start well below time to avoid overlap
         info_start_y = time_y + th + (outline_w * 2) + 20  # proper clearance below outlined time
         
-        # Username text (ALL CAPS, bigger, bolder)
-        username_display = f"@{username.upper()}" if username else first_name.upper()
+        # Username text (ALL CAPS, clean, white)
+        username_display = username.upper() if username else first_name.upper()
         username_font = get_font(38)
         ub = draw.textbbox((0, 0), username_display, font=username_font)
         uw, uh = ub[2] - ub[0], ub[3] - ub[1]
-        # Right-align to match time position
-        username_x = width - time_right_margin - uw
+        # Left-align to match time's left edge
+        username_x = time_x
         username_y = info_start_y
-        draw_outlined_text(username_display, (username_x, username_y), username_font, fill_color='#FFFFCC', outline_width=5, shadow=True)
+        draw_outlined_text(username_display, (username_x, username_y), username_font, fill_color='#FFFFFF', outline_width=5, shadow=True)
         
-        # Level text below username (ALL CAPS, bigger, bolder)
+        # Level text below username (ALL CAPS, clean, white)
         level_display = f"LEVEL {level}"
         level_font = get_font(36)
         lb = draw.textbbox((0, 0), level_display, font=level_font)
         lw, lh = lb[2] - lb[0], lb[3] - lb[1]
-        # Right-align to match username
-        level_x = width - time_right_margin - lw
-        level_y = username_y + uh + 8
-        draw_outlined_text(level_display, (level_x, level_y), level_font, fill_color='#FFD700', outline_width=5, shadow=True)
+        # Left-align to match username
+        level_x = time_x
+        level_y = username_y + uh + 14
+        draw_outlined_text(level_display, (level_x, level_y), level_font, fill_color='#FFFFFF', outline_width=5, shadow=True)
         
         # Money text: display money balance (not XP)
         points_text = f"${current_money:09d}"
