@@ -726,19 +726,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             update.effective_user.last_name
         )
     
-    # Grant points for messages (with cooldown)
+    # Grant XP for messages (with cooldown)
     if update.effective_chat.type in ['group', 'supergroup'] and update.message and update.message.text:
-        points_result = levels.grant_message_xp(update.effective_user.id)
-        if points_result and points_result.get('leveled_up'):
-            # Notify user of level up
+        xp_result = levels.grant_message_xp(update.effective_user.id)
+        if xp_result and xp_result.get('leveled_up'):
+            # Notify user of level up with money bonus
             try:
                 username = update.effective_user.first_name
-                new_level = points_result['new_level']
+                new_level = xp_result['new_level']
                 rank = levels.get_rank_title(new_level)
-                await update.message.reply_text(
-                    f"🎉 <b>{username}</b> pasiekė <b>Level {new_level}</b>!\n{rank}",
-                    parse_mode='HTML'
-                )
+                bonus = xp_result.get('points_earned', 0)
+                
+                message = f"🎉 <b>{username}</b> pasiekė <b>Level {new_level}</b>!\n{rank}"
+                if bonus > 0:
+                    message += f"\n💰 Bonus: +{bonus} points!"
+                
+                await update.message.reply_text(message, parse_mode='HTML')
             except:
                 pass
     

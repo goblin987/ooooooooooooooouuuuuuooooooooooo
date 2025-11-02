@@ -25,85 +25,140 @@ XP_REWARDS = {
 # Cooldown for message points (seconds)
 MESSAGE_XP_COOLDOWN = 60  # 1 minute between message points gains
 
-# Level calculation formula
-def calculate_level(xp: int) -> int:
-    """Calculate level from points using exponential formula"""
-    # Level = floor(0.1 * sqrt(points))
-    # This creates a nice curve: 
-    # Level 1 = 100 points, Level 2 = 400 points, Level 3 = 900 points, Level 10 = 10,000 points
-    if xp <= 0:
-        return 1
-    level = int(0.1 * math.sqrt(xp)) + 1
-    return max(1, level)
+# Level calculation formula - EXPONENTIAL SYSTEM (1-600 levels)
+def get_xp_for_level(level: int) -> int:
+    """Calculate XP needed to advance FROM this level to next level"""
+    if level >= 600:
+        return 999999999  # Max level cap
+    # Exponential curve: progressively harder
+    return int(100 * (1 + level * 0.05))
 
 
-def calculate_xp_for_level(level: int) -> int:
-    """Calculate points needed for a specific level"""
-    # Inverse of level formula: points = (level * 10)^2
-    if level <= 1:
-        return 0
-    return ((level - 1) * 10) ** 2
+def calculate_level_from_xp(total_xp: int) -> tuple:
+    """
+    Calculate level from total XP accumulated
+    Returns: (level, xp_in_current_level, xp_needed_for_next)
+    """
+    if total_xp < 0:
+        return 1, 0, get_xp_for_level(1)
+    
+    level = 1
+    xp_accumulated = 0
+    
+    while level < 600:
+        xp_needed = get_xp_for_level(level)
+        if xp_accumulated + xp_needed > total_xp:
+            # Still in this level
+            xp_in_level = total_xp - xp_accumulated
+            return level, xp_in_level, xp_needed
+        xp_accumulated += xp_needed
+        level += 1
+    
+    # Max level reached
+    return 600, 0, 0
 
 
 def get_xp_to_next_level(current_xp: int) -> tuple:
     """
-    Get current level, points for current level, and points needed for next level
-    Returns: (current_level, points_for_current, points_for_next, progress_percentage)
+    Get current level, XP in current level, XP needed for next, and progress percentage
+    Returns: (current_level, xp_in_level, xp_needed, progress_percentage)
     """
-    current_level = calculate_level(current_xp)
-    xp_for_current = calculate_xp_for_level(current_level)
-    xp_for_next = calculate_xp_for_level(current_level + 1)
-    
-    xp_in_level = current_xp - xp_for_current
-    xp_needed = xp_for_next - xp_for_current
-    
+    level, xp_in_level, xp_needed = calculate_level_from_xp(current_xp)
     progress = (xp_in_level / xp_needed * 100) if xp_needed > 0 else 100
-    
-    return current_level, xp_in_level, xp_needed, progress
+    return level, xp_in_level, xp_needed, progress
+
+
+# Backwards compatibility wrappers
+def calculate_level(xp: int) -> int:
+    """Get level from XP (wrapper for new system)"""
+    return calculate_level_from_xp(xp)[0]
+
+
+def calculate_xp_for_level(level: int) -> int:
+    """Get total XP needed to reach a level (cumulative)"""
+    total = 0
+    for lvl in range(1, level):
+        total += get_xp_for_level(lvl)
+    return total
 
 
 def add_xp(user_id: int, amount: int, reason: str = None) -> dict:
     """
-    Add points to user and return level info
-    Returns: dict with old_level, new_level, leveled_up, current_xp
+    Add XP to user and return level info (with level-up rewards)
+    Returns: dict with old_level, new_level, leveled_up, current_xp, points_earned
     """
     try:
-        # Get current points (stored in points column)
+        # Get current XP and level from database
         current_xp = get_user_xp(user_id)
-        old_level = calculate_level(current_xp)
+        old_level, _, _ = calculate_level_from_xp(current_xp)
         
-        # Add points
+        # Add XP
         new_xp = current_xp + amount
+        new_level, xp_in_level, xp_needed = calculate_level_from_xp(new_xp)
         
-        # Update in database
+        # Update XP and level in database
         conn = database.get_sync_connection()
         conn.execute("""
-            INSERT INTO users (user_id, points) VALUES (?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET points = ?
-        """, (user_id, new_xp, new_xp))
+            INSERT INTO users (user_id, xp, level) VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET xp = ?, level = ?
+        """, (user_id, new_xp, new_level, new_xp, new_level))
         conn.commit()
+        
+        # Check for level up and award money points
+        points_earned = 0
+        if new_level > old_level:
+            # Award 100 points (money) per level gained
+            levels_gained = new_level - old_level
+            points_earned = levels_gained * 100
+            
+            # Get current money points
+            cursor = conn.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            current_money = result[0] if result and result[0] else 0
+            
+            # Add money reward
+            conn.execute("""
+                UPDATE users SET points = ? WHERE user_id = ?
+            """, (current_money + points_earned, user_id))
+            conn.commit()
+            
+            logger.info(f"🎉 User {user_id} leveled up: {old_level} → {new_level} (+{points_earned} points reward)")
+        
         conn.close()
         
-        new_level = calculate_level(new_xp)
-        leveled_up = new_level > old_level
-        
         if reason:
-            logger.info(f"User {user_id} gained {amount} points from {reason}. Level: {old_level} → {new_level}")
+            logger.info(f"User {user_id} gained {amount} XP from {reason}. Level: {old_level} → {new_level}")
         
         return {
             'old_level': old_level,
             'new_level': new_level,
-            'leveled_up': leveled_up,
+            'leveled_up': new_level > old_level,
             'current_xp': new_xp,
-            'xp_gained': amount
+            'xp_gained': amount,
+            'xp_in_level': xp_in_level,
+            'xp_needed': xp_needed,
+            'points_earned': points_earned
         }
     except Exception as e:
-        logger.error(f"Error adding points to user {user_id}: {e}")
+        logger.error(f"Error adding XP to user {user_id}: {e}")
         return None
 
 
 def get_user_xp(user_id: int) -> int:
-    """Get user's current points"""
+    """Get user's current XP (not points/money)"""
+    try:
+        conn = database.get_sync_connection()
+        cursor = conn.execute("SELECT xp FROM users WHERE user_id = ?", (user_id,))
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result else 0
+    except Exception as e:
+        logger.error(f"Error getting XP for user {user_id}: {e}")
+        return 0
+
+
+def get_user_money(user_id: int) -> int:
+    """Get user's current money (points balance)"""
     try:
         conn = database.get_sync_connection()
         cursor = conn.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
@@ -111,7 +166,7 @@ def get_user_xp(user_id: int) -> int:
         conn.close()
         return result[0] if result else 0
     except Exception as e:
-        logger.error(f"Error getting points for user {user_id}: {e}")
+        logger.error(f"Error getting money for user {user_id}: {e}")
         return 0
 
 
@@ -183,9 +238,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         import requests
         import os
         
-        # Get user stats
-        current_points = get_user_xp(user_id)
-        level, points_in_level, points_needed, progress = get_xp_to_next_level(current_points)
+        # Get user stats (XP for leveling, points for money display)
+        current_xp = get_user_xp(user_id)
+        current_money = get_user_money(user_id)
+        level, xp_in_level, xp_needed, progress = get_xp_to_next_level(current_xp)
         rank_title = get_rank_title(level)
         leaderboard_pos = await get_leaderboard_position(user_id)
         
@@ -465,8 +521,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Highlight on top
         draw.line([(ax1 + 4, ay1 + 2), (ax2 - 4, ay1 + 2)], fill='#B8D4FF', width=1)
         
-        # Money text: size to fill most of row width
-        points_text = f"${current_points:09d}"
+        # Money text: display money balance (not XP)
+        points_text = f"${current_money:09d}"
         money_font = get_font(95)  # slightly smaller to avoid edge-to-edge
         mb = draw.textbbox((0, 0), points_text, font=money_font)
         mw, mh = mb[2] - mb[0], mb[3] - mb[1]
@@ -493,46 +549,85 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         health_top = health_bottom - health_gap_to_money - health_bar_height
         health_rect_adjusted = (health_rect[0], int(health_top), health_rect[2], int(health_top + health_bar_height))
         
-        # Draw health bar with gradient and enhanced 3D bevel
+        # Draw health bar showing XP progress to next level
         from PIL import ImageDraw
-        # Create gradient from darker red (bottom) to brighter red (top)
         x1, y1, x2, y2 = health_rect_adjusted
+        health_width_total = x2 - x1
+        
+        # Calculate fill width based on XP progress
+        progress_ratio = xp_in_level / xp_needed if xp_needed > 0 else 1.0
+        fill_width = int((health_width_total - 4) * progress_ratio)
+        
+        # Draw background (dark gray for unfilled portion)
+        draw.rounded_rectangle(health_rect_adjusted, radius=4, fill='#2A2A2A', outline=None)
+        
+        # Draw filled portion with red gradient (only up to progress)
         for y_offset in range(int(y2 - y1)):
-            # Gradient calculation: darker at bottom, brighter at top
             ratio = y_offset / (y2 - y1)
-            red_val = int(210 + (230 - 210) * (1 - ratio))  # 210 to 230
-            green_val = int(35 + (70 - 35) * (1 - ratio))   # 35 to 70
+            red_val = int(210 + (230 - 210) * (1 - ratio))
+            green_val = int(35 + (70 - 35) * (1 - ratio))
             color = (red_val, green_val, 43)
-            draw.line([(x1 + 2, y1 + y_offset), (x2 - 2, y1 + y_offset)], fill=color, width=1)
+            # Only draw up to fill_width
+            if fill_width > 0:
+                draw.line([(x1 + 2, y1 + y_offset), (min(x1 + 2 + fill_width, x2 - 2), y1 + y_offset)], fill=color, width=1)
         
         # Black border
         draw.rounded_rectangle(health_rect_adjusted, radius=4, outline='#000000', width=3, fill=None)
         
-        # Inner bevel for 3D embossed effect
-        # Bright highlight on top edge
-        draw.line([(x1 + 4, y1 + 3), (x2 - 4, y1 + 3)], fill='#FF6B6B', width=2)
-        # Dark shadow on bottom edge
-        draw.line([(x1 + 4, y2 - 3), (x2 - 4, y2 - 3)], fill='#8B0000', width=2)
+        # Inner bevel on filled portion
+        if fill_width > 10:
+            draw.line([(x1 + 4, y1 + 3), (min(x1 + fill_width, x2 - 4), y1 + 3)], fill='#FF6B6B', width=2)
+            draw.line([(x1 + 4, y2 - 3), (min(x1 + fill_width, x2 - 4), y2 - 3)], fill='#8B0000', width=2)
         
         # Draw money (clean GTA style without excessive glow)
         draw_outlined_text(points_text, (money_x, money_y), money_font, fill_color='#0FFF50')
         
-        # Draw stars aligned to money width (first 3 gray, last 3 gold)
+        # Draw stars with gradual filling based on level (1 star per 100 levels)
+        stars_earned = min(6, level // 100)  # 0-6 full stars
+        partial_progress = (level % 100) / 100.0  # 0.0-1.0 progress to next star
+        
+        def blend_colors(color1_hex, color2_hex, ratio):
+            """Blend two hex colors by ratio (0=color1, 1=color2)"""
+            c1 = tuple(int(color1_hex[i:i+2], 16) for i in (1, 3, 5))
+            c2 = tuple(int(color2_hex[i:i+2], 16) for i in (1, 3, 5))
+            blended = tuple(int(c1[i] + (c2[i] - c1[i]) * ratio) for i in range(3))
+            return '#{:02x}{:02x}{:02x}'.format(*blended)
+        
         star_positions = []
         for index in range(total_stars):
             cx = int(star_first_x + index * star_gap_calculated)
-            filled = index >= 3  # last 3 stars are gold/filled
-            draw_star(cx, stars_y, star_radius, filled=filled)
             
-            # Add shimmer to gold stars (white highlight at top point)
-            if filled:
+            if index < stars_earned:
+                # Fully earned star (gold)
+                star_color = '#FFD700'
+                filled = True
+            elif index == stars_earned:
+                # Partially earned star (blend gray → gold)
+                star_color = blend_colors('#6A6A6A', '#FFD700', partial_progress)
+                filled = partial_progress > 0.5  # treat as filled if > 50%
+            else:
+                # Not earned yet (gray)
+                star_color = '#6A6A6A'
+                filled = False
+            
+            # Draw star with custom color
+            points_list = []
+            for i in range(10):
+                angle_deg = -90 + i * 36
+                angle_rad = math.radians(angle_deg)
+                r = star_radius if i % 2 == 0 else star_radius * 0.45
+                points_list.append((cx + r * math.cos(angle_rad), stars_y + r * math.sin(angle_rad)))
+            draw.polygon(points_list, outline='#000000', fill=star_color, width=5)
+            
+            # Add shimmer to fully gold stars only
+            if index < stars_earned:
                 shimmer_y = stars_y - star_radius + 2
                 shimmer_size = 4
                 draw.ellipse([cx - shimmer_size//2, shimmer_y - shimmer_size//2, 
                              cx + shimmer_size//2, shimmer_y + shimmer_size//2], 
                              fill='#FFFFCC')
             
-            star_positions.append({'index': index, 'x': cx, 'y': stars_y, 'radius': star_radius, 'filled': filled})
+            star_positions.append({'index': index, 'x': cx, 'y': stars_y, 'radius': star_radius, 'color': star_color, 'progress': partial_progress if index == stars_earned else (1.0 if index < stars_earned else 0.0)})
         try:
             layout_debug = {
                 'canvas': {'width': width, 'height': height},

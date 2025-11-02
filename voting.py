@@ -168,20 +168,21 @@ async def handle_vote_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     voters.add(user_id)
     vote_history[seller].append((user_id, "up", "Button vote", now))
     
-    # Add points to DATABASE (not pickle!)
+    # Add money points to DATABASE (not pickle!)
     current_points = get_user_points(user_id)
     update_user_points(user_id, current_points + 15)
     
-    # Add points for voting
+    # Add XP for voting (with level-up detection)
+    levelup_result = None
     try:
         import levels
-        levels.add_xp(user_id, levels.XP_REWARDS['vote'], 'voting')
+        levelup_result = levels.add_xp(user_id, levels.XP_REWARDS['vote'], 'voting')
     except Exception as e:
-        logger.error(f"Error adding points for vote: {e}")
+        logger.error(f"Error adding XP for vote: {e}")
     
     last_vote_attempt[user_id] = now
     
-    # Save voting data
+    # Save voting data (preserve pickle files)
     data_manager.save_data(votes_weekly, 'votes_weekly.pkl')
     data_manager.save_data(votes_monthly, 'votes_monthly.pkl')
     data_manager.save_data(votes_alltime, 'votes_alltime.pkl')
@@ -189,7 +190,16 @@ async def handle_vote_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     data_manager.save_data(last_vote_attempt, 'last_vote_attempt.pkl')
     data_manager.save_data(voters, 'voters.pkl')
     
-    await query.answer("Ačiū už jūsų balsą, 15 taškų buvo pridėti prie jūsų sąskaitos.")
+    # Success message
+    success_msg = "✅ Ačiū už jūsų balsą!\n+15 💰 points\n+50 ⭐ XP"
+    
+    # Add level-up notification if applicable
+    if levelup_result and levelup_result.get('leveled_up'):
+        new_level = levelup_result['new_level']
+        bonus = levelup_result['points_earned']
+        success_msg += f"\n\n🎉 LEVEL UP! → Level {new_level}\n💰 Bonus: +{bonus} points!"
+    
+    await query.answer(success_msg, show_alert=levelup_result and levelup_result.get('leveled_up'))
     
     # Get voter info
     if query.from_user.username:
