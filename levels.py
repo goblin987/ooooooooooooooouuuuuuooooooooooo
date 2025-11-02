@@ -314,6 +314,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         draw = ImageDraw.Draw(img)
         
+        # Add subtle scanlines for retro PS2/CRT feel
+        for y in range(0, height, 4):
+            draw.line([(0, y), (width, y)], fill=(0, 0, 0, 10), width=1)
+        
         # Load Pricedown font (or fallback) for outline text
         assets_dir = os.path.join(os.path.dirname(__file__), 'assets')
         font_candidates = [
@@ -486,7 +490,23 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Keep empty white box (matches mock)
             pass
         
-        # Username now displayed under time clock (removed from below icon)
+        # Location text above profile icon (GTA SA style)
+        location_text = "APSISAUGOK"
+        try:
+            location_font = ImageFont.truetype("C:/Windows/Fonts/impact.ttf", 22) if os.path.exists("C:/Windows/Fonts/impact.ttf") else ImageFont.load_default()
+        except:
+            location_font = ImageFont.load_default()
+        loc_bbox = draw.textbbox((0, 0), location_text, font=location_font)
+        loc_w = loc_bbox[2] - loc_bbox[0]
+        loc_x = icon_x + (icon_size - loc_w) // 2  # center over icon
+        loc_y = icon_y - 28  # above icon
+        # Draw with outline
+        for adj in range(-2, 3):
+            for adj2 in range(-2, 3):
+                if adj == 0 and adj2 == 0:
+                    continue
+                draw.text((loc_x + adj, loc_y + adj2), location_text, fill='#000000', font=location_font)
+        draw.text((loc_x, loc_y), location_text, fill='#FFFFFF', font=location_font)
         
         
         # Time display (top-right) with dynamic right alignment and underline
@@ -606,8 +626,33 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             draw.line([(x1 + 4, y1 + 3), (min(x1 + fill_width, x2 - 4), y1 + 3)], fill='#FF6B6B', width=2)
             draw.line([(x1 + 4, y2 - 3), (min(x1 + fill_width, x2 - 4), y2 - 3)], fill='#8B0000', width=2)
         
-        # Draw money (clean GTA style without excessive glow)
-        draw_outlined_text(points_text, (money_x, money_y), money_font, fill_color='#0FFF50')
+        # Add XP numbers on health bar for clarity
+        xp_text = f"{xp_in_level}/{xp_needed} XP"
+        try:
+            xp_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 16) if os.path.exists("C:/Windows/Fonts/arialbd.ttf") else ImageFont.load_default()
+        except:
+            xp_font = ImageFont.load_default()
+        xp_bbox = draw.textbbox((0, 0), xp_text, font=xp_font)
+        xp_w = xp_bbox[2] - xp_bbox[0]
+        xp_x = x1 + (health_width_total - xp_w) // 2
+        xp_y = y1 + 3
+        # White text with black outline for visibility on red bar
+        for adj in range(-2, 3):
+            for adj2 in range(-2, 3):
+                if adj == 0 and adj2 == 0:
+                    continue
+                draw.text((xp_x + adj, xp_y + adj2), xp_text, fill='#000000', font=xp_font)
+        draw.text((xp_x, xp_y), xp_text, fill='#FFFFFF', font=xp_font)
+        
+        # Draw money (clean GTA style with thicker outline)
+        # Thicker outline for more authentic GTA look
+        for adj in range(-6, 7):
+            for adj2 in range(-6, 7):
+                if adj == 0 and adj2 == 0:
+                    continue
+                draw.text((money_x + adj, money_y + adj2), points_text, fill='#000000', font=money_font)
+        # Bright green fill
+        draw.text((money_x, money_y), points_text, fill='#0FFF50', font=money_font)
         
         # Draw stars with gradual filling based on level (1 star per 100 levels)
         # All users start with first star at 50% (level 1 = 0.5 progress)
