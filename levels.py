@@ -273,7 +273,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         money_font_size_px = 100
         star_first_center = (main_margin, 430)
         star_gap = 70
-        star_radius = 35
+        star_radius = 38  # bigger stars
         total_stars = 6
         # Outline thickness used by draw_outlined_text (keep in sync)
         outline_w = 5
@@ -490,19 +490,19 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Keep empty white box (matches mock)
             pass
         
-        # Location text above profile icon (GTA SA style)
+        # Location text above profile icon (GTA SA style) - bigger and bolder
         location_text = "APSISAUGOK"
         try:
-            location_font = ImageFont.truetype("C:/Windows/Fonts/impact.ttf", 22) if os.path.exists("C:/Windows/Fonts/impact.ttf") else ImageFont.load_default()
+            location_font = ImageFont.truetype("C:/Windows/Fonts/impact.ttf", 28) if os.path.exists("C:/Windows/Fonts/impact.ttf") else ImageFont.load_default()
         except:
             location_font = ImageFont.load_default()
         loc_bbox = draw.textbbox((0, 0), location_text, font=location_font)
         loc_w = loc_bbox[2] - loc_bbox[0]
         loc_x = icon_x + (icon_size - loc_w) // 2  # center over icon
-        loc_y = icon_y - 28  # above icon
-        # Draw with outline
-        for adj in range(-2, 3):
-            for adj2 in range(-2, 3):
+        loc_y = icon_y - 36  # more space above icon
+        # Draw with thicker outline
+        for adj in range(-3, 4):
+            for adj2 in range(-3, 4):
                 if adj == 0 and adj2 == 0:
                     continue
                 draw.text((loc_x + adj, loc_y + adj2), location_text, fill='#000000', font=location_font)
@@ -584,8 +584,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         star_gap_calculated = (star_row_width - star_diameter) / 5 if total_stars > 1 else 0
         star_first_x = money_x + star_radius
         
-        # Position money with equal gap above and below
-        vertical_gap = 36  # increased for breathing room
+        # Position money with larger gap from stars (doubled)
+        vertical_gap = 72  # doubled from 36 for more breathing room
         star_top = stars_y - star_radius
         money_y = star_top - vertical_gap - mh - outline_w
         
@@ -670,8 +670,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             blended = tuple(int(c1[i] + (c2[i] - c1[i]) * ratio) for i in range(3))
             return '#{:02x}{:02x}{:02x}'.format(*blended)
         
-        # Bright GTA SA yellow for stars (much brighter than standard gold)
-        gta_yellow = '#FFEE00'  # vibrant bright yellow like GTA SA
+        # Bright GTA SA yellow for stars (extremely vibrant)
+        gta_yellow = '#FFF200'  # even brighter, more saturated yellow
         
         star_positions = []
         for index in range(total_stars):
