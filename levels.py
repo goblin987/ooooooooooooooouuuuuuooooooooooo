@@ -151,8 +151,12 @@ def get_user_xp(user_id: int) -> int:
         cursor = conn.execute("SELECT xp FROM users WHERE user_id = ?", (user_id,))
         result = cursor.fetchone()
         conn.close()
-        return result[0] if result else 0
+        return result[0] if result and result[0] else 0
     except Exception as e:
+        # Handle missing column during migration
+        if "no such column: xp" in str(e):
+            logger.warning(f"XP column not yet migrated for user {user_id}, returning 0")
+            return 0
         logger.error(f"Error getting XP for user {user_id}: {e}")
         return 0
 
@@ -494,8 +498,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_y = time_top
         draw_outlined_text(time_text, (time_x, time_y), time_font)
         # Username and level display below time (stacked vertically, aligned to time's right edge)
-        # Start at similar vertical position as time for aesthetic alignment
-        info_start_y = time_y + th + 12  # small gap below time
+        # Start well below time to avoid overlap
+        info_start_y = time_y + th + (outline_w * 2) + 20  # proper clearance below outlined time
         
         # Username text (ALL CAPS, bigger, bolder)
         username_display = f"@{username.upper()}" if username else first_name.upper()
@@ -628,7 +632,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             layout_debug = {
                 'canvas': {'width': width, 'height': height},
                 'icon': {'top_left': [icon_x, icon_y], 'size': icon_size},
-                'time': {'text': time_text, 'position': [time_x, time_y], 'underline': list(time_underline_rect), 'text_size': [tw, th]},
+                'time': {'text': time_text, 'position': [time_x, time_y], 'text_size': [tw, th]},
+                'username': {'text': username_display, 'position': [username_x, username_y]},
+                'level_display': {'text': level_display, 'position': [level_x, level_y]},
                 'health_bar': {'rect': health_rect_adjusted},
                 'money': {
                     'text': points_text,
