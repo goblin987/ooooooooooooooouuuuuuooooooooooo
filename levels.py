@@ -493,29 +493,29 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         time_x = width - time_right_margin - tw
         time_y = time_top
         draw_outlined_text(time_text, (time_x, time_y), time_font)
-        # Username and level display below time (stacked vertically)
-        icon_bottom = icon_y + icon_size
-        info_start_y = icon_bottom + 10
+        # Username and level display below time (stacked vertically, aligned to time's right edge)
+        # Start at similar vertical position as time for aesthetic alignment
+        info_start_y = time_y + th + 12  # small gap below time
         
-        # Username text
-        username_display = f"@{username}" if username else first_name
-        username_font = get_font(28)
+        # Username text (ALL CAPS, bigger, bolder)
+        username_display = f"@{username.upper()}" if username else first_name.upper()
+        username_font = get_font(38)
         ub = draw.textbbox((0, 0), username_display, font=username_font)
         uw, uh = ub[2] - ub[0], ub[3] - ub[1]
-        # Center under time
-        username_x = time_x + (tw - uw) // 2
+        # Right-align to match time position
+        username_x = width - time_right_margin - uw
         username_y = info_start_y
-        draw_outlined_text(username_display, (username_x, username_y), username_font, fill_color='#FFFFFF', outline_width=3, shadow=True)
+        draw_outlined_text(username_display, (username_x, username_y), username_font, fill_color='#FFFFCC', outline_width=5, shadow=True)
         
-        # Level text below username
-        level_display = f"Level {level}"
-        level_font = get_font(26)
+        # Level text below username (ALL CAPS, bigger, bolder)
+        level_display = f"LEVEL {level}"
+        level_font = get_font(36)
         lb = draw.textbbox((0, 0), level_display, font=level_font)
         lw, lh = lb[2] - lb[0], lb[3] - lb[1]
-        # Center under username
-        level_x = time_x + (tw - lw) // 2
-        level_y = username_y + uh + 6
-        draw_outlined_text(level_display, (level_x, level_y), level_font, fill_color='#FFFFFF', outline_width=3, shadow=True)
+        # Right-align to match username
+        level_x = width - time_right_margin - lw
+        level_y = username_y + uh + 8
+        draw_outlined_text(level_display, (level_x, level_y), level_font, fill_color='#FFD700', outline_width=5, shadow=True)
         
         # Money text: display money balance (not XP)
         points_text = f"${current_money:09d}"
