@@ -537,7 +537,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lw, lh = lb[2] - lb[0], lb[3] - lb[1]
         # Left-align to match username
         level_x = time_x
-        level_y = username_y + uh + 10
+        level_y = username_y + uh + 20
         draw_outlined_text(level_display, (level_x, level_y), level_font, fill_color='#FFFFFF', outline_width=3, shadow=True)
         
         # Money text: display money balance (not XP)
@@ -602,8 +602,13 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         draw_outlined_text(points_text, (money_x, money_y), money_font, fill_color='#0FFF50')
         
         # Draw stars with gradual filling based on level (1 star per 100 levels)
+        # All users start with first star at 50% (level 1 = 0.5 progress)
         stars_earned = min(6, level // 100)  # 0-6 full stars
         partial_progress = (level % 100) / 100.0  # 0.0-1.0 progress to next star
+        
+        # Override: if level < 100 and progress < 0.5, set minimum to 0.5 (50% filled first star)
+        if stars_earned == 0 and partial_progress < 0.5:
+            partial_progress = 0.5
         
         def blend_colors(color1_hex, color2_hex, ratio):
             """Blend two hex colors by ratio (0=color1, 1=color2)"""
