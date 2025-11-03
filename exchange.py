@@ -52,37 +52,27 @@ async def exchange_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_exchange_menu(update, context, user_id)
 
 
-async def show_exchange_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, edit_message=False):
-    """Show the main exchange menu"""
+async def show_main_menu(query, user_id: int):
+    """Show main start menu (for back button)"""
     user_points = levels.get_user_money(user_id)
     crypto_balance = database.get_user_balance(user_id)
-    
-    week_num = datetime.now().isocalendar()[1]
-    weekly_used = database.get_weekly_exchange_total(user_id, week_num)
-    weekly_remaining = MAX_WEEKLY_USD - weekly_used
+    level = database.get_user_level(user_id)
     
     text = (
-        f"💱 <b>Taškų Keitimas</b>\n\n"
-        f"💎 Jūsų taškai: <b>{user_points:,}</b>\n"
-        f"💵 Kripto balansas: <b>${crypto_balance:.2f}</b>\n\n"
-        f"📊 Šios savaitės limitas:\n"
-        f"• Panaudota: ${weekly_used:.2f}\n"
-        f"• Liko: ${weekly_remaining:.2f}\n\n"
-        f"💡 Kursas: 2,000 taškų = $1.00 USD"
+        f"🤖 <b>ApsisaugokRobot</b>\n\n"
+        f"📊 Jūsų statistika:\n"
+        f"• Lygis: {level}\n"
+        f"• Taškai: {user_points:,}\n"
+        f"• Kripto: ${crypto_balance:.2f}\n\n"
+        f"Pasirinkite funkciją:"
     )
     
     keyboard = [
-        [InlineKeyboardButton("💱 Keisti Taškus → USD", callback_data="exchange_start")],
-        [InlineKeyboardButton("📜 Keitimo Istorija", callback_data="exchange_history")],
-        [InlineKeyboardButton("❌ Uždaryti", callback_data="exchange_close")]
+        [InlineKeyboardButton("💰 Piniginė", callback_data="start_pinigine")],
+        [InlineKeyboardButton("💱 Keisti Taškus", callback_data="exchange_start")],
     ]
     
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if edit_message and update.callback_query:
-        await update.callback_query.edit_message_text(text, reply_markup=reply_markup, parse_mode='HTML')
-    else:
-        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
 
 
 async def handle_exchange_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -136,9 +126,9 @@ async def handle_exchange_buttons(update: Update, context: ContextTypes.DEFAULT_
         await show_exchange_history(query, user_id)
         return True
     
-    # Back to menu
+    # Back to main menu
     elif data == "exchange_back":
-        await show_exchange_menu(update, context, user_id, edit_message=True)
+        await show_main_menu(query, user_id)
         return True
     
     return False
@@ -179,7 +169,7 @@ async def show_amount_selection(query, context: ContextTypes.DEFAULT_TYPE, user_
     if not keyboard:
         text += "\n\n⚠️ Nepakanka taškų arba pasiektas savaitinis limitas"
     
-    keyboard.append([InlineKeyboardButton("❌ Atšaukti", callback_data="exchange_cancel")])
+    keyboard.append([InlineKeyboardButton("🔙 Atgal", callback_data="exchange_back")])
     
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
 
@@ -219,7 +209,7 @@ async def show_confirmation(query, context: ContextTypes.DEFAULT_TYPE, user_id: 
     
     keyboard = [
         [InlineKeyboardButton("✅ Patvirtinti", callback_data=f"exchange_confirm_{points_amount}")],
-        [InlineKeyboardButton("❌ Atšaukti", callback_data="exchange_cancel")]
+        [InlineKeyboardButton("🔙 Atgal", callback_data="exchange_start")]
     ]
     
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
@@ -261,7 +251,7 @@ async def process_exchange(query, context: ContextTypes.DEFAULT_TYPE, user_id: i
         
         keyboard = [
             [InlineKeyboardButton("🔄 Keisti Dar", callback_data="exchange_start")],
-            [InlineKeyboardButton("❌ Uždaryti", callback_data="exchange_close")]
+            [InlineKeyboardButton("🔙 Grįžti", callback_data="exchange_back")]
         ]
         
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')

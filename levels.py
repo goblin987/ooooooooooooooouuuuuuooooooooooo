@@ -733,20 +733,9 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 points_list.append((cx + r * math.cos(angle_rad), stars_y + r * math.sin(angle_rad)))
             
             if filled == 'partial':
-                # Draw yellow star first (full)
-                draw.polygon(points_list, outline=None, fill=gta_yellow)
-                
-                # Cover right portion with gray (left-to-right fill)
-                fill_width_star = int(star_radius * 2 * partial_progress)
-                cutoff_x = cx - star_radius + fill_width_star
-                
-                # Cover the unfilled (right) portion with gray
-                draw.rectangle([cutoff_x, stars_y - star_radius - 5, 
-                               cx + star_radius + 5, stars_y + star_radius + 5], 
-                              fill='#6A6A6A')
-                
-                # Redraw the star outline on top
-                draw.polygon(points_list, outline='#000000', fill=None, width=5)
+                # Draw with blended color instead of hard cutoff (smoother visual)
+                blended_color = blend_colors('#6A6A6A', gta_yellow, partial_progress)
+                draw.polygon(points_list, outline='#000000', fill=blended_color, width=5)
             elif filled:
                 # Fully yellow
                 draw.polygon(points_list, outline='#000000', fill=gta_yellow, width=5)

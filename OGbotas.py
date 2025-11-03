@@ -124,7 +124,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     # Main menu with buttons
     text = (
-        f"🤖 <b>OGbotas</b>\n\n"
+        f"🤖 <b>ApsisaugokRobot</b>\n\n"
         f"👤 Sveiki, {update.effective_user.first_name}!\n\n"
         f"📊 Jūsų statistika:\n"
         f"• Lygis: {level}\n"
@@ -136,9 +136,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
         [InlineKeyboardButton("💰 Piniginė", callback_data="start_pinigine")],
         [InlineKeyboardButton("💱 Keisti Taškus", callback_data="exchange_start")],
-        [InlineKeyboardButton("🏆 Mano Taškai", callback_data="start_points")],
-        [InlineKeyboardButton("🎲 Žaidimai", callback_data="start_games")],
-        [InlineKeyboardButton("📊 Statistika", callback_data="start_stats")],
     ]
     
     if is_admin:
