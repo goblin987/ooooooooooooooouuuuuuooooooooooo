@@ -706,8 +706,8 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             blended = tuple(int(c1[i] + (c2[i] - c1[i]) * ratio) for i in range(3))
             return '#{:02x}{:02x}{:02x}'.format(*blended)
         
-        # Extremely bright GTA SA yellow for stars (x10 brighter, like real GTA SA)
-        gta_yellow = '#FFFF00'  # pure bright yellow, maximum saturation
+        # Extremely bright GTA SA yellow for stars (like real GTA SA)
+        gta_yellow = '#FFFF66'  # brighter yellow with added luminance
         
         star_positions = []
         for index in range(total_stars):
