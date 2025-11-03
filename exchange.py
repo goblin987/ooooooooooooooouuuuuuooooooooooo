@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 EXCHANGE_RATE = 2000  # points per $1 USD
 MIN_EXCHANGE = 2000   # $1 minimum
 MAX_WEEKLY_USD = 10   # $10 weekly limit per user
-MIN_LEVEL = 15        # minimum level to exchange
+MIN_LEVEL = 1         # minimum level to exchange (allow from level 1)
 MIN_ACCOUNT_AGE = 0   # no account age restriction
 
 
@@ -181,8 +181,7 @@ async def show_amount_selection(query, context: ContextTypes.DEFAULT_TYPE, user_
     
     text = (
         f"💱 <b>Pasirinkite Sumą</b>\n\n"
-        f"💎 Turimi taškai: <b>{user_points:,}</b>\n"
-        f"📊 Liko šią savaitę: <b>${weekly_remaining:.2f}</b>\n\n"
+        f"💎 Turimi taškai: <b>{user_points:,}</b>\n\n"
         f"Pasirinkite keitimo sumą:"
     )
     
