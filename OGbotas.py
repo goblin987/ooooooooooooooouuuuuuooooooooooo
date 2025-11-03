@@ -61,6 +61,7 @@ import stats
 import bajorai
 import levels
 import exchange
+import leaderboard
 
 # Telegram imports
 import telegram
@@ -624,6 +625,16 @@ async def handle_admin_callback(update: Update, context: ContextTypes.DEFAULT_TY
         elif data == "points_leaderboard":
             await admin_panel.show_points_leaderboard(query, context)
         
+        # Leaderboard management
+        elif data == "admin_leaderboard":
+            await admin_panel.show_leaderboard_menu(query, context)
+        elif data == "leaderboard_reset_confirm":
+            await admin_panel.leaderboard_reset_confirm(query, context)
+        elif data == "leaderboard_reset_execute":
+            await admin_panel.leaderboard_reset_execute(query, context)
+        elif data == "leaderboard_view":
+            await admin_panel.leaderboard_view(query, context)
+        
         # Sellers management
         elif data == "admin_sellers":
             await admin_panel.show_sellers_menu(query, context)
@@ -1030,6 +1041,7 @@ def create_application():
     application.add_handler(CommandHandler("barygos", voting.barygos_command))  # Scoreboard leaderboard
     application.add_handler(CommandHandler("bajorai", bajorai.bajorai_command))  # Top balances & game stats
     application.add_handler(CommandHandler("points", levels.points_command))  # XP & Level system
+    application.add_handler(CommandHandler("leaderboard", leaderboard.leaderboard_command))  # Top chatters
     application.add_handler(CommandHandler("exchange", exchange.exchange_command))  # Points→Crypto exchange
     application.add_handler(CommandHandler("updatevoting", voting.updatevoting_command))
     application.add_handler(CommandHandler("resetvotes", voting.reset_voting_cooldowns_command))

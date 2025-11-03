@@ -90,6 +90,7 @@ async def show_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     
     keyboard = [
         [InlineKeyboardButton("💰 Points Management", callback_data="admin_points")],
+        [InlineKeyboardButton("🏆 Leaderboard Control", callback_data="admin_leaderboard")],
         [InlineKeyboardButton("⭐ Trusted Sellers", callback_data="admin_sellers")],
         [InlineKeyboardButton("🚨 Scammer List", callback_data="admin_scammers")],
         [InlineKeyboardButton("📋 Review Claims", callback_data="admin_claims")],
@@ -242,6 +243,123 @@ async def show_points_leaderboard(query, context: ContextTypes.DEFAULT_TYPE) -> 
     except Exception as e:
         logger.error(f"Error showing leaderboard: {e}")
         await query.edit_message_text("❌ Error loading leaderboard!")
+
+
+# ============================================================================
+# LEADERBOARD MANAGEMENT
+# ============================================================================
+
+async def show_leaderboard_menu(query, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show leaderboard control menu"""
+    import leaderboard
+    
+    # Get current top 5
+    top_users = leaderboard.get_monthly_leaderboard(limit=5)
+    
+    text = (
+        "🏆 **LEADERBOARD CONTROL**\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "**Current Top 5 Chatters:**\n\n"
+    )
+    
+    if top_users:
+        for i, (user_id, username, msg_count) in enumerate(top_users, 1):
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+            username_display = f"@{username}" if username and not username.startswith('@') else username
+            text += f"{medal} {username_display} - {msg_count:,} messages\n"
+    else:
+        text += "_No data yet_\n"
+    
+    text += (
+        "\n⚠️ **Warning:** Resetting the leaderboard will:\n"
+        "• Reset all user message counts to 0\n"
+        "• Start a new 30-day tracking period\n"
+        "• This action cannot be undone!\n\n"
+        "**Select an action:**"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("🔄 Reset Leaderboard", callback_data="leaderboard_reset_confirm")],
+        [InlineKeyboardButton("📊 View Leaderboard", callback_data="leaderboard_view")],
+        [InlineKeyboardButton("🔙 Back", callback_data="admin_home")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+
+async def leaderboard_reset_confirm(query, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Confirm leaderboard reset"""
+    text = (
+        "⚠️ **CONFIRM LEADERBOARD RESET**\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Are you sure you want to reset the leaderboard?\n\n"
+        "This will:\n"
+        "• Set all user message counts to 0\n"
+        "• Start tracking from today\n"
+        "• Clear current rankings\n\n"
+        "**This action cannot be undone!**"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ Yes, Reset", callback_data="leaderboard_reset_execute")],
+        [InlineKeyboardButton("❌ Cancel", callback_data="admin_leaderboard")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+
+async def leaderboard_reset_execute(query, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Execute leaderboard reset"""
+    import leaderboard
+    
+    success = leaderboard.reset_leaderboard_stats()
+    
+    if success:
+        text = (
+            "✅ **LEADERBOARD RESET SUCCESSFUL**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "All user message counts have been reset to 0.\n"
+            "New 30-day tracking period has started!\n"
+            f"Reset Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+    else:
+        text = "❌ **ERROR:** Failed to reset leaderboard. Check logs."
+    
+    keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="admin_leaderboard")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+
+async def leaderboard_view(query, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """View current leaderboard"""
+    import leaderboard
+    
+    try:
+        top_users = leaderboard.get_monthly_leaderboard(limit=5)
+        
+        if not top_users:
+            await query.answer("No leaderboard data yet!", show_alert=True)
+            return
+        
+        # Generate and send image
+        image_bio = leaderboard.generate_leaderboard_image(top_users)
+        
+        caption = "🏆 <b>Current Leaderboard Preview</b>"
+        
+        # Send as new message (can't edit message with photo)
+        await query.message.reply_photo(
+            photo=image_bio,
+            caption=caption,
+            parse_mode='HTML'
+        )
+        
+        await query.answer("Leaderboard image sent!")
+        
+    except Exception as e:
+        logger.error(f"Error viewing leaderboard: {e}")
+        await query.answer("Error generating leaderboard image!", show_alert=True)
 
 
 # ============================================================================
