@@ -82,9 +82,9 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         font_path_arial = "/opt/render/project/src/assets/ariblk.ttf"
         
         try:
-            font_title = ImageFont.truetype(font_path_pricedown, 64)
-            font_username = ImageFont.truetype(font_path_arial, 26)
-            font_footer = ImageFont.truetype(font_path_arial, 24)
+            font_title = ImageFont.truetype(font_path_pricedown, 80)
+            font_username = ImageFont.truetype(font_path_arial, 38)
+            font_footer = ImageFont.truetype(font_path_arial, 32)
         except:
             font_title = ImageFont.load_default()
             font_username = ImageFont.load_default()
@@ -100,18 +100,18 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             draw.text((x, y), text, font=font, fill=fill_color)
         
         # Header: "Stats"
-        draw_outlined_text((40, 40), "Stats", font_title, '#FFFFFF', '#000000', 2)
+        draw_outlined_text((40, 30), "Stats", font_title, '#FFFFFF', '#000000', 3)
         
         # Get max messages for bar scaling
         max_messages = max([count for _, _, count in top_users], default=1000)
         
         # User entries layout
-        start_y = 150
-        row_height = 70
+        start_y = 170
+        row_height = 85
         username_x = 60
-        bar_x = 320
-        bar_width = 280
-        bar_height = 24
+        bar_x = 280
+        bar_width = 320
+        bar_height = 26
         
         for i, (user_id, username, msg_count) in enumerate(top_users[:5], 1):
             y_pos = start_y + (i - 1) * row_height
@@ -139,7 +139,7 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                 draw.rounded_rectangle(bar_fill_rect, radius=6, fill='#00FF66', outline=None)
         
         # Footer: "legend" in bottom-right
-        draw_outlined_text((width - 140, height - 60), "legend", font_footer, '#FFFFFF', '#000000', 2)
+        draw_outlined_text((width - 160, height - 70), "legend", font_footer, '#FFFFFF', '#000000', 2)
         
         # Convert to BytesIO
         bio = BytesIO()
