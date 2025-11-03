@@ -86,7 +86,7 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         PANEL_MARGIN = 30
         PANEL_RADIUS = 12
         HEADER_X = 35
-        HEADER_Y = 20
+        HEADER_Y = 10                     # Moved up to overlap panel border (was 20)
         HEADER_FONT_SIZE = 96
         ROW_START_Y = 140
         ROW_SPACING = 82
@@ -95,7 +95,7 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         BAR_X = 270
         BAR_WIDTH = 295
         BAR_HEIGHT = 20                   # Reduced from 28 to 20 (smaller bars)
-        BAR_Y_OFFSET = 5                  # Offset to align with larger text
+        BAR_Y_OFFSET = -3                 # Negative to align bars inline with text baseline
         FOOTER_MARGIN_RIGHT = 35
         FOOTER_MARGIN_BOTTOM = 30
         FOOTER_FONT_SIZE = 36
@@ -187,11 +187,12 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         # Load fonts
         # CRITICAL: Use Old English/Gothic blackletter font for "Stats" header (like wireframe)
         font_paths_gothic = [
+            "/opt/render/project/src/assets/OldEnglishFive.ttf",  # Custom (FIRST - most reliable)
+            os.path.join(os.path.dirname(__file__), "assets", "OldEnglishFive.ttf"),  # Workspace
             "C:\\Windows\\Fonts\\OLDENGL.TTF",  # Old English Text MT (Windows)
             "/usr/share/fonts/truetype/ancient-scripts/OldEnglish.ttf",  # Linux
             "/usr/share/fonts/truetype/fonts-blackletter/UnifrakturMaguntia.ttf",  # Linux alt
             "/System/Library/Fonts/Supplemental/Old English Text MT.ttf",  # macOS
-            "/opt/render/project/src/assets/OldEnglish.ttf",  # Custom
         ]
         
         font_title = None
