@@ -68,19 +68,19 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         CANVAS_WIDTH = 600
         CANVAS_HEIGHT = 600
         
-        # Color palette - GTA SA AUTHENTIC orange/amber theme
+        # Color palette - CORRECT GTA SA grayscale theme (from wireframe)
         PANEL_COLOR_RGB = (15, 13, 11)    # Panel base color (will be made transparent)
-        PANEL_ALPHA = 200                 # 78% opacity (200/255) for see-through effect
+        PANEL_ALPHA = 220                 # 86% opacity (more opaque for better readability)
         PANEL_BORDER_OUTER = '#000000'    # Black outer border
-        PANEL_BORDER_INNER = '#3A3631'    # Lighter inner border (frame effect)
-        TEXT_COLOR = '#FFB366'            # GTA SA orange/amber text
-        HEADER_COLOR = '#FFFFFF'          # White header with orange outline
+        PANEL_BORDER_INNER = '#4A4A4A'    # Gray inner border (frame effect)
+        TEXT_COLOR = '#FFFFFF'            # Pure white text (like wireframe)
+        HEADER_COLOR = '#FFFFFF'          # White header
         HEADER_OUTLINE = '#000000'        # Black outline for header
         BAR_OUTLINE = '#000000'           # Pure black bar outline
-        BAR_BG = '#2A2622'                # Dark bar background
-        BAR_FILL = '#D4A574'              # Warm tan/gold fill (GTA SA style)
-        BAR_HIGHLIGHT = '#F0D9B5'         # Light gold highlight
-        BAR_GLOW = '#FFB366'              # Orange glow effect
+        BAR_BG = '#3A3A3A'                # Dark gray bar background
+        BAR_FILL = '#9D9D9D'              # Medium gray fill (authentic GTA SA)
+        BAR_HIGHLIGHT = '#C8C8C8'         # Light gray highlight
+        BAR_RADIUS = 3                    # Less rounded, more rectangular
         
         # Layout constants
         PANEL_MARGIN = 30
@@ -185,12 +185,13 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         draw = ImageDraw.Draw(img)
 
         # Load fonts
-        # Try gothic/blackletter font for "Stats" header (more authentic GTA SA style)
+        # CRITICAL: Use Old English/Gothic blackletter font for "Stats" header (like wireframe)
         font_paths_gothic = [
-            "/usr/share/fonts/truetype/ancient-scripts/OldEnglish.ttf",
-            "C:\\Windows\\Fonts\\OLDENGL.TTF",  # Old English Text MT
-            "/usr/share/fonts/truetype/fonts-blackletter/UnifrakturMaguntia.ttf",
-            "/opt/render/project/src/assets/Pricedown Bl.otf",  # Fallback to Pricedown
+            "C:\\Windows\\Fonts\\OLDENGL.TTF",  # Old English Text MT (Windows)
+            "/usr/share/fonts/truetype/ancient-scripts/OldEnglish.ttf",  # Linux
+            "/usr/share/fonts/truetype/fonts-blackletter/UnifrakturMaguntia.ttf",  # Linux alt
+            "/System/Library/Fonts/Supplemental/Old English Text MT.ttf",  # macOS
+            "/opt/render/project/src/assets/OldEnglish.ttf",  # Custom
         ]
         
         font_title = None
@@ -202,9 +203,11 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             except:
                 continue
         
+        # If no gothic font found, use Pricedown but log warning
         if not font_title:
             try:
                 font_title = ImageFont.truetype("/opt/render/project/src/assets/Pricedown Bl.otf", HEADER_FONT_SIZE)
+                logger.warning("Old English font not found, using Pricedown fallback (NOT authentic)")
             except:
                 logger.warning("No header font found, using default")
                 font_title = ImageFont.load_default()
@@ -258,18 +261,14 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             draw.text((x, y), text, font=font, fill=fill)
 
         def draw_label_with_shadow(position, text, font, fill=TEXT_COLOR):
-            """Draw label with GTA SA style glow and shadow"""
+            """Draw label with strong shadow for chunky wireframe look"""
             x, y = position
-            # Subtle orange glow (multiple layers)
-            glow_color = BAR_GLOW
-            for offset in [(2, 2), (1, 1), (-1, 1), (1, -1)]:
-                glow_rgb = tuple(int(glow_color[i:i+2], 16) for i in (1, 3, 5, 7)) if len(glow_color) == 9 else tuple(int(glow_color[i:i+2], 16) for i in (1, 3, 5))
-                draw.text((x + offset[0], y + offset[1]), text, font=font, fill=glow_rgb)
-            # Black shadow for depth
-            draw.text((x + 2, y + 2), text, font=font, fill='#000000')
-            # Main text (draw twice for extra boldness)
+            # Strong black shadow (3px offset)
+            draw.text((x + 3, y + 3), text, font=font, fill='#000000')
+            # Main white text (triple-draw for extra boldness like wireframe)
             draw.text((x, y), text, font=font, fill=fill)
             draw.text((x + 0.5, y), text, font=font, fill=fill)
+            draw.text((x, y + 0.5), text, font=font, fill=fill)
 
         # Draw "Stats" header with white text and orange outline
         draw_outlined_text((HEADER_X, HEADER_Y), "Stats", font_title, HEADER_COLOR, 
@@ -295,46 +294,39 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             # Draw username label
             draw_label_with_shadow((LABEL_X, y), display_name, font_label)
 
-            # Draw bar with GTA SA style gradient and glow
+            # Draw bar with wireframe style (rectangular, grayscale, thicker borders)
             bar_y = y + BAR_Y_OFFSET
             bar_rect = [BAR_X, bar_y, BAR_X + BAR_WIDTH, bar_y + BAR_HEIGHT]
             
-            # Outer black border (4px thick for visibility)
-            draw.rectangle(bar_rect, fill=BAR_OUTLINE)
+            # Outer black border (5px thick for wireframe look)
+            for thickness in range(5):
+                border_rect = [BAR_X - thickness, bar_y - thickness, 
+                              BAR_X + BAR_WIDTH + thickness, bar_y + BAR_HEIGHT + thickness]
+                draw.rectangle(border_rect, outline=BAR_OUTLINE, width=1)
             
-            # Inner dark background
-            inner_rect = [BAR_X + 4, bar_y + 4, BAR_X + BAR_WIDTH - 4, bar_y + BAR_HEIGHT - 4]
+            # Inner dark gray background
+            inner_rect = [BAR_X + 5, bar_y + 5, BAR_X + BAR_WIDTH - 5, bar_y + BAR_HEIGHT - 5]
             draw.rectangle(inner_rect, fill=BAR_BG)
 
             # Calculate fill
             fill_ratio = 0 if max_messages == 0 else min(max(message_count / max_messages, 0), 1)
-            fill_width = int((BAR_WIDTH - 8) * fill_ratio)
+            fill_width = int((BAR_WIDTH - 10) * fill_ratio)
             
             if fill_width > 6:
-                # Draw subtle glow behind bar (orange)
-                glow_rect = [BAR_X + 2, bar_y + 2, BAR_X + 2 + fill_width + 2, bar_y + BAR_HEIGHT - 2]
-                glow_rgb = tuple(int(BAR_GLOW[i:i+2], 16) for i in (1, 3, 5))
-                glow_overlay = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
-                glow_draw = ImageDraw.Draw(glow_overlay)
-                glow_draw.rectangle(glow_rect, fill=glow_rgb + (40,))  # Very subtle glow
-                img_temp = img.convert('RGBA')
-                img = Image.alpha_composite(img_temp, glow_overlay).convert('RGB')
-                draw = ImageDraw.Draw(img)
+                # Main gray fill with subtle gradient
+                fill_rect = [BAR_X + 5, bar_y + 5, BAR_X + 5 + fill_width, bar_y + BAR_HEIGHT - 5]
+                bar_height_inner = BAR_HEIGHT - 10
                 
-                # Main fill with gradient (darker bottom, lighter top)
-                fill_rect = [BAR_X + 4, bar_y + 4, BAR_X + 4 + fill_width, bar_y + BAR_HEIGHT - 4]
-                bar_height_inner = BAR_HEIGHT - 8
-                
-                # Draw gradient (pixel by pixel for smooth effect)
+                # Draw gradient (lighter at top, darker at bottom)
                 fill_rgb = tuple(int(BAR_FILL[i:i+2], 16) for i in (1, 3, 5))
                 highlight_rgb = tuple(int(BAR_HIGHLIGHT[i:i+2], 16) for i in (1, 3, 5))
                 
                 for py in range(bar_height_inner):
-                    ratio = py / bar_height_inner
+                    ratio = py / bar_height_inner if bar_height_inner > 0 else 0
                     # Interpolate between highlight (top) and fill (bottom)
                     color = tuple(int(highlight_rgb[i] * (1 - ratio) + fill_rgb[i] * ratio) for i in range(3))
-                    line_y = bar_y + 4 + py
-                    draw.line([(BAR_X + 4, line_y), (BAR_X + 4 + fill_width, line_y)], fill=color, width=1)
+                    line_y = bar_y + 5 + py
+                    draw.line([(BAR_X + 5, line_y), (BAR_X + 5 + fill_width, line_y)], fill=color, width=1)
 
         # Draw footer "Apsisaugok"
         footer_text = "Apsisaugok"
@@ -342,6 +334,17 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         footer_x = panel_rect[2] - footer_width - FOOTER_MARGIN_RIGHT
         footer_y = panel_rect[3] - footer_height - FOOTER_MARGIN_BOTTOM
         draw_label_with_shadow((footer_x, footer_y), footer_text, font_footer)
+
+        # Add PS2-style scanlines for retro CRT monitor effect
+        scanline_overlay = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
+        scanline_draw = ImageDraw.Draw(scanline_overlay)
+        for y in range(0, CANVAS_HEIGHT, 3):  # Every 3 pixels
+            scanline_draw.line([(0, y), (CANVAS_WIDTH, y)], fill=(0, 0, 0, 20), width=1)
+        
+        # Composite scanlines
+        img = img.convert('RGBA')
+        img = Image.alpha_composite(img, scanline_overlay)
+        img = img.convert('RGB')
 
         # Save to BytesIO
         bio = BytesIO()
