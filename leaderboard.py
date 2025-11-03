@@ -172,10 +172,11 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         
         # Try multiple font paths for the stat labels (BIGGER SIZE)
         font_paths_label = [
+            "/opt/render/project/src/assets/impact.ttf",  # Custom (FIRST - most reliable)
+            os.path.join(os.path.dirname(__file__), "assets", "impact.ttf"),  # Workspace assets
             "/usr/share/fonts/truetype/msttcorefonts/Impact.ttf",  # Linux
             "C:\\Windows\\Fonts\\impact.ttf",  # Windows
             "/System/Library/Fonts/Supplemental/Impact.ttf",  # macOS
-            "/opt/render/project/src/assets/impact.ttf",  # Custom
         ]
         
         font_label = None
@@ -298,8 +299,14 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
 async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show monthly leaderboard"""
     try:
-        # Get top 5 chatters
-        top_users = get_monthly_leaderboard(limit=5)
+        # Run blocking operations in executor to prevent event loop issues
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+        
+        loop = asyncio.get_event_loop()
+        
+        # Get top 5 chatters (blocking operation)
+        top_users = await loop.run_in_executor(None, get_monthly_leaderboard, 5)
         
         if not top_users:
             await update.message.reply_text(
@@ -308,8 +315,8 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
         
-        # Generate image
-        image_bio = generate_leaderboard_image(top_users)
+        # Generate image (blocking operation)
+        image_bio = await loop.run_in_executor(None, generate_leaderboard_image, top_users)
         
         # Caption
         caption = (
@@ -326,7 +333,7 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         
     except Exception as e:
-        logger.error(f"Error in leaderboard command: {e}")
+        logger.error(f"Error in leaderboard command: {e}", exc_info=True)
         await update.message.reply_text(
             "❌ Error generating leaderboard. Please try again later."
         )
