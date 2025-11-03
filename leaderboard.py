@@ -105,6 +105,13 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             font_username = ImageFont.load_default()
             font_footer = ImageFont.load_default()
 
+        def measure_text(text: str, font: ImageFont.FreeTypeFont):
+            try:
+                bbox = font.getbbox(text)
+                return bbox[2] - bbox[0], bbox[3] - bbox[1]
+            except AttributeError:
+                return font.getsize(text)
+
         def draw_shadowed_text(xy, text, font, fill, shadow_offset=(2, 2), shadow_fill='#000000', outline=0):
             x, y = xy
             if outline > 0:
@@ -169,13 +176,13 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             # optional message count (right aligned if space)
             if msg_count and fill_width > 120:
                 count_text = f"{msg_count:,}"
-                text_width, _ = draw.textsize(count_text, font=font_username)
+                text_width, _ = measure_text(count_text, font_username)
                 text_x = min(bar_x + fill_width - 10 - text_width, bar_x + bar_width - text_width - 10)
                 draw_shadowed_text((text_x, row_y + 2), count_text, font_username, '#E0E0E0', shadow_offset=(1, 1))
 
         # Footer label
         footer_text = "legend"
-        footer_width, footer_height = draw.textsize(footer_text, font=font_footer)
+        footer_width, footer_height = measure_text(footer_text, font_footer)
         footer_position = (panel_rect[2] - footer_width - 40, panel_rect[3] - footer_height - 40)
         draw_shadowed_text(footer_position, footer_text, font_footer, '#FFFFFF', outline=2)
 
