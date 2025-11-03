@@ -19,16 +19,11 @@ EXCHANGE_RATE = 2000  # points per $1 USD
 MIN_EXCHANGE = 2000   # $1 minimum
 MAX_WEEKLY_USD = 10   # $10 weekly limit per user
 MIN_LEVEL = 15        # minimum level to exchange
-MIN_ACCOUNT_AGE = 30  # minimum account age in days
+MIN_ACCOUNT_AGE = 0   # no account age restriction
 
 
 def can_exchange(user_id: int) -> tuple:
     """Check if user meets basic requirements to exchange"""
-    # Account age
-    account_age = database.get_account_age_days(user_id)
-    if account_age < MIN_ACCOUNT_AGE:
-        return False, f"❌ Paskyra turi būti {MIN_ACCOUNT_AGE}+ dienų sena\n\nJūsų amžius: {account_age} dienų"
-    
     # Level requirement
     level = database.get_user_level(user_id)
     if level < MIN_LEVEL:

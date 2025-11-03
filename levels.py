@@ -193,10 +193,7 @@ def grant_message_xp(user_id: int, message_text: str = '', message_id: int = 0, 
     if len(message_text.strip()) < 3:
         return None
     
-    # 2. Account age check (30 days minimum)
-    account_age = database.get_account_age_days(user_id)
-    if account_age < 30:
-        return None
+    # 2. Account age check removed (no restriction)
     
     # 3. Daily message cap (400 messages per day)
     today = datetime.now().date().isoformat()

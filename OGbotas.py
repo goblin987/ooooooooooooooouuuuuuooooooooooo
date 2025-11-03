@@ -105,7 +105,7 @@ logger.info(f"Loaded {len(user_points)} user points, {len(trusted_sellers)} sell
 
 # Basic bot commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Start command - handles deep links for wallet/pinigine"""
+    """Start command - shows main menu with buttons"""
     user_id = update.effective_user.id
     
     # Check if there's a deep link parameter
@@ -117,40 +117,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Check if user is admin/owner
     is_admin = user_id == OWNER_ID or (update.effective_chat and update.effective_chat.id == ADMIN_CHAT_ID)
     
+    # Get user stats
+    user_points = levels.get_user_money(user_id)
+    crypto_balance = database.get_user_balance(user_id)
+    level = database.get_user_level(user_id)
+    
+    # Main menu with buttons
+    text = (
+        f"🤖 <b>OGbotas</b>\n\n"
+        f"👤 Sveiki, {update.effective_user.first_name}!\n\n"
+        f"📊 Jūsų statistika:\n"
+        f"• Lygis: {level}\n"
+        f"• Taškai: {user_points:,}\n"
+        f"• Kripto: ${crypto_balance:.2f}\n\n"
+        f"Pasirinkite funkciją:"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("💰 Piniginė", callback_data="start_pinigine")],
+        [InlineKeyboardButton("💱 Keisti Taškus", callback_data="exchange_start")],
+        [InlineKeyboardButton("🏆 Mano Taškai", callback_data="start_points")],
+        [InlineKeyboardButton("🎲 Žaidimai", callback_data="start_games")],
+        [InlineKeyboardButton("📊 Statistika", callback_data="start_stats")],
+    ]
+    
     if is_admin:
-        # Admin message (English with all commands)
-        await update.message.reply_text(
-            "🤖 **OGbotas Aktyvuotas!**\n\n"
-            "**Administratoriaus komandos:**\n"
-            "🔨 `/ban @user [priežastis]` - Užblokuoti vartotoją\n"
-            "🔓 `/unban @user` - Atblokuoti vartotoją\n"
-            "🔇 `/mute @user [minutes]` - Nutildyti vartotoją\n"
-            "🔊 `/unmute @user` - Atšaukti nutildymą\n"
-            "⚠️ `/warn @user [priežastis]` - Įspėti vartotoją\n"
-            "ℹ️ `/info @user` - Vartotojo informacija\n"
-            "🔍 `/lookup @user` - Ieškoti vartotojo\n"
-            "🔄 `/recurring` - Pasikartojantys pranešimai\n"
-            "👤 `/masked` - Maskuoti vartotojai\n\n"
-            "**Viešos komandos:**\n"
-            "📊 `/patikra @username` - Patikrinti ar sukčius\n"
-            "💰 `/pinigine` - Jūsų piniginė\n"
-            "🎲 `/dice2 @username` - Žaisti kauliukus taškams\n"
-            "🏆 `/points` - Jūsų taškai\n\n"
-            "Botas paruoštas! 🚀",
-            parse_mode='Markdown'
-        )
-    else:
-        # Regular user message (Lithuanian, simple commands only)
-        await update.message.reply_text(
-            "🤖 **Sveiki!**\n\n"
-            "**Prieinamos komandos:**\n\n"
-            "📊 `/patikra @username` - Patikrinti ar vartotojas sukčius\n"
-            "💰 `/pinigine` - Jūsų piniginė (balansas, įnešimai, išėmimai)\n"
-            "🎲 `/dice2 @username` - Žaisti kauliukus taškams\n"
-            "🏆 `/points` - Peržiūrėti savo taškus\n\n"
-            "Sėkmės! 🍀",
-            parse_mode='Markdown'
-        )
+        keyboard.append([InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")])
+    
+    keyboard.append([InlineKeyboardButton("❓ Pagalba", callback_data="start_help")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')
     
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -567,6 +564,36 @@ async def handle_recurring_callback(query, context):
     except Exception as e:
         logger.error(f"Error in handle_recurring_callback: {e}")
         await safe_answer_callback(query, "❌ Error processing request")
+
+
+async def handle_start_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle start menu button callbacks"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    user_id = query.from_user.id
+    
+    if data == "start_pinigine":
+        await payments.balance_command(update, context)
+    elif data == "start_points":
+        await levels.points_command(update, context)
+    elif data == "start_games":
+        text = (
+            "🎲 <b>Žaidimai</b>\n\n"
+            "<b>Kripto žaidimai:</b>\n"
+            "/dice <suma> - Kauliukai\n"
+            "/basketball <suma> - Krepšinis\n"
+            "/football <suma> - Futbolas\n"
+            "/bowling <suma> - Boulingas\n\n"
+            "<b>Taškų žaidimai:</b>\n"
+            "/dice2 <suma> - Kauliukai taškams"
+        )
+        await query.edit_message_text(text, parse_mode='HTML')
+    elif data == "start_stats":
+        await stats.stats_command(update, context)
+    elif data == "start_help":
+        await help_command(update, context)
 
 
 async def handle_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1065,6 +1092,12 @@ def create_application():
     application.add_handler(CallbackQueryHandler(
         exchange.handle_exchange_buttons,
         pattern="^exchange_"
+    ))
+    
+    # Start menu callbacks
+    application.add_handler(CallbackQueryHandler(
+        handle_start_menu_callback,
+        pattern="^start_"
     ))
     
     # Message handler (for private chat input and group messages)
