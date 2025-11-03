@@ -88,23 +88,38 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         ROW_START_Y = 140
         ROW_SPACING = 82
         LABEL_X = 35
-        LABEL_FONT_SIZE = 50              # MUCH BIGGER username labels
+        LABEL_FONT_SIZE = 42              # Bigger username labels (optimized size)
         BAR_X = 270
         BAR_WIDTH = 295
-        BAR_HEIGHT = 28
-        BAR_Y_OFFSET = 0
+        BAR_HEIGHT = 20                   # Reduced from 28 to 20 (smaller bars)
+        BAR_Y_OFFSET = 5                  # Offset to align with larger text
         FOOTER_MARGIN_RIGHT = 35
         FOOTER_MARGIN_BOTTOM = 30
         FOOTER_FONT_SIZE = 36
 
         # Load background image
         try:
-            bg_path = "/opt/render/project/src/background3.jpg"
-            bg_img = Image.open(bg_path)
-            # Resize to canvas size
-            bg_img = bg_img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
-            img = bg_img.convert('RGB')
-            logger.info(f"Loaded background from {bg_path}")
+            # Try multiple paths for background3.jpg
+            bg_paths = [
+                os.path.join(os.path.dirname(__file__), "background3.jpg"),  # Workspace root
+                "/opt/render/project/src/background3.jpg",  # Render deployment path
+                "background3.jpg",  # Current directory
+            ]
+            
+            bg_img = None
+            for bg_path in bg_paths:
+                if os.path.exists(bg_path):
+                    bg_img = Image.open(bg_path)
+                    logger.info(f"Loaded background from {bg_path}")
+                    break
+            
+            if bg_img:
+                # Resize to canvas size
+                bg_img = bg_img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
+                img = bg_img.convert('RGB')
+            else:
+                raise FileNotFoundError("background3.jpg not found in any path")
+                
         except Exception as e:
             logger.warning(f"Failed to load background3.jpg: {e}, using fallback color")
             # Fallback to solid color
@@ -203,12 +218,13 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             draw.text((x, y), text, font=font, fill=fill)
 
         def draw_label_with_shadow(position, text, font, fill=TEXT_COLOR):
-            """Draw label with subtle shadow"""
+            """Draw label with subtle shadow and extra boldness"""
             x, y = position
             # Shadow
             draw.text((x + 2, y + 2), text, font=font, fill='#000000')
-            # Main text
+            # Main text (draw twice for extra boldness)
             draw.text((x, y), text, font=font, fill=fill)
+            draw.text((x + 0.5, y), text, font=font, fill=fill)  # Slight offset for boldness
 
         # Draw "Stats" header
         draw_outlined_text((HEADER_X, HEADER_Y), "Stats", font_title, TEXT_COLOR, 
