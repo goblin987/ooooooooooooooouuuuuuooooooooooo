@@ -34,8 +34,10 @@ def get_monthly_leaderboard(chat_id: int = None, limit: int = 5) -> list:
         columns = [col[1] for col in cursor.fetchall()]
         
         if 'leaderboard_reset_date' not in columns:
-            # Add the column
-            conn.execute("ALTER TABLE users ADD COLUMN leaderboard_reset_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            # Add the column (SQLite doesn't support DEFAULT with functions in ALTER TABLE)
+            conn.execute("ALTER TABLE users ADD COLUMN leaderboard_reset_date TIMESTAMP")
+            # Set initial values
+            conn.execute("UPDATE users SET leaderboard_reset_date = datetime('now') WHERE leaderboard_reset_date IS NULL")
             conn.commit()
         
         # Get users with message counts since last reset
