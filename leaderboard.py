@@ -62,116 +62,168 @@ def get_monthly_leaderboard(chat_id: int = None, limit: int = 5) -> list:
 
 
 def generate_leaderboard_image(top_users: list) -> BytesIO:
-    """Generate GTA SA Stats-style leaderboard matching the provided wireframe"""
+    """Generate GTA SA Stats-style leaderboard matching the wireframe exactly"""
     try:
-        width, height = 600, 600
+        # Canvas dimensions
+        CANVAS_WIDTH = 600
+        CANVAS_HEIGHT = 600
+        
+        # Color palette (sampled from GTA SA stats screen)
+        BG_COLOR = '#1A1612'          # Very dark brown/black background
+        PANEL_COLOR = '#0D0C0B'        # Near black panel
+        TEXT_COLOR = '#E8E8E8'         # Off-white text
+        HEADER_OUTLINE = '#000000'     # Black outline for header
+        BAR_OUTLINE = '#0A0A0A'        # Near black bar outline
+        BAR_BG = '#2D2925'             # Dark gray-brown bar background
+        BAR_FILL = '#8B8680'           # Light gray bar fill
+        BAR_HIGHLIGHT = '#B8B3AD'      # Lighter gray bar highlight
+        
+        # Layout constants
+        PANEL_MARGIN = 25
+        PANEL_RADIUS = 15
+        HEADER_X = 30
+        HEADER_Y = 15
+        HEADER_FONT_SIZE = 80
+        ROW_START_Y = 110
+        ROW_SPACING = 80
+        LABEL_X = 30
+        LABEL_FONT_SIZE = 32
+        BAR_X = 260
+        BAR_WIDTH = 310
+        BAR_HEIGHT = 25
+        BAR_Y_OFFSET = 3
+        FOOTER_MARGIN_RIGHT = 35
+        FOOTER_MARGIN_BOTTOM = 30
+        FOOTER_FONT_SIZE = 32
 
-        # Base background (outer brown tone)
-        background_color = '#3B332B'
-        panel_color = '#201B16'
-        highlight_color = '#2B241D'
-        bar_outline_color = '#111111'
-        bar_background_color = '#352F28'
-        bar_fill_color = '#38F764'
-
-        panel_margin = 22
-        panel_radius = 28
-
-        img = Image.new('RGB', (width, height), background_color)
+        # Create base canvas
+        img = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), BG_COLOR)
         draw = ImageDraw.Draw(img)
 
-        panel_rect = [panel_margin, panel_margin, width - panel_margin, height - panel_margin]
-        draw.rounded_rectangle(panel_rect, radius=panel_radius, fill=panel_color)
+        # Draw panel
+        panel_rect = [PANEL_MARGIN, PANEL_MARGIN, 
+                     CANVAS_WIDTH - PANEL_MARGIN, CANVAS_HEIGHT - PANEL_MARGIN]
+        draw.rounded_rectangle(panel_rect, radius=PANEL_RADIUS, fill=PANEL_COLOR)
 
-        # Apply subtle top highlight gradient
-        gradient = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        gradient_draw = ImageDraw.Draw(gradient)
-        highlight_top = [panel_rect[0], panel_rect[1], panel_rect[2], panel_rect[1] + 160]
-        gradient_draw.rectangle(highlight_top, fill=(255, 255, 255, 28))
-        gradient = gradient.filter(ImageFilter.GaussianBlur(45))
-        img = Image.alpha_composite(img.convert('RGBA'), gradient).convert('RGB')
-        draw = ImageDraw.Draw(img)
-
-        # Fonts
+        # Load fonts
         font_path_pricedown = "/opt/render/project/src/assets/Pricedown Bl.otf"
-        font_path_arial = "/opt/render/project/src/assets/ariblk.ttf"
-
+        
+        # Try multiple font paths for the stat labels
+        font_paths_label = [
+            "/usr/share/fonts/truetype/msttcorefonts/Impact.ttf",  # Linux
+            "C:\\Windows\\Fonts\\impact.ttf",  # Windows
+            "/System/Library/Fonts/Supplemental/Impact.ttf",  # macOS
+            "/opt/render/project/src/assets/impact.ttf",  # Custom
+        ]
+        
         try:
-            font_title = ImageFont.truetype(font_path_pricedown, 112)
-            font_username = ImageFont.truetype(font_path_arial, 36)
-            font_footer = ImageFont.truetype(font_path_arial, 38)
+            font_title = ImageFont.truetype(font_path_pricedown, HEADER_FONT_SIZE)
         except:
+            logger.warning("Pricedown font not found, using default")
             font_title = ImageFont.load_default()
-            font_username = ImageFont.load_default()
-            font_footer = ImageFont.load_default()
+        
+        font_label = None
+        for path in font_paths_label:
+            try:
+                font_label = ImageFont.truetype(path, LABEL_FONT_SIZE)
+                logger.info(f"Loaded label font from: {path}")
+                break
+            except:
+                continue
+        
+        if not font_label:
+            logger.warning("Impact font not found, using default")
+            font_label = ImageFont.load_default()
+        
+        try:
+            font_footer = ImageFont.truetype(font_paths_label[0] if font_paths_label else None, FOOTER_FONT_SIZE)
+        except:
+            font_footer = font_label
 
         def measure_text(text: str, font: ImageFont.FreeTypeFont):
+            """Measure text dimensions"""
             try:
                 bbox = font.getbbox(text)
                 return bbox[2] - bbox[0], bbox[3] - bbox[1]
             except AttributeError:
                 return font.getsize(text)
 
-        def draw_outlined_text(position, text, font, fill, outline_fill='#000000', outline_width=4):
+        def draw_outlined_text(position, text, font, fill, outline_fill='#000000', outline_width=5):
+            """Draw text with thick outline"""
             x, y = position
+            # Draw outline
             for dx in range(-outline_width, outline_width + 1):
                 for dy in range(-outline_width, outline_width + 1):
                     if dx == 0 and dy == 0:
                         continue
                     draw.text((x + dx, y + dy), text, font=font, fill=outline_fill)
+            # Draw main text
             draw.text((x, y), text, font=font, fill=fill)
 
-        def draw_label(position, text):
-            draw.text((position[0] + 2, position[1] + 2), text, font=font_username, fill='#050505')
-            draw.text(position, text, font=font_username, fill='#FFFFFF')
+        def draw_label_with_shadow(position, text, font, fill=TEXT_COLOR):
+            """Draw label with subtle shadow"""
+            x, y = position
+            # Shadow
+            draw.text((x + 2, y + 2), text, font=font, fill='#000000')
+            # Main text
+            draw.text((x, y), text, font=font, fill=fill)
 
-        # Header
-        header_pos = (panel_rect[0] + 42, panel_rect[1] + 38)
-        draw_outlined_text(header_pos, "Stats", font_title, '#FFFFFF', '#000000', outline_width=6)
+        # Draw "Stats" header
+        draw_outlined_text((HEADER_X, HEADER_Y), "Stats", font_title, TEXT_COLOR, 
+                          HEADER_OUTLINE, outline_width=5)
 
-        # Prepare rows
+        # Prepare rows (ensure exactly 5)
         rows = top_users[:5]
         while len(rows) < 5:
             rows.append((None, "Unknown", 0))
 
         max_messages = max([count for _, _, count in rows], default=1)
 
-        row_spacing = 92
-        row_start_y = panel_rect[1] + 150
-        label_x = panel_rect[0] + 50
-        bar_x = panel_rect[0] + 300
-        bar_width = 290
-        bar_height = 30
-
+        # Draw each row
         for index, (_, username, message_count) in enumerate(rows):
-            y = row_start_y + index * row_spacing
+            y = ROW_START_Y + index * ROW_SPACING
 
+            # Format username
             display_name = username or "Unknown"
             if display_name.startswith('@'):
                 display_name = display_name[1:]
-            display_name = display_name[:16]
+            display_name = display_name[:14]  # Truncate to fit
 
-            draw_label((label_x, y), display_name)
+            # Draw username label
+            draw_label_with_shadow((LABEL_X, y), display_name, font_label)
 
-            bar_rect = [bar_x, y - 2, bar_x + bar_width, y - 2 + bar_height]
-            draw.rounded_rectangle(bar_rect, radius=8, fill=bar_background_color, outline=bar_outline_color, width=4)
+            # Draw bar background with outline
+            bar_y = y + BAR_Y_OFFSET
+            bar_rect = [BAR_X, bar_y, BAR_X + BAR_WIDTH, bar_y + BAR_HEIGHT]
+            
+            # Outer black border (thick)
+            draw.rectangle(bar_rect, fill=BAR_OUTLINE)
+            
+            # Inner background
+            inner_rect = [BAR_X + 3, bar_y + 3, BAR_X + BAR_WIDTH - 3, bar_y + BAR_HEIGHT - 3]
+            draw.rectangle(inner_rect, fill=BAR_BG)
 
-            ratio = 0 if max_messages == 0 else min(max(message_count / max_messages, 0), 1)
-            fill_width = int(bar_width * ratio)
-            if fill_width > 6:
-                fill_rect = [bar_x + 4, y + 2, bar_x + fill_width - 4, y + bar_height - 6]
-                draw.rounded_rectangle(fill_rect, radius=6, fill=bar_fill_color)
+            # Calculate and draw fill
+            fill_ratio = 0 if max_messages == 0 else min(max(message_count / max_messages, 0), 1)
+            fill_width = int((BAR_WIDTH - 6) * fill_ratio)
+            
+            if fill_width > 4:
+                fill_rect = [BAR_X + 3, bar_y + 3, BAR_X + 3 + fill_width, bar_y + BAR_HEIGHT - 3]
+                draw.rectangle(fill_rect, fill=BAR_FILL)
+                
+                # Top highlight strip
+                if BAR_HEIGHT - 6 > 6:
+                    highlight_rect = [BAR_X + 3, bar_y + 3, BAR_X + 3 + fill_width, bar_y + 6]
+                    draw.rectangle(highlight_rect, fill=BAR_HIGHLIGHT)
 
-                highlight_rect = [fill_rect[0], fill_rect[1], fill_rect[2], fill_rect[1] + 4]
-                draw.rectangle(highlight_rect, fill='#63FF8C')
+        # Draw footer "Apsisaugok"
+        footer_text = "Apsisaugok"
+        footer_width, footer_height = measure_text(footer_text, font_footer)
+        footer_x = panel_rect[2] - footer_width - FOOTER_MARGIN_RIGHT
+        footer_y = panel_rect[3] - footer_height - FOOTER_MARGIN_BOTTOM
+        draw_label_with_shadow((footer_x, footer_y), footer_text, font_footer)
 
-        # Footer text
-        footer_text = "legend"
-        footer_size = measure_text(footer_text, font_footer)
-        footer_pos = (panel_rect[2] - footer_size[0] - 42, panel_rect[3] - footer_size[1] - 42)
-        draw.text((footer_pos[0] + 3, footer_pos[1] + 3), footer_text, font=font_footer, fill='#050505')
-        draw.text(footer_pos, footer_text, font=font_footer, fill='#FFFFFF')
-
+        # Save to BytesIO
         bio = BytesIO()
         bio.name = 'leaderboard.png'
         img.save(bio, 'PNG')
