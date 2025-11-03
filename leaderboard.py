@@ -68,26 +68,27 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         CANVAS_WIDTH = 600
         CANVAS_HEIGHT = 600
         
-        # Color palette - CORRECT GTA SA grayscale theme (from wireframe)
-        PANEL_COLOR_RGB = (15, 13, 11)    # Panel base color (will be made transparent)
-        PANEL_ALPHA = 220                 # 86% opacity (more opaque for better readability)
-        PANEL_BORDER_OUTER = '#000000'    # Black outer border
-        PANEL_BORDER_INNER = '#4A4A4A'    # Gray inner border (frame effect)
-        TEXT_COLOR = '#FFFFFF'            # Pure white text (like wireframe)
+        # Color palette - PREMIUM GTA SA theme with depth
+        PANEL_COLOR_RGB = (10, 8, 6)      # Darker panel base for better contrast
+        PANEL_ALPHA = 235                 # 92% opacity for premium solid look
+        PANEL_BORDER_OUTER = '#000000'    # Pure black outer border
+        PANEL_BORDER_INNER = '#555555'    # Lighter gray for subtle frame
+        TEXT_COLOR = '#FFFFFF'            # Pure white text
         HEADER_COLOR = '#FFFFFF'          # White header
         HEADER_OUTLINE = '#000000'        # Black outline for header
-        BAR_OUTLINE = '#000000'           # Pure black bar outline
-        BAR_BG = '#3A3A3A'                # Dark gray bar background
-        BAR_FILL = '#9D9D9D'              # Medium gray fill (authentic GTA SA)
-        BAR_HIGHLIGHT = '#C8C8C8'         # Light gray highlight
-        BAR_RADIUS = 3                    # Less rounded, more rectangular
+        BAR_OUTLINE = '#1A1A1A'           # Very dark gray outline (softer than pure black)
+        BAR_BG = '#2D2D2D'                # Darker background for more contrast
+        BAR_FILL = '#A8A8A8'              # Slightly lighter gray for better visibility
+        BAR_HIGHLIGHT = '#D4D4D4'         # Bright highlight for 3D effect
+        BAR_SHADOW = '#1F1F1F'            # Dark shadow for inset effect
+        BAR_RADIUS = 2                    # Very minimal rounding
         
         # Layout constants
         PANEL_MARGIN = 30
         PANEL_RADIUS = 12
         HEADER_X = 35
-        HEADER_Y = 28                     # Inside panel with proper spacing (not overlapping)
-        HEADER_FONT_SIZE = 96
+        HEADER_Y = 18                     # Half-in/half-out of panel border (overlapping)
+        HEADER_FONT_SIZE = 90             # Slightly smaller for better fit
         ROW_START_Y = 140
         ROW_SPACING = 82
         LABEL_X = 35
@@ -151,32 +152,52 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         # Will draw panel as overlay later
         draw = ImageDraw.Draw(img)
 
-        # Create semi-transparent panel overlay (GTA SA style see-through effect)
+        # Create premium panel with depth and subtle gradient
         panel_overlay = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
         panel_draw = ImageDraw.Draw(panel_overlay)
         
         panel_rect = [PANEL_MARGIN, PANEL_MARGIN, 
                      CANVAS_WIDTH - PANEL_MARGIN, CANVAS_HEIGHT - PANEL_MARGIN]
         
-        # Layer 1: Outer black border (solid, 6px)
-        border_color = PANEL_BORDER_OUTER + 'FF'  # Fully opaque black
-        panel_draw.rounded_rectangle(panel_rect, radius=PANEL_RADIUS, fill=border_color)
+        # Layer 1: Outer shadow for depth (soft)
+        for i in range(8, 0, -1):
+            alpha = int(30 * (i / 8.0))
+            shadow_rect = [PANEL_MARGIN - i, PANEL_MARGIN - i,
+                          CANVAS_WIDTH - PANEL_MARGIN + i, CANVAS_HEIGHT - PANEL_MARGIN + i]
+            panel_draw.rounded_rectangle(shadow_rect, radius=PANEL_RADIUS + i, 
+                                        outline=(0, 0, 0, alpha), width=1)
         
-        # Layer 2: Semi-transparent dark panel (inset by 6px)
-        inner_panel = [PANEL_MARGIN + 6, PANEL_MARGIN + 6,
-                      CANVAS_WIDTH - PANEL_MARGIN - 6, CANVAS_HEIGHT - PANEL_MARGIN - 6]
-        panel_color_rgba = PANEL_COLOR_RGB + (PANEL_ALPHA,)  # Add alpha channel
-        panel_draw.rounded_rectangle(inner_panel, radius=PANEL_RADIUS - 2, fill=panel_color_rgba)
+        # Layer 2: Outer black border (solid, 4px)
+        for i in range(4):
+            border_rect = [PANEL_MARGIN + i, PANEL_MARGIN + i,
+                          CANVAS_WIDTH - PANEL_MARGIN - i, CANVAS_HEIGHT - PANEL_MARGIN - i]
+            panel_draw.rounded_rectangle(border_rect, radius=PANEL_RADIUS - i, 
+                                        outline=(0, 0, 0, 255), width=1)
         
-        # Layer 3: Inner frame highlight (subtle, semi-transparent)
-        frame_highlight = [PANEL_MARGIN + 8, PANEL_MARGIN + 8,
-                          CANVAS_WIDTH - PANEL_MARGIN - 8, CANVAS_HEIGHT - PANEL_MARGIN - 8]
-        # Convert hex to RGB + alpha
+        # Layer 3: Main panel with subtle vertical gradient
+        inner_panel = [PANEL_MARGIN + 4, PANEL_MARGIN + 4,
+                      CANVAS_WIDTH - PANEL_MARGIN - 4, CANVAS_HEIGHT - PANEL_MARGIN - 4]
+        panel_color_rgba = PANEL_COLOR_RGB + (PANEL_ALPHA,)
+        panel_draw.rounded_rectangle(inner_panel, radius=PANEL_RADIUS - 4, fill=panel_color_rgba)
+        
+        # Layer 4: Top gradient highlight (subtle shine)
+        gradient_height = 80
+        for y in range(gradient_height):
+            alpha = int(25 * (1 - y / gradient_height))
+            gradient_y = PANEL_MARGIN + 4 + y
+            if gradient_y < CANVAS_HEIGHT - PANEL_MARGIN - 4:
+                panel_draw.line([(PANEL_MARGIN + 4, gradient_y), 
+                               (CANVAS_WIDTH - PANEL_MARGIN - 4, gradient_y)],
+                              fill=(255, 255, 255, alpha), width=1)
+        
+        # Layer 5: Inner frame (subtle)
+        frame_rect = [PANEL_MARGIN + 6, PANEL_MARGIN + 6,
+                     CANVAS_WIDTH - PANEL_MARGIN - 6, CANVAS_HEIGHT - PANEL_MARGIN - 6]
         inner_border_rgb = tuple(int(PANEL_BORDER_INNER[i:i+2], 16) for i in (1, 3, 5))
-        panel_draw.rounded_rectangle(frame_highlight, radius=PANEL_RADIUS - 3, 
-                                     outline=inner_border_rgb + (180,), width=2)
+        panel_draw.rounded_rectangle(frame_rect, radius=PANEL_RADIUS - 6, 
+                                     outline=inner_border_rgb + (100,), width=1)
         
-        # Composite semi-transparent panel onto background
+        # Composite panel onto background
         img = img.convert('RGBA')
         img = Image.alpha_composite(img, panel_overlay)
         img = img.convert('RGB')
@@ -295,39 +316,54 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             # Draw username label
             draw_label_with_shadow((LABEL_X, y), display_name, font_label)
 
-            # Draw bar with wireframe style (rectangular, grayscale, thicker borders)
+            # Draw premium bar with inset shadow and beveled edges
             bar_y = y + BAR_Y_OFFSET
-            bar_rect = [BAR_X, bar_y, BAR_X + BAR_WIDTH, bar_y + BAR_HEIGHT]
             
-            # Outer black border (5px thick for wireframe look)
-            for thickness in range(5):
-                border_rect = [BAR_X - thickness, bar_y - thickness, 
-                              BAR_X + BAR_WIDTH + thickness, bar_y + BAR_HEIGHT + thickness]
-                draw.rectangle(border_rect, outline=BAR_OUTLINE, width=1)
+            # Outer border (3px, dark gray)
+            for i in range(3):
+                border_rect = [BAR_X - i, bar_y - i, 
+                              BAR_X + BAR_WIDTH + i, bar_y + BAR_HEIGHT + i]
+                border_rgb = tuple(int(BAR_OUTLINE[j:j+2], 16) for j in (1, 3, 5))
+                draw.rectangle(border_rect, outline=border_rgb, width=1)
             
-            # Inner dark gray background
-            inner_rect = [BAR_X + 5, bar_y + 5, BAR_X + BAR_WIDTH - 5, bar_y + BAR_HEIGHT - 5]
-            draw.rectangle(inner_rect, fill=BAR_BG)
+            # Inner background with inset shadow
+            inner_rect = [BAR_X + 3, bar_y + 3, BAR_X + BAR_WIDTH - 3, bar_y + BAR_HEIGHT - 3]
+            bg_rgb = tuple(int(BAR_BG[i:i+2], 16) for i in (1, 3, 5))
+            draw.rectangle(inner_rect, fill=bg_rgb)
+            
+            # Top and left inset shadows (darker)
+            shadow_rgb = tuple(int(BAR_SHADOW[i:i+2], 16) for i in (1, 3, 5))
+            draw.line([(BAR_X + 3, bar_y + 3), (BAR_X + BAR_WIDTH - 3, bar_y + 3)], 
+                     fill=shadow_rgb, width=2)  # Top
+            draw.line([(BAR_X + 3, bar_y + 3), (BAR_X + 3, bar_y + BAR_HEIGHT - 3)], 
+                     fill=shadow_rgb, width=2)  # Left
 
             # Calculate fill
             fill_ratio = 0 if max_messages == 0 else min(max(message_count / max_messages, 0), 1)
-            fill_width = int((BAR_WIDTH - 10) * fill_ratio)
+            fill_width = int((BAR_WIDTH - 6) * fill_ratio)
             
-            if fill_width > 6:
-                # Main gray fill with subtle gradient
-                fill_rect = [BAR_X + 5, bar_y + 5, BAR_X + 5 + fill_width, bar_y + BAR_HEIGHT - 5]
-                bar_height_inner = BAR_HEIGHT - 10
+            if fill_width > 8:
+                # Main fill with smooth vertical gradient
+                fill_rect = [BAR_X + 3, bar_y + 3, BAR_X + 3 + fill_width, bar_y + BAR_HEIGHT - 3]
+                bar_height_inner = BAR_HEIGHT - 6
                 
-                # Draw gradient (lighter at top, darker at bottom)
                 fill_rgb = tuple(int(BAR_FILL[i:i+2], 16) for i in (1, 3, 5))
                 highlight_rgb = tuple(int(BAR_HIGHLIGHT[i:i+2], 16) for i in (1, 3, 5))
                 
+                # Draw gradient with smooth interpolation
                 for py in range(bar_height_inner):
-                    ratio = py / bar_height_inner if bar_height_inner > 0 else 0
-                    # Interpolate between highlight (top) and fill (bottom)
-                    color = tuple(int(highlight_rgb[i] * (1 - ratio) + fill_rgb[i] * ratio) for i in range(3))
-                    line_y = bar_y + 5 + py
-                    draw.line([(BAR_X + 5, line_y), (BAR_X + 5 + fill_width, line_y)], fill=color, width=1)
+                    if bar_height_inner > 0:
+                        # More pronounced gradient (darker bottom, brighter top)
+                        ratio = (py / bar_height_inner) ** 1.2  # Power curve for smoother gradient
+                        color = tuple(int(highlight_rgb[i] * (1 - ratio) + fill_rgb[i] * ratio) for i in range(3))
+                        line_y = bar_y + 3 + py
+                        draw.line([(BAR_X + 3, line_y), (BAR_X + 3 + fill_width, line_y)], 
+                                 fill=color, width=1)
+                
+                # Top highlight strip (beveled edge)
+                if bar_height_inner > 4:
+                    highlight_strip = [BAR_X + 3, bar_y + 3, BAR_X + 3 + fill_width, bar_y + 5]
+                    draw.rectangle(highlight_strip, fill=highlight_rgb)
 
         # Draw footer "Apsisaugok"
         footer_text = "Apsisaugok"
@@ -336,11 +372,11 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         footer_y = panel_rect[3] - footer_height - FOOTER_MARGIN_BOTTOM
         draw_label_with_shadow((footer_x, footer_y), footer_text, font_footer)
 
-        # Add PS2-style scanlines for retro CRT monitor effect
+        # Add subtle PS2-style scanlines (very gentle)
         scanline_overlay = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
         scanline_draw = ImageDraw.Draw(scanline_overlay)
-        for y in range(0, CANVAS_HEIGHT, 3):  # Every 3 pixels
-            scanline_draw.line([(0, y), (CANVAS_WIDTH, y)], fill=(0, 0, 0, 20), width=1)
+        for y in range(0, CANVAS_HEIGHT, 4):  # Every 4 pixels for subtlety
+            scanline_draw.line([(0, y), (CANVAS_WIDTH, y)], fill=(0, 0, 0, 8), width=1)  # Very subtle
         
         # Composite scanlines
         img = img.convert('RGBA')
