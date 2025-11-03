@@ -62,50 +62,48 @@ def get_monthly_leaderboard(chat_id: int = None, limit: int = 5) -> list:
 
 
 def generate_leaderboard_image(top_users: list) -> BytesIO:
-    """Generate GTA SA Stats-style leaderboard matching reference image exactly"""
+    """Generate GTA SA Stats-style leaderboard matching wireframe exactly"""
     try:
-        # Canvas setup - 600x600 rounded panel
+        # Canvas setup - pure black like wireframe
         width, height = 600, 600
-        
-        # Create rounded rectangle background
-        img = Image.new('RGB', (width, height), '#1C1C1C')
+        img = Image.new('RGB', (width, height), '#000000')  # Pure black
         draw = ImageDraw.Draw(img)
         
-        # Draw rounded rectangle panel
-        panel_margin = 0
-        radius = 12
-        panel_rect = [panel_margin, panel_margin, width - panel_margin, height - panel_margin]
-        draw.rounded_rectangle(panel_rect, radius=radius, fill='#1C1C1C')
+        # Draw rounded panel (subtle)
+        panel_rect = [0, 0, width, height]
+        draw.rounded_rectangle(panel_rect, radius=12, fill='#000000')
         
         # Load fonts
         font_path_pricedown = "/opt/render/project/src/assets/Pricedown Bl.otf"
         font_path_arial = "/opt/render/project/src/assets/ariblk.ttf"
         
         try:
-            font_title = ImageFont.truetype(font_path_pricedown, 80)
+            font_title = ImageFont.truetype(font_path_pricedown, 110)
             font_username = ImageFont.truetype(font_path_arial, 38)
-            font_footer = ImageFont.truetype(font_path_arial, 32)
+            font_footer = ImageFont.truetype(font_path_arial, 44)
         except:
             font_title = ImageFont.load_default()
             font_username = ImageFont.load_default()
             font_footer = ImageFont.load_default()
         
-        # Helper for outlined text
-        def draw_outlined_text(xy, text, font, fill_color, outline_color='#000000', outline_width=2):
+        # Helper for THICK outlined text
+        def draw_outlined_text(xy, text, font, fill_color, outline_color='#000000', outline_width=3):
             x, y = xy
             for adj_x in range(-outline_width, outline_width + 1):
                 for adj_y in range(-outline_width, outline_width + 1):
                     if adj_x != 0 or adj_y != 0:
                         draw.text((x + adj_x, y + adj_y), text, font=font, fill=outline_color)
+            # Draw main text TWICE for extra boldness
             draw.text((x, y), text, font=font, fill=fill_color)
+            draw.text((x+1, y), text, font=font, fill=fill_color)
         
-        # Header: "Stats"
-        draw_outlined_text((40, 30), "Stats", font_title, '#FFFFFF', '#000000', 3)
+        # Header: "Stats" - HUGE and BOLD
+        draw_outlined_text((40, 20), "Stats", font_title, '#FFFFFF', '#000000', 5)
         
-        # Get max messages for bar scaling
+        # Get max messages
         max_messages = max([count for _, _, count in top_users], default=1000)
         
-        # User entries layout
+        # User entries
         start_y = 170
         row_height = 85
         username_x = 60
@@ -116,30 +114,30 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         for i, (user_id, username, msg_count) in enumerate(top_users[:5], 1):
             y_pos = start_y + (i - 1) * row_height
             
-            # Username (left side)
+            # Username - extra bold
             username_display = username[:12] if username else "Unknown"
             if username_display.startswith('@'):
                 username_display = username_display[1:]
             
-            draw_outlined_text((username_x, y_pos), username_display, font_username, '#FFFFFF', '#000000', 2)
+            draw_outlined_text((username_x, y_pos), username_display, font_username, '#FFFFFF', '#000000', 3)
             
-            # Progress bar
+            # Bar
             bar_y = y_pos + 3
             
-            # Bar background
+            # Bar background with THICK border
             bar_bg_rect = [bar_x, bar_y, bar_x + bar_width, bar_y + bar_height]
-            draw.rounded_rectangle(bar_bg_rect, radius=6, fill='#2E2E2E', outline='#000000', width=1)
+            draw.rounded_rectangle(bar_bg_rect, radius=6, fill='#2E2E2E', outline='#000000', width=3)
             
-            # Bar fill (proportional to message count)
+            # Bar fill
             fill_percent = msg_count / max_messages if max_messages > 0 else 0
             fill_width = int(bar_width * fill_percent)
             
             if fill_width > 6:
-                bar_fill_rect = [bar_x, bar_y, bar_x + fill_width, bar_y + bar_height]
-                draw.rounded_rectangle(bar_fill_rect, radius=6, fill='#00FF66', outline=None)
+                bar_fill_rect = [bar_x+2, bar_y+2, bar_x + fill_width-2, bar_y + bar_height-2]
+                draw.rounded_rectangle(bar_fill_rect, radius=4, fill='#00FF66', outline=None)
         
-        # Footer: "legend" in bottom-right
-        draw_outlined_text((width - 160, height - 70), "legend", font_footer, '#FFFFFF', '#000000', 2)
+        # Footer - LARGE and BOLD
+        draw_outlined_text((width - 180, height - 85), "legend", font_footer, '#FFFFFF', '#000000', 3)
         
         # Convert to BytesIO
         bio = BytesIO()
