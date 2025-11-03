@@ -109,10 +109,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     
     # Check if there's a deep link parameter
-    if context.args and context.args[0] == 'pinigine':
-        # Redirect to balance command
-        await payments.balance_command(update, context)
-        return
+    if context.args:
+        if context.args[0] == 'pinigine':
+            # Redirect to balance command
+            await payments.balance_command(update, context)
+            return
+        elif context.args[0] == 'exchange':
+            # Redirect to exchange command
+            await exchange.exchange_command(update, context)
+            return
     
     # Check if user is admin/owner
     is_admin = user_id == OWNER_ID or (update.effective_chat and update.effective_chat.id == ADMIN_CHAT_ID)

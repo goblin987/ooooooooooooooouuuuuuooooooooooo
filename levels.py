@@ -789,15 +789,16 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Send image with caption and exchange button
         caption = (
-            f"<b>Uždirbkite Taškus:</b>\n"
-            f"💬 Žinutės +5 • 🗳️ Balsavimas +50\n"
-            f"🎉 Pakėlimas lygio +150\n\n"
-            f"<b>Keitimas:</b> 2,000 taškų = $1 USD"
+            f"Uždirbkite Taškus:\n\n"
+            f"Žinutės +5\n"
+            f"Balsavimas +50\n"
+            f"Pakėlimas lygio +150\n\n"
+            f"Keitimas: 2,000 taškų = $1"
         )
         
-        # Add exchange button
+        # Add exchange button (with url to start private chat for exchange)
         keyboard = [
-            [InlineKeyboardButton("💱 Iškeisti Taškus į Pinigus", callback_data="exchange_start")]
+            [InlineKeyboardButton("💱 Iškeisti Taškus į Pinigus", url=f"https://t.me/{context.bot.username}?start=exchange")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         

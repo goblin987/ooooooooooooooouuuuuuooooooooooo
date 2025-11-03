@@ -217,12 +217,17 @@ async def show_points_leaderboard(query, context: ContextTypes.DEFAULT_TYPE) -> 
         
         if sorted_users:
             for i, (user_id, points) in enumerate(sorted_users, 1):
-                # Try to get username
+                # Get username from database user_cache
                 username = "Unknown"
-                for uname, uid in username_to_id.items():
-                    if uid == user_id:
-                        username = f"@{uname}"
-                        break
+                try:
+                    conn_cache = database.get_sync_connection()
+                    cursor_cache = conn_cache.execute("SELECT username FROM user_cache WHERE user_id = ?", (user_id,))
+                    result_cache = cursor_cache.fetchone()
+                    conn_cache.close()
+                    if result_cache and result_cache[0]:
+                        username = f"@{result_cache[0]}"
+                except:
+                    pass
                 
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
                 text += f"{medal} {username}: **{points}** points\n"
