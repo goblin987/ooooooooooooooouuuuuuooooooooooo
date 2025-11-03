@@ -794,19 +794,15 @@ async def process_points_add(update: Update, context: ContextTypes.DEFAULT_TYPE,
             await update.message.reply_text("❌ Points must be positive!")
             return
         
-        # Get or create user ID
-        user_id = username_to_id.get(username)
+        # Get user ID from user_cache (real Telegram ID)
+        user_id = database.get_user_id_by_username(username)
         if not user_id:
-            # Create new ID
-            user_id = len(username_to_id) + 1000000
-            username_to_id[username] = user_id
+            await update.message.reply_text(f"❌ User @{username} not found in cache. They need to interact with the bot first.")
+            return
         
         # Add points to database using add_user_points (not replace)
         database.add_user_points(user_id, points)
         new_balance = levels.get_user_money(user_id)
-        
-        # Save username mapping
-        data_manager.save_data(username_to_id, 'username_to_id.pkl')
         
         await update.message.reply_text(
             f"✅ **Points Added!**\n\n"
@@ -838,9 +834,10 @@ async def process_points_remove(update: Update, context: ContextTypes.DEFAULT_TY
             await update.message.reply_text("❌ Points must be positive!")
             return
         
-        user_id = username_to_id.get(username)
+        # Get user ID from user_cache (real Telegram ID)
+        user_id = database.get_user_id_by_username(username)
         if not user_id:
-            await update.message.reply_text(f"❌ User @{username} not found!")
+            await update.message.reply_text(f"❌ User @{username} not found in cache. They need to interact with the bot first.")
             return
         
         current_points = levels.get_user_money(user_id)

@@ -1158,6 +1158,21 @@ class Database:
             conn.close()
         except Exception as e:
             logger.error(f"Error adding points: {e}")
+    
+    def get_user_id_by_username(self, username: str) -> Optional[int]:
+        """Get user ID from username using user_cache"""
+        try:
+            conn = self.get_sync_connection()
+            cursor = conn.execute(
+                "SELECT user_id FROM user_cache WHERE username = ? COLLATE NOCASE",
+                (username.lstrip('@'),)
+            )
+            result = cursor.fetchone()
+            conn.close()
+            return result[0] if result else None
+        except Exception as e:
+            logger.error(f"Error getting user ID for username {username}: {e}")
+            return None
 
 
 database = Database()

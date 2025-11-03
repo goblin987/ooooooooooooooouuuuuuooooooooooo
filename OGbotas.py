@@ -580,6 +580,9 @@ async def handle_start_menu_callback(update: Update, context: ContextTypes.DEFAU
         await payments.balance_command(update, context)
     elif data == "start_points":
         await levels.points_command(update, context)
+    elif data == "exchange_start":
+        # Show exchange menu with preset buttons
+        await exchange.show_amount_selection(query, context, user_id)
     elif data == "start_games":
         text = (
             "🎲 <b>Žaidimai</b>\n\n"
