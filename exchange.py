@@ -24,16 +24,10 @@ MIN_ACCOUNT_AGE = 0   # no account age restriction
 
 def can_exchange(user_id: int) -> tuple:
     """Check if user meets basic requirements to exchange"""
-    # Level requirement
+    # Level requirement (always allow, just show warning if low level)
     level = database.get_user_level(user_id)
-    if level < MIN_LEVEL:
-        return False, f"❌ Minimalus lygis: {MIN_LEVEL}\n\nJūsų lygis: {level}"
     
-    # Minimum points
-    user_points = levels.get_user_money(user_id)
-    if user_points < MIN_EXCHANGE:
-        return False, f"❌ Reikia bent {MIN_EXCHANGE:,} taškų\n\nJūsų taškai: {user_points:,}"
-    
+    # Always return True to show menu, validation happens at transaction time
     return True, None
 
 
@@ -41,12 +35,7 @@ async def exchange_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Main exchange command - shows amount selection directly"""
     user_id = update.effective_user.id
     
-    # Check if user can exchange
-    can_exchange_result, error_msg = can_exchange(user_id)
-    
-    if not can_exchange_result:
-        await update.message.reply_text(error_msg)
-        return
+    # Always show exchange menu (validation happens when selecting amount)
     
     # Get user stats
     user_points = levels.get_user_money(user_id)

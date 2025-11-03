@@ -800,10 +800,9 @@ async def process_points_add(update: Update, context: ContextTypes.DEFAULT_TYPE,
             user_id = len(username_to_id) + 1000000
             username_to_id[username] = user_id
         
-        # Add points to database
-        current_points = get_user_points(user_id)
-        new_balance = current_points + points
-        update_user_points(user_id, new_balance)
+        # Add points to database using add_user_points (not replace)
+        database.add_user_points(user_id, points)
+        new_balance = levels.get_user_money(user_id)
         
         # Save username mapping
         data_manager.save_data(username_to_id, 'username_to_id.pkl')
@@ -843,13 +842,14 @@ async def process_points_remove(update: Update, context: ContextTypes.DEFAULT_TY
             await update.message.reply_text(f"❌ User @{username} not found!")
             return
         
-        current_points = get_user_points(user_id)
+        current_points = levels.get_user_money(user_id)
         if current_points == 0:
             await update.message.reply_text(f"❌ User @{username} has no points!")
             return
         
-        new_points = max(0, current_points - points)
-        update_user_points(user_id, new_points)
+        # Subtract points (use negative value with add_user_points)
+        database.add_user_points(user_id, -points)
+        new_points = levels.get_user_money(user_id)
         
         await update.message.reply_text(
             f"✅ **Points Removed!**\n\n"
