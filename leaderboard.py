@@ -68,59 +68,100 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         CANVAS_WIDTH = 600
         CANVAS_HEIGHT = 600
         
-        # Color palette (sampled from GTA SA stats screen)
-        BG_COLOR = '#1A1612'          # Very dark brown/black background
-        PANEL_COLOR = '#0D0C0B'        # Near black panel
-        TEXT_COLOR = '#E8E8E8'         # Off-white text
-        HEADER_OUTLINE = '#000000'     # Black outline for header
-        BAR_OUTLINE = '#0A0A0A'        # Near black bar outline
-        BAR_BG = '#2D2925'             # Dark gray-brown bar background
-        BAR_FILL = '#8B8680'           # Light gray bar fill
-        BAR_HIGHLIGHT = '#B8B3AD'      # Lighter gray bar highlight
+        # Color palette - HIGH CONTRAST for visibility
+        PANEL_COLOR = '#0F0D0B'           # Very dark panel
+        PANEL_BORDER_OUTER = '#000000'    # Black outer border
+        PANEL_BORDER_INNER = '#3A3631'    # Lighter inner border (frame effect)
+        TEXT_COLOR = '#E8E8E8'            # Off-white text
+        HEADER_OUTLINE = '#000000'        # Black outline for header
+        BAR_OUTLINE = '#000000'           # Pure black bar outline
+        BAR_BG = '#2A2622'                # Dark bar background
+        BAR_FILL = '#B5AFA8'              # MUCH lighter gray fill (high contrast)
+        BAR_HIGHLIGHT = '#E0DAD3'         # Very light highlight strip
         
         # Layout constants
-        PANEL_MARGIN = 25
-        PANEL_RADIUS = 15
-        HEADER_X = 30
-        HEADER_Y = 15
-        HEADER_FONT_SIZE = 80
-        ROW_START_Y = 110
-        ROW_SPACING = 80
-        LABEL_X = 30
-        LABEL_FONT_SIZE = 32
-        BAR_X = 260
-        BAR_WIDTH = 310
-        BAR_HEIGHT = 25
-        BAR_Y_OFFSET = 3
+        PANEL_MARGIN = 30
+        PANEL_RADIUS = 12
+        HEADER_X = 35
+        HEADER_Y = 20
+        HEADER_FONT_SIZE = 96
+        ROW_START_Y = 140
+        ROW_SPACING = 82
+        LABEL_X = 35
+        LABEL_FONT_SIZE = 50              # MUCH BIGGER username labels
+        BAR_X = 270
+        BAR_WIDTH = 295
+        BAR_HEIGHT = 28
+        BAR_Y_OFFSET = 0
         FOOTER_MARGIN_RIGHT = 35
         FOOTER_MARGIN_BOTTOM = 30
-        FOOTER_FONT_SIZE = 32
+        FOOTER_FONT_SIZE = 36
 
-        # Create base canvas
-        img = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), BG_COLOR)
+        # Load background image
+        try:
+            bg_path = "/opt/render/project/src/background3.jpg"
+            bg_img = Image.open(bg_path)
+            # Resize to canvas size
+            bg_img = bg_img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
+            img = bg_img.convert('RGB')
+            logger.info(f"Loaded background from {bg_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load background3.jpg: {e}, using fallback color")
+            # Fallback to solid color
+            img = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), '#3D3530')
+        
         draw = ImageDraw.Draw(img)
 
-        # Draw panel
+        # Draw panel with 3-layer frame effect for depth
         panel_rect = [PANEL_MARGIN, PANEL_MARGIN, 
                      CANVAS_WIDTH - PANEL_MARGIN, CANVAS_HEIGHT - PANEL_MARGIN]
-        draw.rounded_rectangle(panel_rect, radius=PANEL_RADIUS, fill=PANEL_COLOR)
+        
+        # Layer 1: Outer black border (6px thick)
+        draw.rounded_rectangle(panel_rect, radius=PANEL_RADIUS, fill=PANEL_BORDER_OUTER)
+        
+        # Layer 2: Main dark panel (inset by 6px)
+        inner_panel = [PANEL_MARGIN + 6, PANEL_MARGIN + 6,
+                      CANVAS_WIDTH - PANEL_MARGIN - 6, CANVAS_HEIGHT - PANEL_MARGIN - 6]
+        draw.rounded_rectangle(inner_panel, radius=PANEL_RADIUS - 2, fill=PANEL_COLOR)
+        
+        # Layer 3: Inner frame highlight (gives 3D depth effect)
+        frame_highlight = [PANEL_MARGIN + 8, PANEL_MARGIN + 8,
+                          CANVAS_WIDTH - PANEL_MARGIN - 8, CANVAS_HEIGHT - PANEL_MARGIN - 8]
+        draw.rounded_rectangle(frame_highlight, radius=PANEL_RADIUS - 3, 
+                              outline=PANEL_BORDER_INNER, width=2)
 
         # Load fonts
-        font_path_pricedown = "/opt/render/project/src/assets/Pricedown Bl.otf"
+        # Try gothic/blackletter font for "Stats" header (more authentic GTA SA style)
+        font_paths_gothic = [
+            "/usr/share/fonts/truetype/ancient-scripts/OldEnglish.ttf",
+            "C:\\Windows\\Fonts\\OLDENGL.TTF",  # Old English Text MT
+            "/usr/share/fonts/truetype/fonts-blackletter/UnifrakturMaguntia.ttf",
+            "/opt/render/project/src/assets/Pricedown Bl.otf",  # Fallback to Pricedown
+        ]
         
-        # Try multiple font paths for the stat labels
+        font_title = None
+        for path in font_paths_gothic:
+            try:
+                font_title = ImageFont.truetype(path, HEADER_FONT_SIZE)
+                logger.info(f"Loaded gothic header font from: {path}")
+                break
+            except:
+                continue
+        
+        if not font_title:
+            try:
+                font_title = ImageFont.truetype("/opt/render/project/src/assets/Pricedown Bl.otf", HEADER_FONT_SIZE)
+            except:
+                logger.warning("No header font found, using default")
+                font_title = ImageFont.load_default()
+        
+        # Try multiple font paths for the stat labels (BIGGER SIZE)
         font_paths_label = [
             "/usr/share/fonts/truetype/msttcorefonts/Impact.ttf",  # Linux
             "C:\\Windows\\Fonts\\impact.ttf",  # Windows
             "/System/Library/Fonts/Supplemental/Impact.ttf",  # macOS
             "/opt/render/project/src/assets/impact.ttf",  # Custom
         ]
-        
-        try:
-            font_title = ImageFont.truetype(font_path_pricedown, HEADER_FONT_SIZE)
-        except:
-            logger.warning("Pricedown font not found, using default")
-            font_title = ImageFont.load_default()
         
         font_label = None
         for path in font_paths_label:
@@ -135,6 +176,7 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             logger.warning("Impact font not found, using default")
             font_label = ImageFont.load_default()
         
+        # Footer uses same font as labels
         try:
             font_footer = ImageFont.truetype(font_paths_label[0] if font_paths_label else None, FOOTER_FONT_SIZE)
         except:
@@ -192,28 +234,30 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             # Draw username label
             draw_label_with_shadow((LABEL_X, y), display_name, font_label)
 
-            # Draw bar background with outline
+            # Draw bar with high contrast
             bar_y = y + BAR_Y_OFFSET
             bar_rect = [BAR_X, bar_y, BAR_X + BAR_WIDTH, bar_y + BAR_HEIGHT]
             
-            # Outer black border (thick)
+            # Outer black border (4px thick for visibility)
             draw.rectangle(bar_rect, fill=BAR_OUTLINE)
             
-            # Inner background
-            inner_rect = [BAR_X + 3, bar_y + 3, BAR_X + BAR_WIDTH - 3, bar_y + BAR_HEIGHT - 3]
+            # Inner dark background
+            inner_rect = [BAR_X + 4, bar_y + 4, BAR_X + BAR_WIDTH - 4, bar_y + BAR_HEIGHT - 4]
             draw.rectangle(inner_rect, fill=BAR_BG)
 
-            # Calculate and draw fill
+            # Calculate and draw light gray fill (HIGH CONTRAST)
             fill_ratio = 0 if max_messages == 0 else min(max(message_count / max_messages, 0), 1)
-            fill_width = int((BAR_WIDTH - 6) * fill_ratio)
+            fill_width = int((BAR_WIDTH - 8) * fill_ratio)
             
-            if fill_width > 4:
-                fill_rect = [BAR_X + 3, bar_y + 3, BAR_X + 3 + fill_width, bar_y + BAR_HEIGHT - 3]
+            if fill_width > 6:
+                fill_rect = [BAR_X + 4, bar_y + 4, BAR_X + 4 + fill_width, bar_y + BAR_HEIGHT - 4]
                 draw.rectangle(fill_rect, fill=BAR_FILL)
                 
-                # Top highlight strip
-                if BAR_HEIGHT - 6 > 6:
-                    highlight_rect = [BAR_X + 3, bar_y + 3, BAR_X + 3 + fill_width, bar_y + 6]
+                # Top highlight strip (very light, creates 3D effect)
+                highlight_height = 4
+                if BAR_HEIGHT - 8 > highlight_height:
+                    highlight_rect = [BAR_X + 4, bar_y + 4, 
+                                    BAR_X + 4 + fill_width, bar_y + 4 + highlight_height]
                     draw.rectangle(highlight_rect, fill=BAR_HIGHLIGHT)
 
         # Draw footer "Apsisaugok"
