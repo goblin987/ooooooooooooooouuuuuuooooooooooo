@@ -64,42 +64,42 @@ def get_monthly_leaderboard(chat_id: int = None, limit: int = 5) -> list:
 def generate_leaderboard_image(top_users: list) -> BytesIO:
     """Generate GTA SA Stats-style leaderboard matching the provided wireframe"""
     try:
-        from PIL import ImageFilter
-
         width, height = 600, 600
-        base_color = '#000000'
-        panel_color = '#1D1A17'
-        inner_color = '#221F1B'
-        panel_margin = 20
-        radius = 12
 
-        # Base canvas
-        img = Image.new('RGB', (width, height), base_color)
+        # Base background (outer brown tone)
+        background_color = '#3B332B'
+        panel_color = '#201B16'
+        highlight_color = '#2B241D'
+        bar_outline_color = '#111111'
+        bar_background_color = '#352F28'
+        bar_fill_color = '#38F764'
+
+        panel_margin = 22
+        panel_radius = 28
+
+        img = Image.new('RGB', (width, height), background_color)
         draw = ImageDraw.Draw(img)
 
-        # Panel background with subtle depth
         panel_rect = [panel_margin, panel_margin, width - panel_margin, height - panel_margin]
-        draw.rounded_rectangle(panel_rect, radius=radius, fill=panel_color)
+        draw.rounded_rectangle(panel_rect, radius=panel_radius, fill=panel_color)
 
-        inner_rect = [panel_margin + 6, panel_margin + 6, width - panel_margin - 6, height - panel_margin - 6]
-        draw.rounded_rectangle(inner_rect, radius=radius - 2, fill=inner_color)
-
-        # Soft shadow around panel edges
-        shadow = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        shadow_draw = ImageDraw.Draw(shadow)
-        shadow_draw.rounded_rectangle(panel_rect, radius=radius, outline=(0, 0, 0, 90), width=8)
-        shadow = shadow.filter(ImageFilter.GaussianBlur(6))
-        img = Image.alpha_composite(img.convert('RGBA'), shadow).convert('RGB')
+        # Apply subtle top highlight gradient
+        gradient = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        gradient_draw = ImageDraw.Draw(gradient)
+        highlight_top = [panel_rect[0], panel_rect[1], panel_rect[2], panel_rect[1] + 160]
+        gradient_draw.rectangle(highlight_top, fill=(255, 255, 255, 28))
+        gradient = gradient.filter(ImageFilter.GaussianBlur(45))
+        img = Image.alpha_composite(img.convert('RGBA'), gradient).convert('RGB')
         draw = ImageDraw.Draw(img)
 
-        # Load fonts
+        # Fonts
         font_path_pricedown = "/opt/render/project/src/assets/Pricedown Bl.otf"
         font_path_arial = "/opt/render/project/src/assets/ariblk.ttf"
 
         try:
-            font_title = ImageFont.truetype(font_path_pricedown, 96)
-            font_username = ImageFont.truetype(font_path_arial, 34)
-            font_footer = ImageFont.truetype(font_path_arial, 36)
+            font_title = ImageFont.truetype(font_path_pricedown, 112)
+            font_username = ImageFont.truetype(font_path_arial, 36)
+            font_footer = ImageFont.truetype(font_path_arial, 38)
         except:
             font_title = ImageFont.load_default()
             font_username = ImageFont.load_default()
@@ -112,79 +112,65 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             except AttributeError:
                 return font.getsize(text)
 
-        def draw_shadowed_text(xy, text, font, fill, shadow_offset=(2, 2), shadow_fill='#000000', outline=0):
-            x, y = xy
-            if outline > 0:
-                for dx in range(-outline, outline + 1):
-                    for dy in range(-outline, outline + 1):
-                        if dx == 0 and dy == 0:
-                            continue
-                        draw.text((x + dx, y + dy), text, font=font, fill=shadow_fill)
-            if shadow_offset:
-                draw.text((x + shadow_offset[0], y + shadow_offset[1]), text, font=font, fill=shadow_fill)
+        def draw_outlined_text(position, text, font, fill, outline_fill='#000000', outline_width=4):
+            x, y = position
+            for dx in range(-outline_width, outline_width + 1):
+                for dy in range(-outline_width, outline_width + 1):
+                    if dx == 0 and dy == 0:
+                        continue
+                    draw.text((x + dx, y + dy), text, font=font, fill=outline_fill)
             draw.text((x, y), text, font=font, fill=fill)
 
-        # Header text
-        title_position = (panel_margin + 45, panel_margin + 35)
-        draw_shadowed_text(title_position, "Stats", font_title, '#FFFFFF', outline=3)
+        def draw_label(position, text):
+            draw.text((position[0] + 2, position[1] + 2), text, font=font_username, fill='#050505')
+            draw.text(position, text, font=font_username, fill='#FFFFFF')
 
-        # Prepare data (ensure 5 rows)
-        displayed_users = top_users[:5]
-        while len(displayed_users) < 5:
-            displayed_users.append((None, "Unknown", 0))
+        # Header
+        header_pos = (panel_rect[0] + 42, panel_rect[1] + 38)
+        draw_outlined_text(header_pos, "Stats", font_title, '#FFFFFF', '#000000', outline_width=6)
 
-        max_messages = max([count for _, _, count in displayed_users], default=1)
+        # Prepare rows
+        rows = top_users[:5]
+        while len(rows) < 5:
+            rows.append((None, "Unknown", 0))
 
-        # Layout constants
-        row_height = 95
-        start_y = panel_margin + 130
-        username_x = panel_margin + 45
-        bar_x = panel_margin + 260
-        bar_width = 270
-        bar_height = 26
+        max_messages = max([count for _, _, count in rows], default=1)
 
-        for index, (_, username, msg_count) in enumerate(displayed_users):
-            row_y = start_y + index * row_height
+        row_spacing = 92
+        row_start_y = panel_rect[1] + 150
+        label_x = panel_rect[0] + 50
+        bar_x = panel_rect[0] + 300
+        bar_width = 290
+        bar_height = 30
 
-            # Username styling
-            username_text = username or "Unknown"
-            if username_text.startswith('@'):
-                username_text = username_text[1:]
-            username_text = username_text[:14]
+        for index, (_, username, message_count) in enumerate(rows):
+            y = row_start_y + index * row_spacing
 
-            draw_shadowed_text((username_x, row_y), username_text, font_username, '#FFFFFF', outline=2)
+            display_name = username or "Unknown"
+            if display_name.startswith('@'):
+                display_name = display_name[1:]
+            display_name = display_name[:16]
 
-            # Bar background
-            bar_top = row_y + 5
-            bar_rect = [bar_x, bar_top, bar_x + bar_width, bar_top + bar_height]
-            draw.rounded_rectangle(bar_rect, radius=6, fill='#3C3A36', outline='#0F0F0F', width=3)
+            draw_label((label_x, y))
 
-            # Filled portion
-            fill_ratio = msg_count / max_messages if max_messages else 0
-            fill_ratio = max(0.0, min(fill_ratio, 1.0))
-            fill_width = int(bar_width * fill_ratio)
+            bar_rect = [bar_x, y - 2, bar_x + bar_width, y - 2 + bar_height]
+            draw.rounded_rectangle(bar_rect, radius=8, fill=bar_background_color, outline=bar_outline_color, width=4)
 
-            if fill_width > 4:
-                fill_rect = [bar_x + 3, bar_top + 3, bar_x + fill_width - 3, bar_top + bar_height - 3]
-                draw.rounded_rectangle(fill_rect, radius=4, fill='#38F764')
+            ratio = 0 if max_messages == 0 else min(max(message_count / max_messages, 0), 1)
+            fill_width = int(bar_width * ratio)
+            if fill_width > 6:
+                fill_rect = [bar_x + 4, y + 2, bar_x + fill_width - 4, y + bar_height - 6]
+                draw.rounded_rectangle(fill_rect, radius=6, fill=bar_fill_color)
 
-                # top highlight
-                if fill_rect[3] - fill_rect[1] > 4:
-                    highlight_rect = [fill_rect[0], fill_rect[1], fill_rect[2], fill_rect[1] + 4]
-                    draw.rectangle(highlight_rect, fill='#5BFF8A')
+                highlight_rect = [fill_rect[0], fill_rect[1], fill_rect[2], fill_rect[1] + 4]
+                draw.rectangle(highlight_rect, fill='#63FF8C')
 
-            # optional message count (right aligned if space)
-            if msg_count and fill_width > 120:
-                count_text = f"{msg_count:,}"
-                text_width, _ = measure_text(count_text, font_username)
-                text_x = min(bar_x + fill_width - 10 - text_width, bar_x + bar_width - text_width - 10)
-                draw_shadowed_text((text_x, row_y + 2), count_text, font_username, '#E0E0E0', shadow_offset=(1, 1))
-
-        # Footer label
+        # Footer text
         footer_text = "legend"
-        footer_width, footer_height = measure_text(footer_text, font_footer)
-        footer_position = (panel_rect[2] - footer_width - 40, panel_rect[3] - footer_height - 40)
-        draw_shadowed_text(footer_position, footer_text, font_footer, '#FFFFFF', outline=2)
+        footer_size = measure_text(footer_text, font_footer)
+        footer_pos = (panel_rect[2] - footer_size[0] - 42, panel_rect[3] - footer_size[1] - 42)
+        draw.text((footer_pos[0] + 3, footer_pos[1] + 3), footer_text, font=font_footer, fill='#050505')
+        draw.text(footer_pos, footer_text, font=font_footer, fill='#FFFFFF')
 
         bio = BytesIO()
         bio.name = 'leaderboard.png'
