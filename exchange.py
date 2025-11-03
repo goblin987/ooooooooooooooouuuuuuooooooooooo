@@ -38,7 +38,7 @@ def can_exchange(user_id: int) -> tuple:
 
 
 async def exchange_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Main exchange command - shows initial menu"""
+    """Main exchange command - shows amount selection directly"""
     user_id = update.effective_user.id
     
     # Check if user can exchange
@@ -48,8 +48,45 @@ async def exchange_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(error_msg)
         return
     
-    # Show main exchange menu
-    await show_exchange_menu(update, context, user_id)
+    # Get user stats
+    user_points = levels.get_user_money(user_id)
+    crypto_balance = database.get_user_balance(user_id)
+    week_num = datetime.now().isocalendar()[1]
+    weekly_used = database.get_weekly_exchange_total(user_id, week_num)
+    weekly_remaining = MAX_WEEKLY_USD - weekly_used
+    max_points_can_exchange = int(weekly_remaining * EXCHANGE_RATE)
+    
+    text = (
+        f"💱 <b>Keisti Taškus</b>\n\n"
+        f"💎 Jūsų taškai: <b>{user_points:,}</b>\n"
+        f"💵 Kripto balansas: <b>${crypto_balance:.2f}</b>\n\n"
+        f"💡 Kursas: 2,000 taškų = $1.00 USD\n\n"
+        f"Pasirinkite sumą:"
+    )
+    
+    keyboard = []
+    
+    # Preset amounts
+    presets = [
+        (2000, 1.00),
+        (4000, 2.00),
+        (6000, 3.00),
+        (10000, 5.00)
+    ]
+    
+    for points, usd in presets:
+        if points <= user_points and points <= max_points_can_exchange:
+            keyboard.append([InlineKeyboardButton(
+                f"💎 {points:,} pts → ${usd:.2f}",
+                callback_data=f"exchange_select_{points}"
+            )])
+    
+    if not keyboard:
+        text += "\n\n⚠️ Nepakanka taškų arba pasiektas savaitinis limitas"
+    
+    keyboard.append([InlineKeyboardButton("🔙 Atgal", callback_data="exchange_back")])
+    
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
 
 
 async def show_main_menu(query, user_id: int):

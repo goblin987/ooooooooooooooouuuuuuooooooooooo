@@ -15,11 +15,10 @@ import json
 
 logger = logging.getLogger(__name__)
 
-# Points Rewards Configuration (displayed as "points" to users)
+# Points Rewards Configuration
 XP_REWARDS = {
     'message': 5,           # Per message (with cooldown)
     'vote': 50,            # Voting for seller
-    'scammer_report': 100, # Reporting scammer
 }
 
 # Cooldown for message points (seconds)
@@ -788,13 +787,21 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         img.save(bio, 'PNG', quality=95)
         bio.seek(0)
         
-        # Send image with minimal caption
+        # Send image with caption and exchange button
         caption = (
-            f"<b>Earn Points:</b>\n"
-            f"💬 Chat +{XP_REWARDS['message']} • 🗳️ Vote +{XP_REWARDS['vote']} • 🚨 Report +{XP_REWARDS['scammer_report']}"
+            f"<b>Uždirbkite Taškus:</b>\n"
+            f"💬 Žinutės +5 • 🗳️ Balsavimas +50\n"
+            f"🎉 Pakėlimas lygio +150\n\n"
+            f"<b>Keitimas:</b> 2,000 taškų = $1 USD"
         )
         
-        await update.message.reply_photo(photo=bio, caption=caption, parse_mode='HTML')
+        # Add exchange button
+        keyboard = [
+            [InlineKeyboardButton("💱 Iškeisti Taškus į Pinigus", callback_data="exchange_start")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_photo(photo=bio, caption=caption, reply_markup=reply_markup, parse_mode='HTML')
         
     except Exception as e:
         logger.error(f"Error in points command: {e}", exc_info=True)
