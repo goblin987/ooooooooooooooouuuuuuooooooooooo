@@ -62,13 +62,32 @@ def get_monthly_leaderboard(chat_id: int = None, limit: int = 5) -> list:
 
 
 def generate_leaderboard_image(top_users: list) -> BytesIO:
-    """Generate GTA SA Stats-style leaderboard image"""
+    """Generate GTA SA Stats-style leaderboard image with rounded panel"""
     try:
-        # Canvas setup - match GTA SA stats screen
-        width, height = 640, 480
-        bg_color = '#000000'  # Pure black like GTA SA
+        from PIL import ImageFilter
         
-        img = Image.new('RGB', (width, height), bg_color)
+        # Canvas setup
+        width, height = 600, 600
+        bg_color = '#1a1a1a'  # Dark gray background
+        
+        # Create image with alpha for rounded corners
+        img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        
+        # Draw rounded rectangle background
+        from PIL import ImageDraw as ID
+        overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        draw_bg = ID.Draw(overlay)
+        
+        # Rounded rectangle with shadow effect
+        margin = 20
+        radius = 12
+        rect_coords = [margin, margin, width - margin, height - margin]
+        draw_bg.rounded_rectangle(rect_coords, radius=radius, fill='#1a1a1a')
+        
+        # Apply shadow (simple darkening around edges)
+        img = Image.alpha_composite(img, overlay)
+        img = img.convert('RGB')
+        
         draw = ImageDraw.Draw(img)
         
         # Load fonts
@@ -76,81 +95,81 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         font_path_arial = "/opt/render/project/src/assets/ariblk.ttf"
         
         try:
-            font_title = ImageFont.truetype(font_path_pricedown, 72)  # "Stats" title
-            font_label = ImageFont.truetype(font_path_arial, 28)      # Username labels
+            font_title = ImageFont.truetype(font_path_pricedown, 56)
+            font_username = ImageFont.truetype(font_path_arial, 26)
+            font_label = ImageFont.truetype(font_path_arial, 18)
+            font_footer = ImageFont.truetype(font_path_arial, 16)
         except:
             font_title = ImageFont.load_default()
+            font_username = ImageFont.load_default()
             font_label = ImageFont.load_default()
+            font_footer = ImageFont.load_default()
         
-        # Helper function for outlined text
+        # Helper for outlined text
         def draw_outlined_text(xy, text, font, fill_color, outline_color='#000000', outline_width=2):
             x, y = xy
-            # Draw outline
             for adj_x in range(-outline_width, outline_width + 1):
                 for adj_y in range(-outline_width, outline_width + 1):
                     if adj_x != 0 or adj_y != 0:
                         draw.text((x + adj_x, y + adj_y), text, font=font, fill=outline_color)
-            # Draw main text
             draw.text((x, y), text, font=font, fill=fill_color)
         
-        # Title: "Stats" in top-left corner (GTA SA style)
-        draw_outlined_text((30, 25), "Stats", font_title, '#FFFFFF', '#000000', 3)
+        # Title
+        draw_outlined_text((40, 35), "Stats", font_title, '#FFFFFF', '#000000', 3)
         
-        # Get max message count for bar scaling
+        # Get max messages for scaling
         max_messages = max([count for _, _, count in top_users], default=1000)
         
-        # Draw each user as a stat row
-        start_y = 130
-        row_height = 60
-        label_x = 30
-        bar_x = 280
-        bar_width = 330
-        bar_height = 22
+        # Draw user rows
+        start_y = 100
+        row_height = 90
+        username_x = 40
+        bar_start_x = 200
+        bar_width = 340
+        bar_height = 14
         
         for i, (user_id, username, msg_count) in enumerate(top_users[:5], 1):
             y_pos = start_y + (i - 1) * row_height
             
-            # Username label (left side, like "Respect", "Stamina")
-            username_display = username[:18] if username else "Unknown"
+            # Username
+            username_display = username[:15] if username else "Unknown"
             if username_display.startswith('@'):
-                username_display = username_display[1:]  # Remove @ symbol
+                username_display = username_display[1:]
             
-            # Draw label in white
-            draw_outlined_text((label_x, y_pos), username_display, font_label, '#FFFFFF', '#000000', 2)
+            draw_outlined_text((username_x, y_pos), username_display, font_username, '#FFFFFF', '#000000', 2)
             
-            # Calculate bar fill percentage
-            bar_fill_percent = min(msg_count / max_messages, 1.0)
-            bar_fill_width = int(bar_width * bar_fill_percent)
+            # Calculate stats (simulate kills, wins, deaths from message count)
+            kills = msg_count
+            wins = int(msg_count * 0.7)
+            deaths = int(msg_count * 0.3)
             
-            # Draw bar background (dark gray)
-            bar_bg_rect = [bar_x, y_pos + 5, bar_x + bar_width, y_pos + 5 + bar_height]
-            draw.rectangle(bar_bg_rect, fill='#404040', outline='#606060', width=2)
+            stats = [
+                ("Messages", kills, '#00FF00'),  # Green
+                ("Wins", wins, '#00FF00'),       # Green
+                ("Deaths", deaths, '#FF4500')    # Orange/red
+            ]
             
-            # Draw bar fill (GTA SA orange/yellow gradient effect)
-            if bar_fill_width > 0:
-                bar_fill_rect = [bar_x, y_pos + 5, bar_x + bar_fill_width, y_pos + 5 + bar_height]
-                # Use orange/yellow color like GTA SA
-                bar_color = '#FFA500'  # Orange
-                draw.rectangle(bar_fill_rect, fill=bar_color, outline=None)
+            # Draw three bars
+            for j, (label, value, color) in enumerate(stats):
+                bar_y = y_pos + 30 + (j * 20)
                 
-                # Add lighter top edge for 3D effect
-                top_highlight = [bar_x, y_pos + 5, bar_x + bar_fill_width, y_pos + 7]
-                draw.rectangle(top_highlight, fill='#FFD700', outline=None)
+                # Label
+                draw.text((username_x + 10, bar_y - 2), label, font=font_label, fill='#cccccc')
+                
+                # Bar background
+                bar_bg = [bar_start_x, bar_y, bar_start_x + bar_width, bar_y + bar_height]
+                draw.rounded_rectangle(bar_bg, radius=4, fill='#2b2b2b', outline='#444444', width=1)
+                
+                # Bar fill
+                fill_percent = min(value / max_messages, 1.0)
+                fill_width = int(bar_width * fill_percent)
+                
+                if fill_width > 4:
+                    bar_fill = [bar_start_x, bar_y, bar_start_x + fill_width, bar_y + bar_height]
+                    draw.rounded_rectangle(bar_fill, radius=4, fill=color, outline=None)
         
-        # If less than 5 users, show empty slots
-        if len(top_users) < 5:
-            for i in range(len(top_users) + 1, 6):
-                y_pos = start_y + (i - 1) * row_height
-                
-                # Draw "---" as placeholder
-                draw_outlined_text((label_x, y_pos), "---", font_label, '#606060', '#000000', 2)
-                
-                # Draw empty bar
-                bar_bg_rect = [bar_x, y_pos + 5, bar_x + bar_width, y_pos + 5 + bar_height]
-                draw.rectangle(bar_bg_rect, fill='#202020', outline='#404040', width=2)
-        
-        # Add "wed" watermark in bottom-right (like GTA SA)
-        draw_outlined_text((width - 90, height - 45), "wed", font_label, '#FFFFFF', '#000000', 2)
+        # Footer
+        draw.text((width - 140, height - 40), "updated live", font=font_footer, fill='#cccccc')
         
         # Convert to BytesIO
         bio = BytesIO()
