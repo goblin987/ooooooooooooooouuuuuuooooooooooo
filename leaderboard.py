@@ -97,8 +97,8 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             draw.text((x, y), text, font=font, fill=fill_color)
             draw.text((x+1, y), text, font=font, fill=fill_color)
         
-        # Header: "Stats" - HUGE and BOLD
-        draw_outlined_text((40, 20), "Stats", font_title, '#FFFFFF', '#000000', 5)
+        # Header: "Stats" - HUGE and BOLD with Gothic Unicode
+        draw_outlined_text((40, 20), "𝕾𝖙𝖆𝖙𝖘", font_title, '#FFFFFF', '#000000', 5)
         
         # Get max messages
         max_messages = max([count for _, _, count in top_users], default=1000)
