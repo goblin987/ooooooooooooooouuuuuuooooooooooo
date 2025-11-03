@@ -68,16 +68,19 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         CANVAS_WIDTH = 600
         CANVAS_HEIGHT = 600
         
-        # Color palette - HIGH CONTRAST for visibility
-        PANEL_COLOR = '#0F0D0B'           # Very dark panel
+        # Color palette - GTA SA AUTHENTIC orange/amber theme
+        PANEL_COLOR_RGB = (15, 13, 11)    # Panel base color (will be made transparent)
+        PANEL_ALPHA = 200                 # 78% opacity (200/255) for see-through effect
         PANEL_BORDER_OUTER = '#000000'    # Black outer border
         PANEL_BORDER_INNER = '#3A3631'    # Lighter inner border (frame effect)
-        TEXT_COLOR = '#E8E8E8'            # Off-white text
+        TEXT_COLOR = '#FFB366'            # GTA SA orange/amber text
+        HEADER_COLOR = '#FFFFFF'          # White header with orange outline
         HEADER_OUTLINE = '#000000'        # Black outline for header
         BAR_OUTLINE = '#000000'           # Pure black bar outline
         BAR_BG = '#2A2622'                # Dark bar background
-        BAR_FILL = '#B5AFA8'              # MUCH lighter gray fill (high contrast)
-        BAR_HIGHLIGHT = '#E0DAD3'         # Very light highlight strip
+        BAR_FILL = '#D4A574'              # Warm tan/gold fill (GTA SA style)
+        BAR_HIGHLIGHT = '#F0D9B5'         # Light gold highlight
+        BAR_GLOW = '#FFB366'              # Orange glow effect
         
         # Layout constants
         PANEL_MARGIN = 30
@@ -125,25 +128,61 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             # Fallback to solid color
             img = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), '#3D3530')
         
+        # Apply subtle gaussian blur to background (makes panel pop)
+        img = img.filter(ImageFilter.GaussianBlur(2.5))
+        
+        # Add vignette effect (darken corners for depth)
+        vignette = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
+        vignette_draw = ImageDraw.Draw(vignette)
+        # Radial gradient vignette from edges
+        for i in range(100):
+            alpha = int((i / 100.0) * 120)  # Max 120 alpha at edges
+            inset = int(i * 3)
+            vignette_draw.rectangle(
+                [inset, inset, CANVAS_WIDTH - inset, CANVAS_HEIGHT - inset],
+                outline=(0, 0, 0, alpha)
+            )
+        
+        # Composite vignette
+        img = img.convert('RGBA')
+        img = Image.alpha_composite(img, vignette)
+        img = img.convert('RGB')
+        
+        # Will draw panel as overlay later
         draw = ImageDraw.Draw(img)
 
-        # Draw panel with 3-layer frame effect for depth
+        # Create semi-transparent panel overlay (GTA SA style see-through effect)
+        panel_overlay = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
+        panel_draw = ImageDraw.Draw(panel_overlay)
+        
         panel_rect = [PANEL_MARGIN, PANEL_MARGIN, 
                      CANVAS_WIDTH - PANEL_MARGIN, CANVAS_HEIGHT - PANEL_MARGIN]
         
-        # Layer 1: Outer black border (6px thick)
-        draw.rounded_rectangle(panel_rect, radius=PANEL_RADIUS, fill=PANEL_BORDER_OUTER)
+        # Layer 1: Outer black border (solid, 6px)
+        border_color = PANEL_BORDER_OUTER + 'FF'  # Fully opaque black
+        panel_draw.rounded_rectangle(panel_rect, radius=PANEL_RADIUS, fill=border_color)
         
-        # Layer 2: Main dark panel (inset by 6px)
+        # Layer 2: Semi-transparent dark panel (inset by 6px)
         inner_panel = [PANEL_MARGIN + 6, PANEL_MARGIN + 6,
                       CANVAS_WIDTH - PANEL_MARGIN - 6, CANVAS_HEIGHT - PANEL_MARGIN - 6]
-        draw.rounded_rectangle(inner_panel, radius=PANEL_RADIUS - 2, fill=PANEL_COLOR)
+        panel_color_rgba = PANEL_COLOR_RGB + (PANEL_ALPHA,)  # Add alpha channel
+        panel_draw.rounded_rectangle(inner_panel, radius=PANEL_RADIUS - 2, fill=panel_color_rgba)
         
-        # Layer 3: Inner frame highlight (gives 3D depth effect)
+        # Layer 3: Inner frame highlight (subtle, semi-transparent)
         frame_highlight = [PANEL_MARGIN + 8, PANEL_MARGIN + 8,
                           CANVAS_WIDTH - PANEL_MARGIN - 8, CANVAS_HEIGHT - PANEL_MARGIN - 8]
-        draw.rounded_rectangle(frame_highlight, radius=PANEL_RADIUS - 3, 
-                              outline=PANEL_BORDER_INNER, width=2)
+        # Convert hex to RGB + alpha
+        inner_border_rgb = tuple(int(PANEL_BORDER_INNER[i:i+2], 16) for i in (1, 3, 5))
+        panel_draw.rounded_rectangle(frame_highlight, radius=PANEL_RADIUS - 3, 
+                                     outline=inner_border_rgb + (180,), width=2)
+        
+        # Composite semi-transparent panel onto background
+        img = img.convert('RGBA')
+        img = Image.alpha_composite(img, panel_overlay)
+        img = img.convert('RGB')
+        
+        # Redraw for content
+        draw = ImageDraw.Draw(img)
 
         # Load fonts
         # Try gothic/blackletter font for "Stats" header (more authentic GTA SA style)
@@ -219,16 +258,21 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             draw.text((x, y), text, font=font, fill=fill)
 
         def draw_label_with_shadow(position, text, font, fill=TEXT_COLOR):
-            """Draw label with subtle shadow and extra boldness"""
+            """Draw label with GTA SA style glow and shadow"""
             x, y = position
-            # Shadow
+            # Subtle orange glow (multiple layers)
+            glow_color = BAR_GLOW
+            for offset in [(2, 2), (1, 1), (-1, 1), (1, -1)]:
+                glow_rgb = tuple(int(glow_color[i:i+2], 16) for i in (1, 3, 5, 7)) if len(glow_color) == 9 else tuple(int(glow_color[i:i+2], 16) for i in (1, 3, 5))
+                draw.text((x + offset[0], y + offset[1]), text, font=font, fill=glow_rgb)
+            # Black shadow for depth
             draw.text((x + 2, y + 2), text, font=font, fill='#000000')
             # Main text (draw twice for extra boldness)
             draw.text((x, y), text, font=font, fill=fill)
-            draw.text((x + 0.5, y), text, font=font, fill=fill)  # Slight offset for boldness
+            draw.text((x + 0.5, y), text, font=font, fill=fill)
 
-        # Draw "Stats" header
-        draw_outlined_text((HEADER_X, HEADER_Y), "Stats", font_title, TEXT_COLOR, 
+        # Draw "Stats" header with white text and orange outline
+        draw_outlined_text((HEADER_X, HEADER_Y), "Stats", font_title, HEADER_COLOR, 
                           HEADER_OUTLINE, outline_width=5)
 
         # Prepare rows (ensure exactly 5)
@@ -251,7 +295,7 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             # Draw username label
             draw_label_with_shadow((LABEL_X, y), display_name, font_label)
 
-            # Draw bar with high contrast
+            # Draw bar with GTA SA style gradient and glow
             bar_y = y + BAR_Y_OFFSET
             bar_rect = [BAR_X, bar_y, BAR_X + BAR_WIDTH, bar_y + BAR_HEIGHT]
             
@@ -262,20 +306,35 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             inner_rect = [BAR_X + 4, bar_y + 4, BAR_X + BAR_WIDTH - 4, bar_y + BAR_HEIGHT - 4]
             draw.rectangle(inner_rect, fill=BAR_BG)
 
-            # Calculate and draw light gray fill (HIGH CONTRAST)
+            # Calculate fill
             fill_ratio = 0 if max_messages == 0 else min(max(message_count / max_messages, 0), 1)
             fill_width = int((BAR_WIDTH - 8) * fill_ratio)
             
             if fill_width > 6:
-                fill_rect = [BAR_X + 4, bar_y + 4, BAR_X + 4 + fill_width, bar_y + BAR_HEIGHT - 4]
-                draw.rectangle(fill_rect, fill=BAR_FILL)
+                # Draw subtle glow behind bar (orange)
+                glow_rect = [BAR_X + 2, bar_y + 2, BAR_X + 2 + fill_width + 2, bar_y + BAR_HEIGHT - 2]
+                glow_rgb = tuple(int(BAR_GLOW[i:i+2], 16) for i in (1, 3, 5))
+                glow_overlay = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
+                glow_draw = ImageDraw.Draw(glow_overlay)
+                glow_draw.rectangle(glow_rect, fill=glow_rgb + (40,))  # Very subtle glow
+                img_temp = img.convert('RGBA')
+                img = Image.alpha_composite(img_temp, glow_overlay).convert('RGB')
+                draw = ImageDraw.Draw(img)
                 
-                # Top highlight strip (very light, creates 3D effect)
-                highlight_height = 4
-                if BAR_HEIGHT - 8 > highlight_height:
-                    highlight_rect = [BAR_X + 4, bar_y + 4, 
-                                    BAR_X + 4 + fill_width, bar_y + 4 + highlight_height]
-                    draw.rectangle(highlight_rect, fill=BAR_HIGHLIGHT)
+                # Main fill with gradient (darker bottom, lighter top)
+                fill_rect = [BAR_X + 4, bar_y + 4, BAR_X + 4 + fill_width, bar_y + BAR_HEIGHT - 4]
+                bar_height_inner = BAR_HEIGHT - 8
+                
+                # Draw gradient (pixel by pixel for smooth effect)
+                fill_rgb = tuple(int(BAR_FILL[i:i+2], 16) for i in (1, 3, 5))
+                highlight_rgb = tuple(int(BAR_HIGHLIGHT[i:i+2], 16) for i in (1, 3, 5))
+                
+                for py in range(bar_height_inner):
+                    ratio = py / bar_height_inner
+                    # Interpolate between highlight (top) and fill (bottom)
+                    color = tuple(int(highlight_rgb[i] * (1 - ratio) + fill_rgb[i] * ratio) for i in range(3))
+                    line_y = bar_y + 4 + py
+                    draw.line([(BAR_X + 4, line_y), (BAR_X + 4 + fill_width, line_y)], fill=color, width=1)
 
         # Draw footer "Apsisaugok"
         footer_text = "Apsisaugok"
