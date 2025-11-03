@@ -7,7 +7,7 @@ Users earn points through activities, not gambling
 
 import logging
 import math
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from database import database
 from datetime import datetime, timedelta
@@ -819,10 +819,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += f"<b>Level {level}</b>\n\n"
         message += f"{bar} {progress:.1f}%\n"
         message += f"{points_in_level:,} / {points_needed:,} points\n\n"
-        message += "<i>Kaip gauti points:</i>\n"
-        message += f"💬 Rašyti: +{XP_REWARDS['message']}\n"
-        message += f"🗳️ Balsuoti: +{XP_REWARDS['vote']}\n"
-        message += f"🚨 Pranešti: +{XP_REWARDS['scammer_report']}"
+        message += "<i>Uždirbkite taškus:</i>\n"
+        message += f"💬 Žinutės: +{XP_REWARDS['message']}\n"
+        message += f"🗳️ Balsavimas: +{XP_REWARDS['vote']}\n"
+        message += f"🎉 Pakėlimas lygio: +150"
         
         await update.message.reply_text(message, parse_mode='HTML')
 
