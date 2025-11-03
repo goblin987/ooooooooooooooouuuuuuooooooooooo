@@ -62,47 +62,32 @@ def get_monthly_leaderboard(chat_id: int = None, limit: int = 5) -> list:
 
 
 def generate_leaderboard_image(top_users: list) -> BytesIO:
-    """Generate GTA SA Stats-style leaderboard image with rounded panel"""
+    """Generate GTA SA Stats-style leaderboard matching reference image exactly"""
     try:
-        from PIL import ImageFilter
-        
-        # Canvas setup
+        # Canvas setup - 600x600 rounded panel
         width, height = 600, 600
-        bg_color = '#1a1a1a'  # Dark gray background
         
-        # Create image with alpha for rounded corners
-        img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        
-        # Draw rounded rectangle background
-        from PIL import ImageDraw as ID
-        overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        draw_bg = ID.Draw(overlay)
-        
-        # Rounded rectangle with shadow effect
-        margin = 20
-        radius = 12
-        rect_coords = [margin, margin, width - margin, height - margin]
-        draw_bg.rounded_rectangle(rect_coords, radius=radius, fill='#1a1a1a')
-        
-        # Apply shadow (simple darkening around edges)
-        img = Image.alpha_composite(img, overlay)
-        img = img.convert('RGB')
-        
+        # Create rounded rectangle background
+        img = Image.new('RGB', (width, height), '#1C1C1C')
         draw = ImageDraw.Draw(img)
+        
+        # Draw rounded rectangle panel
+        panel_margin = 0
+        radius = 12
+        panel_rect = [panel_margin, panel_margin, width - panel_margin, height - panel_margin]
+        draw.rounded_rectangle(panel_rect, radius=radius, fill='#1C1C1C')
         
         # Load fonts
         font_path_pricedown = "/opt/render/project/src/assets/Pricedown Bl.otf"
         font_path_arial = "/opt/render/project/src/assets/ariblk.ttf"
         
         try:
-            font_title = ImageFont.truetype(font_path_pricedown, 56)
+            font_title = ImageFont.truetype(font_path_pricedown, 64)
             font_username = ImageFont.truetype(font_path_arial, 26)
-            font_label = ImageFont.truetype(font_path_arial, 18)
-            font_footer = ImageFont.truetype(font_path_arial, 16)
+            font_footer = ImageFont.truetype(font_path_arial, 24)
         except:
             font_title = ImageFont.load_default()
             font_username = ImageFont.load_default()
-            font_label = ImageFont.load_default()
             font_footer = ImageFont.load_default()
         
         # Helper for outlined text
@@ -114,62 +99,47 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                         draw.text((x + adj_x, y + adj_y), text, font=font, fill=outline_color)
             draw.text((x, y), text, font=font, fill=fill_color)
         
-        # Title
-        draw_outlined_text((40, 35), "Stats", font_title, '#FFFFFF', '#000000', 3)
+        # Header: "Stats"
+        draw_outlined_text((40, 40), "Stats", font_title, '#FFFFFF', '#000000', 2)
         
-        # Get max messages for scaling
+        # Get max messages for bar scaling
         max_messages = max([count for _, _, count in top_users], default=1000)
         
-        # Draw user rows
-        start_y = 100
-        row_height = 90
-        username_x = 40
-        bar_start_x = 200
-        bar_width = 340
-        bar_height = 14
+        # User entries layout
+        start_y = 150
+        row_height = 70
+        username_x = 60
+        bar_x = 320
+        bar_width = 280
+        bar_height = 24
         
         for i, (user_id, username, msg_count) in enumerate(top_users[:5], 1):
             y_pos = start_y + (i - 1) * row_height
             
-            # Username
-            username_display = username[:15] if username else "Unknown"
+            # Username (left side)
+            username_display = username[:12] if username else "Unknown"
             if username_display.startswith('@'):
                 username_display = username_display[1:]
             
             draw_outlined_text((username_x, y_pos), username_display, font_username, '#FFFFFF', '#000000', 2)
             
-            # Calculate stats (simulate kills, wins, deaths from message count)
-            kills = msg_count
-            wins = int(msg_count * 0.7)
-            deaths = int(msg_count * 0.3)
+            # Progress bar
+            bar_y = y_pos + 3
             
-            stats = [
-                ("Messages", kills, '#00FF00'),  # Green
-                ("Wins", wins, '#00FF00'),       # Green
-                ("Deaths", deaths, '#FF4500')    # Orange/red
-            ]
+            # Bar background
+            bar_bg_rect = [bar_x, bar_y, bar_x + bar_width, bar_y + bar_height]
+            draw.rounded_rectangle(bar_bg_rect, radius=6, fill='#2E2E2E', outline='#000000', width=1)
             
-            # Draw three bars
-            for j, (label, value, color) in enumerate(stats):
-                bar_y = y_pos + 30 + (j * 20)
-                
-                # Label
-                draw.text((username_x + 10, bar_y - 2), label, font=font_label, fill='#cccccc')
-                
-                # Bar background
-                bar_bg = [bar_start_x, bar_y, bar_start_x + bar_width, bar_y + bar_height]
-                draw.rounded_rectangle(bar_bg, radius=4, fill='#2b2b2b', outline='#444444', width=1)
-                
-                # Bar fill
-                fill_percent = min(value / max_messages, 1.0)
-                fill_width = int(bar_width * fill_percent)
-                
-                if fill_width > 4:
-                    bar_fill = [bar_start_x, bar_y, bar_start_x + fill_width, bar_y + bar_height]
-                    draw.rounded_rectangle(bar_fill, radius=4, fill=color, outline=None)
+            # Bar fill (proportional to message count)
+            fill_percent = msg_count / max_messages if max_messages > 0 else 0
+            fill_width = int(bar_width * fill_percent)
+            
+            if fill_width > 6:
+                bar_fill_rect = [bar_x, bar_y, bar_x + fill_width, bar_y + bar_height]
+                draw.rounded_rectangle(bar_fill_rect, radius=6, fill='#00FF66', outline=None)
         
-        # Footer
-        draw.text((width - 140, height - 40), "updated live", font=font_footer, fill='#cccccc')
+        # Footer: "legend" in bottom-right
+        draw_outlined_text((width - 140, height - 60), "legend", font_footer, '#FFFFFF', '#000000', 2)
         
         # Convert to BytesIO
         bio = BytesIO()
