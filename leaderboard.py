@@ -299,14 +299,8 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
 async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show monthly leaderboard"""
     try:
-        # Run blocking operations in executor to prevent event loop issues
-        import asyncio
-        from concurrent.futures import ThreadPoolExecutor
-        
-        loop = asyncio.get_event_loop()
-        
-        # Get top 5 chatters (blocking operation)
-        top_users = await loop.run_in_executor(None, get_monthly_leaderboard, 5)
+        # Get top 5 chatters (synchronous is fine, it's fast)
+        top_users = get_monthly_leaderboard(limit=5)
         
         if not top_users:
             await update.message.reply_text(
@@ -315,8 +309,11 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
         
-        # Generate image (blocking operation)
-        image_bio = await loop.run_in_executor(None, generate_leaderboard_image, top_users)
+        # Generate image (synchronous is fine, PIL is fast)
+        image_bio = generate_leaderboard_image(top_users)
+        
+        # Reset BytesIO position to start
+        image_bio.seek(0)
         
         # Caption
         caption = (
@@ -334,9 +331,12 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         
     except Exception as e:
         logger.error(f"Error in leaderboard command: {e}", exc_info=True)
-        await update.message.reply_text(
-            "❌ Error generating leaderboard. Please try again later."
-        )
+        try:
+            await update.message.reply_text(
+                "❌ Error generating leaderboard. Please try again later."
+            )
+        except:
+            pass  # Avoid error on error
 
 
 def reset_leaderboard_stats():
