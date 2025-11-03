@@ -151,7 +151,7 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                 display_name = display_name[1:]
             display_name = display_name[:16]
 
-            draw_label((label_x, y))
+            draw_label((label_x, y), display_name)
 
             bar_rect = [bar_x, y - 2, bar_x + bar_width, y - 2 + bar_height]
             draw.rounded_rectangle(bar_rect, radius=8, fill=bar_background_color, outline=bar_outline_color, width=4)
