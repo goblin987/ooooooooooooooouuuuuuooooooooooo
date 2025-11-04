@@ -349,20 +349,20 @@ def generate_barygos_image() -> BytesIO:
         
         # Section layout
         SECTION_START_Y = 200
-        SECTION_SPACING = 360  # Space for each section (header + 10 entries)
-        SECTION_HEADER_SIZE = 40
-        ENTRY_FONT_SIZE = 28
-        ENTRY_SPACING = 32
-        LABEL_X = 50
-        SCORE_X = 1050  # Right-aligned scores
+        SECTION_SPACING = 350  # Space for each section (header + 8 entries)
+        SECTION_HEADER_SIZE = 46  # Bigger headers
+        ENTRY_FONT_SIZE = 34  # Larger for better visibility
+        ENTRY_SPACING = 38  # More spacing between entries
+        LABEL_X = 65  # Move slightly right
+        SCORE_X = 1080  # Adjusted for alignment
         FOOTER_FONT_SIZE = 42
         
-        # Load background
+        # Load background (same as /points)
         bg_img = None
         bg_paths = [
-            os.path.join(os.path.dirname(__file__), "background4.jpg"),
-            "/opt/render/project/src/background4.jpg",
-            "background4.jpg",
+            os.path.join(os.path.dirname(__file__), "background.jpg"),
+            "/opt/render/project/src/background.jpg",
+            "background.jpg",
         ]
         
         for bg_path in bg_paths:
@@ -472,10 +472,15 @@ def generate_barygos_image() -> BytesIO:
         
         def draw_label_with_shadow(position, text, font, fill=TEXT_COLOR):
             x, y = position
+            # Triple shadow for maximum visibility
+            draw.text((x + 4, y + 4), text, font=font, fill='#000000')
             draw.text((x + 3, y + 3), text, font=font, fill='#000000')
+            draw.text((x + 2, y + 2), text, font=font, fill='#000000')
+            # Main white text (quadruple-draw for boldness)
             draw.text((x, y), text, font=font, fill=fill)
             draw.text((x + 0.5, y), text, font=font, fill=fill)
             draw.text((x, y + 0.5), text, font=font, fill=fill)
+            draw.text((x + 0.5, y + 0.5), text, font=font, fill=fill)
         
         # Draw "Barygos" header
         draw_outlined_text((HEADER_X, HEADER_Y), "Barygos", font_title, HEADER_COLOR,
@@ -484,25 +489,25 @@ def generate_barygos_image() -> BytesIO:
         # Get leaderboard data
         now = datetime.now(TIMEZONE)
         
-        # Weekly
-        sorted_weekly = sorted(votes_weekly.items(), key=lambda x: x[1], reverse=True)[:10]
+        # Weekly (top 8)
+        sorted_weekly = sorted(votes_weekly.items(), key=lambda x: x[1], reverse=True)[:8]
         
-        # Monthly
+        # Monthly (top 8)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         monthly_totals = defaultdict(int)
         for vendor, votes_list in votes_monthly.items():
             current_month_votes = [(ts, s) for ts, s in votes_list if ts >= month_start]
             monthly_totals[vendor] = sum(s for _, s in current_month_votes)
-        sorted_monthly = sorted(monthly_totals.items(), key=lambda x: x[1], reverse=True)[:10]
+        sorted_monthly = sorted(monthly_totals.items(), key=lambda x: x[1], reverse=True)[:8]
         
-        # All-time
-        sorted_alltime = sorted(votes_alltime.items(), key=lambda x: x[1], reverse=True)[:10]
+        # All-time (top 8)
+        sorted_alltime = sorted(votes_alltime.items(), key=lambda x: x[1], reverse=True)[:8]
         
-        # Draw sections
+        # REORDER: All-Time Legends at TOP (most prestigious)
         sections = [
-            ("🔥 SAVAITĖS ČEMPIONAI", sorted_weekly, 0),
-            ("🗓️ MĖNESIO LYDERIAI", sorted_monthly, 1),
-            ("🌟 VISŲ LAIKŲ LEGENDOS", sorted_alltime, 2),
+            ("🌟 VISŲ LAIKŲ LEGENDOS", sorted_alltime, 0),  # TOP
+            ("🔥 SAVAITĖS ČEMPIONAI", sorted_weekly, 1),     # Middle
+            ("🗓️ MĖNESIO LYDERIAI", sorted_monthly, 2),     # Bottom
         ]
         
         for section_title, entries, section_idx in sections:
@@ -531,14 +536,6 @@ def generate_barygos_image() -> BytesIO:
                     draw_label_with_shadow((SCORE_X - score_width, y_offset), score_text, font_entry)
                     
                     y_offset += ENTRY_SPACING
-        
-        # Footer
-        footer_text = "Apsisaugok"
-        bbox = font_footer.getbbox(footer_text)
-        footer_width = bbox[2] - bbox[0]
-        footer_x = panel_rect[2] - footer_width - 50
-        footer_y = panel_rect[3] - bbox[3] - 40
-        draw_label_with_shadow((footer_x, footer_y), footer_text, font_footer)
         
         # Add scanlines
         scanline_overlay = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
