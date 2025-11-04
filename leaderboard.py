@@ -106,11 +106,11 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
 
         # Load background image (same as /points)
         try:
-            # Try multiple paths for background3.jpg
+            # Try multiple paths for background4.jpg
             bg_paths = [
-                os.path.join(os.path.dirname(__file__), "background3.jpg"),  # Workspace root
-                "/opt/render/project/src/background3.jpg",  # Render deployment path
-                "background3.jpg",  # Current directory
+                os.path.join(os.path.dirname(__file__), "background4.jpg"),  # Workspace root
+                "/opt/render/project/src/background4.jpg",  # Render deployment path
+                "background4.jpg",  # Current directory
             ]
             
             bg_img = None
@@ -126,10 +126,10 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                     bg_img = bg_img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
                 img = bg_img.convert('RGB')
             else:
-                raise FileNotFoundError("background3.jpg not found in any path")
+                raise FileNotFoundError("background4.jpg not found in any path")
                 
         except Exception as e:
-            logger.warning(f"Failed to load background3.jpg: {e}, using fallback color")
+            logger.warning(f"Failed to load background4.jpg: {e}, using fallback color")
             # Fallback to solid color
             img = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), '#3D3530')
         
@@ -405,6 +405,10 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Reset BytesIO position to start
         image_bio.seek(0)
         
+        # Read bytes to avoid event loop closing BytesIO
+        image_bytes = image_bio.read()
+        image_bio.close()
+        
         # Caption
         caption = (
             "🏆 <b>TOP CHATTERS LEADERBOARD</b>\n\n"
@@ -412,9 +416,13 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             "Keep chatting to climb the ranks! 💬"
         )
         
-        # Send image
+        # Send image using bytes
+        from io import BytesIO as NewBytesIO
+        final_bio = NewBytesIO(image_bytes)
+        final_bio.name = 'leaderboard.png'
+        
         await update.message.reply_photo(
-            photo=image_bio,
+            photo=final_bio,
             caption=caption,
             parse_mode='HTML'
         )
