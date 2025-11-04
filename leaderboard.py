@@ -360,22 +360,42 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                     highlight_strip = [BAR_X + 3, bar_y + 3, BAR_X + 3 + fill_width, bar_y + 5]
                     draw.rectangle(highlight_strip, fill=highlight_rgb)
             
-            # Draw message count inside the bar
+            # Draw message count inside the bar (centered with nicer font)
             if message_count > 0:
                 count_text = f"{message_count:,}"  # Format with commas
-                # Use smaller font for count
+                
+                # Use nicer, bolder font for count (Impact or Arial Black for visibility)
                 try:
-                    count_font = ImageFont.truetype(font_paths_label[0] if font_paths_label else None, 16)
+                    # Try multiple bold fonts for better visibility
+                    count_font_paths = [
+                        "C:/Windows/Fonts/impact.ttf",
+                        "C:/Windows/Fonts/arialbd.ttf",
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                        "/opt/render/project/src/assets/impact.ttf",
+                    ]
+                    count_font = None
+                    for path in count_font_paths:
+                        try:
+                            count_font = ImageFont.truetype(path, 20)  # Bigger size (was 16)
+                            break
+                        except:
+                            continue
+                    if not count_font:
+                        count_font = font_label
                 except:
                     count_font = font_label
                 
                 count_width, count_height = measure_text(count_text, count_font)
-                count_x = BAR_X + BAR_WIDTH_SAFE - count_width - 8  # Right-aligned with padding (adjusted for new width)
+                # Center the count in the middle of the bar
+                count_x = BAR_X + (BAR_WIDTH_SAFE - count_width) // 2
                 count_y = bar_y + (BAR_HEIGHT - count_height) // 2 - 1  # Vertically centered
                 
-                # Shadow for readability
-                draw.text((count_x + 1, count_y + 1), count_text, font=count_font, fill='#000000')
-                # Main count text
+                # Strong shadow for maximum readability (multi-layer)
+                for offset_x, offset_y in [(2, 2), (1, 1), (-1, 1), (1, -1)]:
+                    draw.text((count_x + offset_x, count_y + offset_y), count_text, 
+                             font=count_font, fill='#000000')
+                
+                # Main count text (bright white for contrast)
                 draw.text((count_x, count_y), count_text, font=count_font, fill='#FFFFFF')
 
         # Draw footer "Apsisaugok"
