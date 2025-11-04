@@ -340,12 +340,12 @@ def generate_barygos_image() -> BytesIO:
         
         # Layout constants (scaled for 1200x1200)
         PANEL_MARGIN = 40
-        PANEL_MARGIN_TOP = 120
+        PANEL_MARGIN_TOP = 180  # Move panel down to make room for header
         PANEL_MARGIN_BOTTOM = 50
         PANEL_RADIUS = 16
         HEADER_X = 50
-        HEADER_Y = 30
-        HEADER_FONT_SIZE = 120
+        HEADER_Y = 50  # Move "Barygos" higher
+        HEADER_FONT_SIZE = 140  # Make header bigger
         
         # Section layout
         SECTION_START_Y = 200
