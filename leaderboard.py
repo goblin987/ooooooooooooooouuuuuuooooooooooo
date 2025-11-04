@@ -298,62 +298,44 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         for index, (_, username, message_count) in enumerate(rows):
             y = ROW_START_Y + index * ROW_SPACING
 
-            # Draw rank number with GTA SA spray paint style
-            rank = index + 1
-            rank_colors = {
-                1: '#FFD700',  # Gold for 1st
-                2: '#C0C0C0',  # Silver for 2nd
-                3: '#CD7F32',  # Bronze for 3rd
-                4: '#FFFFFF',  # White for 4th
-                5: '#FFFFFF',  # White for 5th
-            }
-            rank_color = rank_colors.get(rank, '#FFFFFF')
-            rank_text = f"#{rank}"
-            
-            # Spray paint effect: multiple layers with slight offset
-            rank_x = LABEL_X - 8
-            rank_y = y
-            # Shadow layers (spray paint fuzzy edges)
-            for offset in [(2, 2), (1, 2), (2, 1), (-1, 1), (1, -1)]:
-                draw.text((rank_x + offset[0], rank_y + offset[1]), rank_text, 
-                         font=font_label, fill=(0, 0, 0, 80))
-            # Main rank number
-            draw.text((rank_x, rank_y), rank_text, font=font_label, fill=rank_color)
-
             # Format username
             display_name = username or "Unknown"
             if display_name.startswith('@'):
                 display_name = display_name[1:]
             display_name = display_name[:14]  # Truncate to fit
 
-            # Draw username label (shifted right to make room for rank)
-            draw_label_with_shadow((LABEL_X + 50, y), display_name, font_label)
+            # Draw username label (back to original position without rank number)
+            draw_label_with_shadow((LABEL_X, y), display_name, font_label)
 
             # Draw premium bar with inset shadow and beveled edges
             bar_y = y + BAR_Y_OFFSET
             
+            # Add padding to prevent bar from touching panel edge
+            BAR_WIDTH_SAFE = BAR_WIDTH - 12  # Reduced width for safe margin
+            
             # Outer border (3px, dark gray)
             for i in range(3):
                 border_rect = [BAR_X - i, bar_y - i, 
-                              BAR_X + BAR_WIDTH + i, bar_y + BAR_HEIGHT + i]
+                              BAR_X + BAR_WIDTH_SAFE + i, bar_y + BAR_HEIGHT + i]
                 border_rgb = tuple(int(BAR_OUTLINE[j:j+2], 16) for j in (1, 3, 5))
                 draw.rectangle(border_rect, outline=border_rgb, width=1)
             
             # Inner background with inset shadow
-            inner_rect = [BAR_X + 3, bar_y + 3, BAR_X + BAR_WIDTH - 3, bar_y + BAR_HEIGHT - 3]
+            inner_rect = [BAR_X + 3, bar_y + 3, BAR_X + BAR_WIDTH_SAFE - 3, bar_y + BAR_HEIGHT - 3]
             bg_rgb = tuple(int(BAR_BG[i:i+2], 16) for i in (1, 3, 5))
             draw.rectangle(inner_rect, fill=bg_rgb)
             
             # Top and left inset shadows (darker)
             shadow_rgb = tuple(int(BAR_SHADOW[i:i+2], 16) for i in (1, 3, 5))
-            draw.line([(BAR_X + 3, bar_y + 3), (BAR_X + BAR_WIDTH - 3, bar_y + 3)], 
+            draw.line([(BAR_X + 3, bar_y + 3), (BAR_X + BAR_WIDTH_SAFE - 3, bar_y + 3)], 
                      fill=shadow_rgb, width=2)  # Top
             draw.line([(BAR_X + 3, bar_y + 3), (BAR_X + 3, bar_y + BAR_HEIGHT - 3)], 
                      fill=shadow_rgb, width=2)  # Left
 
-            # Calculate fill
+            # Calculate fill - show relative progress in leaderboard context
+            # Each user's bar fills based on their message count vs top user
             fill_ratio = 0 if max_messages == 0 else min(max(message_count / max_messages, 0), 1)
-            fill_width = int((BAR_WIDTH - 6) * fill_ratio)
+            fill_width = int((BAR_WIDTH_SAFE - 6) * fill_ratio)
             
             if fill_width > 8:
                 # Main fill with smooth vertical gradient
@@ -388,7 +370,7 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                     count_font = font_label
                 
                 count_width, count_height = measure_text(count_text, count_font)
-                count_x = BAR_X + BAR_WIDTH - count_width - 8  # Right-aligned with padding
+                count_x = BAR_X + BAR_WIDTH_SAFE - count_width - 8  # Right-aligned with padding (adjusted for new width)
                 count_y = bar_y + (BAR_HEIGHT - count_height) // 2 - 1  # Vertically centered
                 
                 # Shadow for readability
