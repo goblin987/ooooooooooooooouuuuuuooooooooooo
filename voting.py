@@ -326,8 +326,8 @@ def generate_barygos_image() -> BytesIO:
         from datetime import datetime
         
         # Canvas dimensions - 2x larger than /stats for more entries
-        CANVAS_WIDTH = 900
-        CANVAS_HEIGHT = 1400
+        CANVAS_WIDTH = 1000
+        CANVAS_HEIGHT = 1200
         
         # Color palette - same as /stats leaderboard
         PANEL_COLOR_RGB = (10, 8, 6)
@@ -338,31 +338,33 @@ def generate_barygos_image() -> BytesIO:
         HEADER_COLOR = '#FFFFFF'
         HEADER_OUTLINE = '#000000'
         
-        # Layout constants (Portrait, mobile-friendly)
-        PANEL_MARGIN = 30
-        PANEL_MARGIN_TOP = 140  # Room for header
+        # Layout constants (2+1 layout: two columns on top, one full-width bottom)
+        PANEL_MARGIN = 35
+        PANEL_MARGIN_TOP = 150  # Room for header
         PANEL_MARGIN_BOTTOM = 40
         PANEL_RADIUS = 16
-        HEADER_X = 40
-        HEADER_Y = 40  # "Barygos" at top
-        HEADER_FONT_SIZE = 120  # Big header
+        HEADER_X = 45
+        HEADER_Y = 45  # "Barygos" at top
+        HEADER_FONT_SIZE = 130  # Big header
         
-        # Section layout - LARGER TEXT, MORE SPACING
-        SECTION_START_Y = 180
-        SECTION_SPACING = 380  # More space for each section (header + 5 entries)
-        SECTION_HEADER_SIZE = 52  # Bigger section headers
-        ENTRY_FONT_SIZE = 42  # MUCH larger for mobile readability
-        ENTRY_SPACING = 52  # More spacing between entries
+        # Section layout - 2+1 grid
+        SECTION_START_Y = 190
+        TOP_ROW_HEIGHT = 420  # Height for top 2 sections
+        COLUMN_WIDTH = 450  # Width for each column in top row
+        COLUMN_GAP = 20  # Gap between columns
+        SECTION_HEADER_SIZE = 48
+        ENTRY_FONT_SIZE = 38  # Large for readability
+        ENTRY_SPACING = 48  # Spacing between entries
         LABEL_X = 60  # Left padding
-        SCORE_X = 800  # Right-aligned scores
+        SCORE_X_OFFSET = 380  # Score position relative to section start
         FOOTER_FONT_SIZE = 38
         
-        # Load background (same as /points)
+        # Load background (same as /stats)
         bg_img = None
         bg_paths = [
-            os.path.join(os.path.dirname(__file__), "background.jpg"),
-            "/opt/render/project/src/background.jpg",
-            "background.jpg",
+            os.path.join(os.path.dirname(__file__), "background4.jpg"),
+            "/opt/render/project/src/background4.jpg",
+            "background4.jpg",
         ]
         
         for bg_path in bg_paths:
@@ -503,37 +505,51 @@ def generate_barygos_image() -> BytesIO:
         # All-time (top 5 for mobile readability)
         sorted_alltime = sorted(votes_alltime.items(), key=lambda x: x[1], reverse=True)[:5]
         
-        # REORDER: All-Time Legends at TOP (most prestigious)
+        # 2+1 Grid Layout: All-Time and Weekly on top row, Monthly full-width bottom
         sections = [
-            ("🌟 VISŲ LAIKŲ LEGENDOS", sorted_alltime, 0),  # TOP
-            ("🔥 SAVAITĖS ČEMPIONAI", sorted_weekly, 1),     # Middle
-            ("🗓️ MĖNESIO LYDERIAI", sorted_monthly, 2),     # Bottom
+            ("🌟 VISŲ LAIKŲ LEGENDOS", sorted_alltime, "left"),   # Top-left
+            ("🔥 SAVAITĖS ČEMPIONAI", sorted_weekly, "right"),    # Top-right
+            ("🗓️ MĖNESIO LYDERIAI", sorted_monthly, "bottom"),   # Bottom full-width
         ]
         
-        for section_title, entries, section_idx in sections:
-            y_offset = SECTION_START_Y + (section_idx * SECTION_SPACING)
+        for section_title, entries, position in sections:
+            # Determine section position
+            if position == "left":
+                section_x = LABEL_X
+                section_y = SECTION_START_Y
+                score_x = section_x + SCORE_X_OFFSET
+            elif position == "right":
+                section_x = LABEL_X + COLUMN_WIDTH + COLUMN_GAP
+                section_y = SECTION_START_Y
+                score_x = section_x + SCORE_X_OFFSET
+            else:  # bottom
+                section_x = LABEL_X
+                section_y = SECTION_START_Y + TOP_ROW_HEIGHT + 30
+                score_x = CANVAS_WIDTH - 100  # Right-aligned for full-width section
+            
+            y_offset = section_y
             
             # Section header
-            draw_label_with_shadow((LABEL_X, y_offset), section_title, font_section)
+            draw_label_with_shadow((section_x, y_offset), section_title, font_section)
             y_offset += SECTION_HEADER_SIZE + 15
             
             # Entries
             if not entries:
-                draw_label_with_shadow((LABEL_X + 20, y_offset), "Dar nėra duomenų", font_entry)
+                draw_label_with_shadow((section_x + 20, y_offset), "Dar nėra duomenų", font_entry)
             else:
                 for i, (vendor, score) in enumerate(entries, 1):
                     vendor_name = vendor[1:] if vendor.startswith('@') else vendor
-                    vendor_name = vendor_name[:25]  # Truncate if too long
+                    vendor_name = vendor_name[:20] if position != "bottom" else vendor_name[:30]  # Truncate
                     
                     # Draw rank and name
                     entry_text = f"{i}. {vendor_name}"
-                    draw_label_with_shadow((LABEL_X + 20, y_offset), entry_text, font_entry)
+                    draw_label_with_shadow((section_x + 20, y_offset), entry_text, font_entry)
                     
                     # Draw score (right-aligned)
                     score_text = str(score)
                     bbox = font_entry.getbbox(score_text)
                     score_width = bbox[2] - bbox[0]
-                    draw_label_with_shadow((SCORE_X - score_width, y_offset), score_text, font_entry)
+                    draw_label_with_shadow((score_x - score_width, y_offset), score_text, font_entry)
                     
                     y_offset += ENTRY_SPACING
         
