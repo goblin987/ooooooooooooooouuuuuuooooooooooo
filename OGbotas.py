@@ -112,9 +112,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Check if there's a deep link parameter
     if context.args:
         if context.args[0] == 'pinigine':
-        # Redirect to balance command
-        await payments.balance_command(update, context)
-        return
+            # Redirect to balance command
+            await payments.balance_command(update, context)
+            return
         elif context.args[0] == 'exchange':
             # Redirect to exchange command
             await exchange.exchange_command(update, context)
