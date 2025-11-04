@@ -587,7 +587,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 username_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
             else:
                 username_font = get_font(32)
-            except:
+        except:
             username_font = get_font(32)
         
         ub = draw.textbbox((0, 0), username_display, font=username_font)
