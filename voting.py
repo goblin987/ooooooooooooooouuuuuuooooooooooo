@@ -7,6 +7,7 @@ PRESERVES ALL VOTING DATA from old bot (votes_weekly.pkl, votes_monthly.pkl, vot
 
 import logging
 import os
+import math
 from datetime import datetime, timedelta
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -15,6 +16,8 @@ import telegram
 from utils import data_manager
 from config import TIMEZONE, ADMIN_CHAT_ID
 from database import database
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
@@ -317,8 +320,251 @@ def generate_barygos_text() -> str:
     return full_message
 
 
+def generate_barygos_image() -> BytesIO:
+    """Generate GTA SA-style barygos leaderboard image (1200x1200px)"""
+    try:
+        from datetime import datetime
+        
+        # Canvas dimensions - 2x larger than /stats for more entries
+        CANVAS_WIDTH = 1200
+        CANVAS_HEIGHT = 1200
+        
+        # Color palette - same as /stats leaderboard
+        PANEL_COLOR_RGB = (10, 8, 6)
+        PANEL_ALPHA = 235
+        PANEL_BORDER_OUTER = '#000000'
+        PANEL_BORDER_INNER = '#555555'
+        TEXT_COLOR = '#FFFFFF'
+        HEADER_COLOR = '#FFFFFF'
+        HEADER_OUTLINE = '#000000'
+        
+        # Layout constants (scaled for 1200x1200)
+        PANEL_MARGIN = 40
+        PANEL_MARGIN_TOP = 120
+        PANEL_MARGIN_BOTTOM = 50
+        PANEL_RADIUS = 16
+        HEADER_X = 50
+        HEADER_Y = 30
+        HEADER_FONT_SIZE = 120
+        
+        # Section layout
+        SECTION_START_Y = 200
+        SECTION_SPACING = 360  # Space for each section (header + 10 entries)
+        SECTION_HEADER_SIZE = 40
+        ENTRY_FONT_SIZE = 28
+        ENTRY_SPACING = 32
+        LABEL_X = 50
+        SCORE_X = 1050  # Right-aligned scores
+        FOOTER_FONT_SIZE = 42
+        
+        # Load background
+        bg_img = None
+        bg_paths = [
+            os.path.join(os.path.dirname(__file__), "background4.jpg"),
+            "/opt/render/project/src/background4.jpg",
+            "background4.jpg",
+        ]
+        
+        for bg_path in bg_paths:
+            if os.path.exists(bg_path):
+                bg_img = Image.open(bg_path)
+                break
+        
+        if bg_img:
+            if bg_img.size != (CANVAS_WIDTH, CANVAS_HEIGHT):
+                bg_img = bg_img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
+            img = bg_img.convert('RGB')
+        else:
+            img = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), '#3D3530')
+        
+        # Add vignette
+        vignette = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
+        vignette_draw = ImageDraw.Draw(vignette)
+        center_x, center_y = CANVAS_WIDTH // 2, CANVAS_HEIGHT // 2
+        max_dist = math.sqrt(center_x**2 + center_y**2)
+        for y in range(CANVAS_HEIGHT):
+            for x in range(0, CANVAS_WIDTH, 4):
+                dist = math.sqrt((x - center_x)**2 + (y - center_y)**2)
+                alpha = int((dist / max_dist) * 60)
+                if alpha > 0:
+                    vignette_draw.point((x, y), fill=(0, 0, 0, alpha))
+        
+        img = img.convert('RGBA')
+        img = Image.alpha_composite(img, vignette)
+        img = img.convert('RGB')
+        
+        draw = ImageDraw.Draw(img)
+        
+        # Create panel overlay
+        panel_overlay = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
+        panel_draw = ImageDraw.Draw(panel_overlay)
+        
+        panel_rect = [PANEL_MARGIN, PANEL_MARGIN_TOP,
+                     CANVAS_WIDTH - PANEL_MARGIN, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM]
+        
+        # Outer shadow
+        for i in range(10, 0, -1):
+            alpha = int(30 * (i / 10.0))
+            shadow_rect = [PANEL_MARGIN - i, PANEL_MARGIN_TOP - i,
+                          CANVAS_WIDTH - PANEL_MARGIN + i, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM + i]
+            panel_draw.rounded_rectangle(shadow_rect, radius=PANEL_RADIUS + i,
+                                        outline=(0, 0, 0, alpha), width=1)
+        
+        # Border
+        for i in range(5):
+            border_rect = [PANEL_MARGIN + i, PANEL_MARGIN_TOP + i,
+                          CANVAS_WIDTH - PANEL_MARGIN - i, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM - i]
+            panel_draw.rounded_rectangle(border_rect, radius=PANEL_RADIUS - i,
+                                        outline=(0, 0, 0, 255), width=1)
+        
+        # Main panel
+        inner_panel = [PANEL_MARGIN + 5, PANEL_MARGIN_TOP + 5,
+                      CANVAS_WIDTH - PANEL_MARGIN - 5, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM - 5]
+        panel_color_rgba = PANEL_COLOR_RGB + (PANEL_ALPHA,)
+        panel_draw.rounded_rectangle(inner_panel, radius=PANEL_RADIUS - 5, fill=panel_color_rgba)
+        
+        # Composite panel
+        img = img.convert('RGBA')
+        img = Image.alpha_composite(img, panel_overlay)
+        img = img.convert('RGB')
+        draw = ImageDraw.Draw(img)
+        
+        # Load fonts
+        font_paths_gothic = [
+            "/opt/render/project/src/assets/OldEnglishFive.ttf",
+            os.path.join(os.path.dirname(__file__), "assets", "OldEnglishFive.ttf"),
+        ]
+        
+        font_title = None
+        for path in font_paths_gothic:
+            try:
+                font_title = ImageFont.truetype(path, HEADER_FONT_SIZE)
+                break
+            except:
+                continue
+        
+        if not font_title:
+            font_title = ImageFont.load_default()
+        
+        # Entry fonts
+        font_paths_label = [
+            "/opt/render/project/src/assets/impact.ttf",
+            os.path.join(os.path.dirname(__file__), "assets", "impact.ttf"),
+        ]
+        
+        try:
+            font_section = ImageFont.truetype(font_paths_label[0], SECTION_HEADER_SIZE)
+            font_entry = ImageFont.truetype(font_paths_label[0], ENTRY_FONT_SIZE)
+            font_footer = ImageFont.truetype(font_paths_label[0], FOOTER_FONT_SIZE)
+        except:
+            font_section = ImageFont.load_default()
+            font_entry = ImageFont.load_default()
+            font_footer = ImageFont.load_default()
+        
+        def draw_outlined_text(position, text, font, fill, outline_fill='#000000', outline_width=5):
+            x, y = position
+            for dx in range(-outline_width, outline_width + 1):
+                for dy in range(-outline_width, outline_width + 1):
+                    if dx == 0 and dy == 0:
+                        continue
+                    draw.text((x + dx, y + dy), text, font=font, fill=outline_fill)
+            draw.text((x, y), text, font=font, fill=fill)
+        
+        def draw_label_with_shadow(position, text, font, fill=TEXT_COLOR):
+            x, y = position
+            draw.text((x + 3, y + 3), text, font=font, fill='#000000')
+            draw.text((x, y), text, font=font, fill=fill)
+            draw.text((x + 0.5, y), text, font=font, fill=fill)
+            draw.text((x, y + 0.5), text, font=font, fill=fill)
+        
+        # Draw "Barygos" header
+        draw_outlined_text((HEADER_X, HEADER_Y), "Barygos", font_title, HEADER_COLOR,
+                          HEADER_OUTLINE, outline_width=6)
+        
+        # Get leaderboard data
+        now = datetime.now(TIMEZONE)
+        
+        # Weekly
+        sorted_weekly = sorted(votes_weekly.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        # Monthly
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        monthly_totals = defaultdict(int)
+        for vendor, votes_list in votes_monthly.items():
+            current_month_votes = [(ts, s) for ts, s in votes_list if ts >= month_start]
+            monthly_totals[vendor] = sum(s for _, s in current_month_votes)
+        sorted_monthly = sorted(monthly_totals.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        # All-time
+        sorted_alltime = sorted(votes_alltime.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        # Draw sections
+        sections = [
+            ("🔥 SAVAITĖS ČEMPIONAI", sorted_weekly, 0),
+            ("🗓️ MĖNESIO LYDERIAI", sorted_monthly, 1),
+            ("🌟 VISŲ LAIKŲ LEGENDOS", sorted_alltime, 2),
+        ]
+        
+        for section_title, entries, section_idx in sections:
+            y_offset = SECTION_START_Y + (section_idx * SECTION_SPACING)
+            
+            # Section header
+            draw_label_with_shadow((LABEL_X, y_offset), section_title, font_section)
+            y_offset += SECTION_HEADER_SIZE + 15
+            
+            # Entries
+            if not entries:
+                draw_label_with_shadow((LABEL_X + 20, y_offset), "Dar nėra duomenų", font_entry)
+            else:
+                for i, (vendor, score) in enumerate(entries, 1):
+                    vendor_name = vendor[1:] if vendor.startswith('@') else vendor
+                    vendor_name = vendor_name[:25]  # Truncate if too long
+                    
+                    # Draw rank and name
+                    entry_text = f"{i}. {vendor_name}"
+                    draw_label_with_shadow((LABEL_X + 20, y_offset), entry_text, font_entry)
+                    
+                    # Draw score (right-aligned)
+                    score_text = str(score)
+                    bbox = font_entry.getbbox(score_text)
+                    score_width = bbox[2] - bbox[0]
+                    draw_label_with_shadow((SCORE_X - score_width, y_offset), score_text, font_entry)
+                    
+                    y_offset += ENTRY_SPACING
+        
+        # Footer
+        footer_text = "Apsisaugok"
+        bbox = font_footer.getbbox(footer_text)
+        footer_width = bbox[2] - bbox[0]
+        footer_x = panel_rect[2] - footer_width - 50
+        footer_y = panel_rect[3] - bbox[3] - 40
+        draw_label_with_shadow((footer_x, footer_y), footer_text, font_footer)
+        
+        # Add scanlines
+        scanline_overlay = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
+        scanline_draw = ImageDraw.Draw(scanline_overlay)
+        
+        for y in range(0, CANVAS_HEIGHT, 3):
+            scanline_draw.line([(0, y), (CANVAS_WIDTH, y)], fill=(0, 0, 0, 15), width=1)
+        
+        img = img.convert('RGBA')
+        img = Image.alpha_composite(img, scanline_overlay)
+        img = img.convert('RGB')
+        
+        # Save to BytesIO
+        bio = BytesIO()
+        bio.name = 'barygos.png'
+        img.save(bio, 'PNG')
+        bio.seek(0)
+        return bio
+        
+    except Exception as e:
+        logger.error(f"Error generating barygos image: {e}")
+        raise
+
+
 async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Display seller leaderboards (weekly, monthly, all-time)"""
+    """Display seller leaderboards (weekly, monthly, all-time) with GTA SA style image"""
     chat_id = update.message.chat_id
     
     # Register this group in database for barygos auto-post group selection
@@ -330,39 +576,18 @@ async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         except:
             database.register_group(chat_id)
     
-    # Generate leaderboard text
-    full_message = generate_barygos_text()
-    
     try:
-        # Send with media if available
-        if barygos_media_id and barygos_media_type:
-            if len(full_message) > 1000:
-                # Send media and text separately if too long
-                if barygos_media_type == 'photo':
-                    await context.bot.send_photo(chat_id=chat_id, photo=barygos_media_id)
-                elif barygos_media_type == 'animation':
-                    await context.bot.send_animation(chat_id=chat_id, animation=barygos_media_id)
-                elif barygos_media_type == 'video':
-                    await context.bot.send_video(chat_id=chat_id, video=barygos_media_id)
-                
-                msg = await context.bot.send_message(chat_id=chat_id, text=full_message)
-            else:
-                # Send with caption
-                if barygos_media_type == 'photo':
-                    msg = await context.bot.send_photo(chat_id=chat_id, photo=barygos_media_id, caption=full_message)
-                elif barygos_media_type == 'animation':
-                    msg = await context.bot.send_animation(chat_id=chat_id, animation=barygos_media_id, caption=full_message)
-                elif barygos_media_type == 'video':
-                    msg = await context.bot.send_video(chat_id=chat_id, video=barygos_media_id, caption=full_message)
-                else:
-                    msg = await context.bot.send_message(chat_id=chat_id, text=full_message)
-        else:
-            msg = await context.bot.send_message(chat_id=chat_id, text=full_message)
+        # Generate GTA SA style image
+        image_bio = generate_barygos_image()
         
-        # Auto-delete after 120 seconds
-        context.job_queue.run_once(
-            lambda c: c.bot.delete_message(chat_id=chat_id, message_id=msg.message_id),
-            120
+        # Read bytes to avoid event loop issues
+        image_bytes = image_bio.read()
+        image_bio.close()
+        
+        # Send image without caption
+        await update.message.reply_photo(
+            photo=image_bytes,
+            filename='barygos.png'
         )
         
     except Exception as e:
