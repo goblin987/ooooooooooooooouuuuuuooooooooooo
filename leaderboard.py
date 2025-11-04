@@ -87,7 +87,7 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         PANEL_MARGIN = 30
         PANEL_RADIUS = 12
         HEADER_X = 35
-        HEADER_Y = 22                     # Sitting on top border line (like wireframe)
+        HEADER_Y = -8                     # Half-in/half-out of panel border (cuts into border)
         HEADER_FONT_SIZE = 90             # Slightly smaller for better fit
         ROW_START_Y = 140
         ROW_SPACING = 82
@@ -174,10 +174,10 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             panel_draw.rounded_rectangle(border_rect, radius=PANEL_RADIUS - i, 
                                         outline=(0, 0, 0, 255), width=1)
         
-        # Layer 3: Main panel (fully opaque, no transparency issues)
+        # Layer 3: Main panel (semi-transparent so background shows through)
         inner_panel = [PANEL_MARGIN + 4, PANEL_MARGIN + 4,
                       CANVAS_WIDTH - PANEL_MARGIN - 4, CANVAS_HEIGHT - PANEL_MARGIN - 4]
-        panel_color_rgba = PANEL_COLOR_RGB + (255,)  # Fully opaque to prevent see-through
+        panel_color_rgba = PANEL_COLOR_RGB + (PANEL_ALPHA,)  # Semi-transparent (92% opacity)
         panel_draw.rounded_rectangle(inner_panel, radius=PANEL_RADIUS - 4, fill=panel_color_rgba)
         
         # Layer 4: Very subtle top shine (on top of opaque panel)
