@@ -86,20 +86,20 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         
         # Layout constants
         PANEL_MARGIN = 30
-        PANEL_MARGIN_TOP = 120            # Much more margin at top = panel starts lower
-        PANEL_MARGIN_BOTTOM = 100         # More margin at bottom = smaller panel
+        PANEL_MARGIN_TOP = 90             # Panel starts lower but not too much
+        PANEL_MARGIN_BOTTOM = 40          # Less margin at bottom = bigger panel
         PANEL_RADIUS = 12
         HEADER_X = 35
-        HEADER_Y = 65                     # Much higher - sits above the panel box
+        HEADER_Y = 20                     # Position so Stats sits ON TOP of panel border
         HEADER_FONT_SIZE = 90             # Slightly smaller for better fit
-        ROW_START_Y = 140
-        ROW_SPACING = 82
+        ROW_START_Y = 170                 # More space from top for Stats
+        ROW_SPACING = 68                  # Better spacing between rows
         LABEL_X = 35
         LABEL_FONT_SIZE = 42              # Bigger username labels (optimized size)
         BAR_X = 270
         BAR_WIDTH = 295
-        BAR_HEIGHT = 20                   # Reduced from 28 to 20 (smaller bars)
-        BAR_Y_OFFSET = 8                  # Align bars to center with text vertically
+        BAR_HEIGHT = 24                   # Bigger bars for better visibility
+        BAR_Y_OFFSET = 6                  # Align bars to center with text vertically
         FOOTER_MARGIN_RIGHT = 35
         FOOTER_MARGIN_BOTTOM = 30
         FOOTER_FONT_SIZE = 36
