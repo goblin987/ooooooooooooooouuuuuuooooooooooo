@@ -206,7 +206,7 @@ def grant_message_xp(user_id: int, message_text: str = '', message_id: int = 0, 
     
     # 5. Duplicate detection (no repeats within 5 minutes)
     if database.is_duplicate_message(user_id, message_text):
-    return None
+        return None
     
     # Award POINTS (money) directly - 5 points per message
     points_to_add = 5
