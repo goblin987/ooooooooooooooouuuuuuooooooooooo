@@ -340,15 +340,15 @@ def generate_barygos_image() -> BytesIO:
         
         # Layout constants (Vertical scroll-friendly, portrait)
         PANEL_MARGIN = 30
-        PANEL_MARGIN_TOP = 140  # Room for header
+        PANEL_MARGIN_TOP = 200  # Much more room for header
         PANEL_MARGIN_BOTTOM = 40
         PANEL_RADIUS = 16
         HEADER_X = 40
-        HEADER_Y = 40  # "Barygos" at top
+        HEADER_Y = 20  # "Barygos" MUCH higher
         HEADER_FONT_SIZE = 110  # Big header
         
         # Section layout - Single column, vertical
-        SECTION_START_Y = 180
+        SECTION_START_Y = 230  # Start lower to avoid header overlap
         SECTION_SPACING = 480  # Space for each section (header + 7 entries)
         SECTION_HEADER_SIZE = 50  # Big section headers
         ENTRY_FONT_SIZE = 40  # Large for mobile readability
@@ -581,10 +581,43 @@ async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         image_bytes = image_bio.read()
         image_bio.close()
         
-        # Send image without caption
+        # Calculate statistics
+        from datetime import datetime, timedelta
+        now = datetime.now(TIMEZONE)
+        week_start = now - timedelta(days=7)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Count votes
+        weekly_votes = sum(len([v for ts, s in votes if ts >= week_start]) for votes in votes_weekly.values())
+        monthly_votes = sum(len([v for ts, s in votes if ts >= month_start]) for votes in votes_monthly.values())
+        alltime_votes = sum(votes_alltime.values())
+        active_sellers = len([v for v in votes_alltime.values() if v > 0])
+        
+        # Calculate next reset times
+        next_week = (now + timedelta(days=(7 - now.weekday()))).replace(hour=1, minute=52, second=0, microsecond=0)
+        next_month = (now.replace(day=1, hour=1, minute=52, second=0, microsecond=0) + timedelta(days=32)).replace(day=1)
+        
+        # Format GTA SA style caption
+        caption = (
+            f"═══════════════════════\n"
+            f"▸ STATISTIKOS\n"
+            f"═══════════════════════\n\n"
+            f"▸ Savaitės balsų: {weekly_votes}\n"
+            f"▸ Mėnesio balsų: {monthly_votes}\n"
+            f"▸ Visų laikų balsų: {alltime_votes}\n"
+            f"▸ Aktyvūs pardavėjai: {active_sellers}\n\n"
+            f"═══════════════════════\n"
+            f"▸ KITAS RESTARTAS\n"
+            f"═══════════════════════\n\n"
+            f"▸ Savaitės: {next_week.strftime('%m-%d %H:%M')}\n"
+            f"▸ Mėnesio: {next_month.strftime('%m-%d %H:%M')}\n"
+        )
+        
+        # Send image with caption
         await update.message.reply_photo(
             photo=image_bytes,
-            filename='barygos.png'
+            filename='barygos.png',
+            caption=caption
         )
         
     except Exception as e:
