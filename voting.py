@@ -326,8 +326,8 @@ def generate_barygos_image() -> BytesIO:
         from datetime import datetime
         
         # Canvas dimensions - 2x larger than /stats for more entries
-        CANVAS_WIDTH = 1200
-        CANVAS_HEIGHT = 1200
+        CANVAS_WIDTH = 900
+        CANVAS_HEIGHT = 1400
         
         # Color palette - same as /stats leaderboard
         PANEL_COLOR_RGB = (10, 8, 6)
@@ -338,24 +338,24 @@ def generate_barygos_image() -> BytesIO:
         HEADER_COLOR = '#FFFFFF'
         HEADER_OUTLINE = '#000000'
         
-        # Layout constants (scaled for 1200x1200)
-        PANEL_MARGIN = 40
-        PANEL_MARGIN_TOP = 180  # Move panel down to make room for header
-        PANEL_MARGIN_BOTTOM = 50
+        # Layout constants (Portrait, mobile-friendly)
+        PANEL_MARGIN = 30
+        PANEL_MARGIN_TOP = 140  # Room for header
+        PANEL_MARGIN_BOTTOM = 40
         PANEL_RADIUS = 16
-        HEADER_X = 50
-        HEADER_Y = 50  # Move "Barygos" higher
-        HEADER_FONT_SIZE = 140  # Make header bigger
+        HEADER_X = 40
+        HEADER_Y = 40  # "Barygos" at top
+        HEADER_FONT_SIZE = 120  # Big header
         
-        # Section layout
-        SECTION_START_Y = 200
-        SECTION_SPACING = 350  # Space for each section (header + 8 entries)
-        SECTION_HEADER_SIZE = 46  # Bigger headers
-        ENTRY_FONT_SIZE = 34  # Larger for better visibility
-        ENTRY_SPACING = 38  # More spacing between entries
-        LABEL_X = 65  # Move slightly right
-        SCORE_X = 1080  # Adjusted for alignment
-        FOOTER_FONT_SIZE = 42
+        # Section layout - LARGER TEXT, MORE SPACING
+        SECTION_START_Y = 180
+        SECTION_SPACING = 380  # More space for each section (header + 5 entries)
+        SECTION_HEADER_SIZE = 52  # Bigger section headers
+        ENTRY_FONT_SIZE = 42  # MUCH larger for mobile readability
+        ENTRY_SPACING = 52  # More spacing between entries
+        LABEL_X = 60  # Left padding
+        SCORE_X = 800  # Right-aligned scores
+        FOOTER_FONT_SIZE = 38
         
         # Load background (same as /points)
         bg_img = None
@@ -489,19 +489,19 @@ def generate_barygos_image() -> BytesIO:
         # Get leaderboard data
         now = datetime.now(TIMEZONE)
         
-        # Weekly (top 8)
-        sorted_weekly = sorted(votes_weekly.items(), key=lambda x: x[1], reverse=True)[:8]
+        # Weekly (top 5 for mobile readability)
+        sorted_weekly = sorted(votes_weekly.items(), key=lambda x: x[1], reverse=True)[:5]
         
-        # Monthly (top 8)
+        # Monthly (top 5 for mobile readability)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         monthly_totals = defaultdict(int)
         for vendor, votes_list in votes_monthly.items():
             current_month_votes = [(ts, s) for ts, s in votes_list if ts >= month_start]
             monthly_totals[vendor] = sum(s for _, s in current_month_votes)
-        sorted_monthly = sorted(monthly_totals.items(), key=lambda x: x[1], reverse=True)[:8]
+        sorted_monthly = sorted(monthly_totals.items(), key=lambda x: x[1], reverse=True)[:5]
         
-        # All-time (top 8)
-        sorted_alltime = sorted(votes_alltime.items(), key=lambda x: x[1], reverse=True)[:8]
+        # All-time (top 5 for mobile readability)
+        sorted_alltime = sorted(votes_alltime.items(), key=lambda x: x[1], reverse=True)[:5]
         
         # REORDER: All-Time Legends at TOP (most prestigious)
         sections = [
