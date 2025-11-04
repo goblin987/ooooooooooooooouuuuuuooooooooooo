@@ -22,7 +22,7 @@ XP_REWARDS = {
 }
 
 # Cooldown for message points (seconds)
-MESSAGE_XP_COOLDOWN = 60  # 1 minute between message points gains
+MESSAGE_XP_COOLDOWN = 30  # 30 seconds between message points gains (2 messages/minute max)
 
 # Level calculation formula - EXPONENTIAL SYSTEM (1-600 levels)
 def get_xp_for_level(level: int) -> int:
@@ -119,7 +119,7 @@ def add_xp(user_id: int, amount: int, reason: str = None) -> dict:
             conn.execute("""
                 UPDATE users SET points = ? WHERE user_id = ?
             """, (current_money + points_earned, user_id))
-            conn.commit()
+        conn.commit()
             
             logger.info(f"🎉 User {user_id} leveled up: {old_level} → {new_level} (+{points_earned} points reward)")
         
@@ -206,7 +206,7 @@ def grant_message_xp(user_id: int, message_text: str = '', message_id: int = 0, 
     
     # 5. Duplicate detection (no repeats within 5 minutes)
     if database.is_duplicate_message(user_id, message_text):
-        return None
+    return None
     
     # Award POINTS (money) directly - 5 points per message
     points_to_add = 5
@@ -345,7 +345,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         total_stars = 6
         # Outline thickness used by draw_outlined_text (keep in sync)
         outline_w = 5
-
+        
         # Load GTA SA background image (green cityscape)
         background_path = os.path.join(os.path.dirname(__file__), 'background.jpg')
         
@@ -397,7 +397,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/usr/share/fonts/truetype/pricedown/pricedown.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         ]
-
+        
         font_path_used = None
         pricedown_font = None
         for candidate in font_candidates:
@@ -442,7 +442,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 bbox = draw.textbbox((0, 0), text, font=f)
                 w = bbox[2] - bbox[0]
                 if w >= int(target_width * 0.98):
-                    break
+                        break
                 size += 2
             return size
 
@@ -451,7 +451,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kwargs = {'font': font}
             if anchor:
                 kwargs['anchor'] = anchor
-
+            
             # Drop shadow for depth (GTA SA style) - soft blur effect
             if shadow:
                 shadow_offset = 4
@@ -471,10 +471,10 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 for adj2 in range(-outline_width, outline_width + 1):
                     if adj == 0 and adj2 == 0:
                         continue
-                    draw.text((x + adj, y + adj2), text, fill=outline_color, **kwargs)
+                        draw.text((x + adj, y + adj2), text, fill=outline_color, **kwargs)
             # Bright fill on top
             draw.text(position, text, fill=fill_color, **kwargs)
-
+        
         def draw_star(center_x, center_y, radius, filled=False, outline_width=5):
             points = []
             for i in range(10):
@@ -587,7 +587,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 username_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
             else:
                 username_font = get_font(32)
-        except:
+            except:
             username_font = get_font(32)
         
         ub = draw.textbbox((0, 0), username_display, font=username_font)
@@ -608,7 +608,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 level_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 28)
             elif os.path.exists("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
                 level_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-            else:
+        else:
                 level_font = get_font(28)
         except:
             level_font = get_font(28)
@@ -749,7 +749,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 draw.ellipse([cx - shimmer_size//2, shimmer_y - shimmer_size//2, 
                              cx + shimmer_size//2, shimmer_y + shimmer_size//2], 
                              fill='#FFFFCC')
-            
+        
             # Determine star color for debugging
             if filled == True:
                 star_color = gta_yellow

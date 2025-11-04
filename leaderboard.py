@@ -472,22 +472,12 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         image_bytes = image_bio.read()
         image_bio.close()
         
-        # Caption
-        caption = (
-            "🏆 <b>TOP CHATTERS LEADERBOARD</b>\n\n"
-            "Most active members in the last 30 days!\n"
-            "Keep chatting to climb the ranks! 💬"
-        )
+        # No caption - image is self-explanatory
         
-        # Send image using bytes
-        from io import BytesIO as NewBytesIO
-        final_bio = NewBytesIO(image_bytes)
-        final_bio.name = 'leaderboard.png'
-        
+        # Send image directly without BytesIO to avoid event loop issues
         await update.message.reply_photo(
-            photo=final_bio,
-            caption=caption,
-            parse_mode='HTML'
+            photo=image_bytes,
+            filename='stats.png'
         )
         
     except Exception as e:

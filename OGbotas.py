@@ -112,9 +112,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Check if there's a deep link parameter
     if context.args:
         if context.args[0] == 'pinigine':
-            # Redirect to balance command
-            await payments.balance_command(update, context)
-            return
+        # Redirect to balance command
+        await payments.balance_command(update, context)
+        return
         elif context.args[0] == 'exchange':
             # Redirect to exchange command
             await exchange.exchange_command(update, context)
@@ -1041,7 +1041,7 @@ def create_application():
     application.add_handler(CommandHandler("barygos", voting.barygos_command))  # Scoreboard leaderboard
     application.add_handler(CommandHandler("bajorai", bajorai.bajorai_command))  # Top balances & game stats
     application.add_handler(CommandHandler("points", levels.points_command))  # XP & Level system
-    application.add_handler(CommandHandler("leaderboard", leaderboard.leaderboard_command))  # Top chatters
+    application.add_handler(CommandHandler("stats", leaderboard.leaderboard_command))  # Top chatters (GTA SA style)
     application.add_handler(CommandHandler("exchange", exchange.exchange_command))  # Points→Crypto exchange
     application.add_handler(CommandHandler("updatevoting", voting.updatevoting_command))
     application.add_handler(CommandHandler("resetvotes", voting.reset_voting_cooldowns_command))
