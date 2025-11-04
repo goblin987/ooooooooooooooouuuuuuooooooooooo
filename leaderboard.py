@@ -85,9 +85,10 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         
         # Layout constants
         PANEL_MARGIN = 30
+        PANEL_MARGIN_BOTTOM = 100         # More margin at bottom = smaller panel
         PANEL_RADIUS = 12
         HEADER_X = 35
-        HEADER_Y = -8                     # Half-in/half-out of panel border (cuts into border)
+        HEADER_Y = -5                     # Sits ON the border line (half above, half below)
         HEADER_FONT_SIZE = 90             # Slightly smaller for better fit
         ROW_START_Y = 140
         ROW_SPACING = 82
@@ -157,42 +158,32 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         panel_draw = ImageDraw.Draw(panel_overlay)
         
         panel_rect = [PANEL_MARGIN, PANEL_MARGIN, 
-                     CANVAS_WIDTH - PANEL_MARGIN, CANVAS_HEIGHT - PANEL_MARGIN]
+                     CANVAS_WIDTH - PANEL_MARGIN, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM]
         
         # Layer 1: Outer shadow for depth (soft)
         for i in range(8, 0, -1):
             alpha = int(30 * (i / 8.0))
             shadow_rect = [PANEL_MARGIN - i, PANEL_MARGIN - i,
-                          CANVAS_WIDTH - PANEL_MARGIN + i, CANVAS_HEIGHT - PANEL_MARGIN + i]
+                          CANVAS_WIDTH - PANEL_MARGIN + i, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM + i]
             panel_draw.rounded_rectangle(shadow_rect, radius=PANEL_RADIUS + i, 
                                         outline=(0, 0, 0, alpha), width=1)
         
         # Layer 2: Outer black border (solid, 4px)
         for i in range(4):
             border_rect = [PANEL_MARGIN + i, PANEL_MARGIN + i,
-                          CANVAS_WIDTH - PANEL_MARGIN - i, CANVAS_HEIGHT - PANEL_MARGIN - i]
+                          CANVAS_WIDTH - PANEL_MARGIN - i, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM - i]
             panel_draw.rounded_rectangle(border_rect, radius=PANEL_RADIUS - i, 
                                         outline=(0, 0, 0, 255), width=1)
         
         # Layer 3: Main panel (semi-transparent so background shows through)
         inner_panel = [PANEL_MARGIN + 4, PANEL_MARGIN + 4,
-                      CANVAS_WIDTH - PANEL_MARGIN - 4, CANVAS_HEIGHT - PANEL_MARGIN - 4]
+                      CANVAS_WIDTH - PANEL_MARGIN - 4, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM - 4]
         panel_color_rgba = PANEL_COLOR_RGB + (PANEL_ALPHA,)  # Semi-transparent (92% opacity)
         panel_draw.rounded_rectangle(inner_panel, radius=PANEL_RADIUS - 4, fill=panel_color_rgba)
         
-        # Layer 4: Very subtle top shine (on top of opaque panel)
-        gradient_height = 60
-        for y in range(gradient_height):
-            alpha = int(12 * (1 - y / gradient_height))  # Reduced from 25 to 12
-            gradient_y = PANEL_MARGIN + 4 + y
-            if gradient_y < CANVAS_HEIGHT - PANEL_MARGIN - 4:
-                panel_draw.line([(PANEL_MARGIN + 6, gradient_y), 
-                               (CANVAS_WIDTH - PANEL_MARGIN - 6, gradient_y)],
-                              fill=(255, 255, 255, alpha), width=1)
-        
-        # Layer 5: Inner frame (subtle)
+        # Layer 4: Inner frame (subtle)
         frame_rect = [PANEL_MARGIN + 6, PANEL_MARGIN + 6,
-                     CANVAS_WIDTH - PANEL_MARGIN - 6, CANVAS_HEIGHT - PANEL_MARGIN - 6]
+                     CANVAS_WIDTH - PANEL_MARGIN - 6, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM - 6]
         inner_border_rgb = tuple(int(PANEL_BORDER_INNER[i:i+2], 16) for i in (1, 3, 5))
         panel_draw.rounded_rectangle(frame_rect, radius=PANEL_RADIUS - 6, 
                                      outline=inner_border_rgb + (100,), width=1)
