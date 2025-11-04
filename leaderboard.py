@@ -364,18 +364,20 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             if message_count > 0:
                 count_text = f"{message_count:,}"  # Format with commas (e.g., "10,234")
                 
-                # Use clean, monospace font for stats display (like real GTA SA)
+                # Use GTA SA-style font (Pricedown or Impact for authentic look)
                 try:
                     count_font_paths = [
-                        "C:/Windows/Fonts/consola.ttf",      # Consolas - clean monospace
-                        "C:/Windows/Fonts/consolab.ttf",     # Consolas Bold
-                        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-                        "/opt/render/project/src/assets/impact.ttf",  # Fallback
+                        "/opt/render/project/src/assets/Pricedown Bl.otf",  # GTA SA authentic font
+                        os.path.join(os.path.dirname(__file__), "assets", "Pricedown Bl.otf"),
+                        "C:/Windows/Fonts/impact.ttf",       # Impact - very GTA-like
+                        "/opt/render/project/src/assets/impact.ttf",
+                        "/usr/share/fonts/truetype/msttcorefonts/Impact.ttf",
+                        "C:/Windows/Fonts/arial.ttf",        # Fallback
                     ]
                     count_font = None
                     for path in count_font_paths:
                         try:
-                            count_font = ImageFont.truetype(path, 22)  # Clean readable size
+                            count_font = ImageFont.truetype(path, 26)  # Slightly bigger for visibility
                             break
                         except:
                             continue
@@ -385,16 +387,19 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                     count_font = font_label
                 
                 count_width, count_height = measure_text(count_text, count_font)
-                # Position to RIGHT of bar with perfect spacing
+                # Position to RIGHT of bar - align with bar center vertically
                 count_x = BAR_X + BAR_WIDTH_SAFE + 15  # 15px gap from bar end
-                count_y = bar_y + (BAR_HEIGHT - count_height) // 2
+                # Align with bar center (using bar_y as reference, not username y)
+                count_y = bar_y + (BAR_HEIGHT - count_height) // 2 + 1  # +1 for optical centering
                 
-                # Subtle shadow for depth (single layer for clean look)
+                # Strong shadow for GTA SA style (multi-layer for depth)
+                draw.text((count_x + 2, count_y + 2), count_text, 
+                         font=count_font, fill='#000000')
                 draw.text((count_x + 1, count_y + 1), count_text, 
                          font=count_font, fill='#000000')
-                # Main count in light gray (aesthetic, not too bright - perfect contrast)
+                # Main count in bright white (GTA SA style - high contrast)
                 draw.text((count_x, count_y), count_text, 
-                         font=count_font, fill='#CCCCCC')
+                         font=count_font, fill='#FFFFFF')
 
         # Draw footer "Apsisaugok"
         footer_text = "Apsisaugok"
