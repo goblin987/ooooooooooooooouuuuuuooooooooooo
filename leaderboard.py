@@ -99,7 +99,7 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         BAR_X = 270
         BAR_WIDTH = 220                   # Shorter bar to make room for count display
         BAR_HEIGHT = 24                   # Bigger bars for better visibility
-        BAR_Y_OFFSET = 6                  # Align bars to center with text vertically
+        BAR_Y_OFFSET = -3                 # Negative offset to align bars higher with username center
         FOOTER_MARGIN_RIGHT = 35
         FOOTER_MARGIN_BOTTOM = 30
         FOOTER_FONT_SIZE = 36
