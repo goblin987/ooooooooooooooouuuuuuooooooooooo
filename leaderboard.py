@@ -389,8 +389,8 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                 count_width, count_height = measure_text(count_text, count_font)
                 # Position to RIGHT of bar - align with bar center vertically
                 count_x = BAR_X + BAR_WIDTH_SAFE + 15  # 15px gap from bar end
-                # Align with bar center (using bar_y as reference, not username y)
-                count_y = bar_y + (BAR_HEIGHT - count_height) // 2 + 1  # +1 for optical centering
+                # Align with bar center - lift up by reducing the offset
+                count_y = bar_y + (BAR_HEIGHT - count_height) // 2 - 4  # -4 to lift numbers up
                 
                 # Strong shadow for GTA SA style (multi-layer for depth)
                 draw.text((count_x + 2, count_y + 2), count_text, 
