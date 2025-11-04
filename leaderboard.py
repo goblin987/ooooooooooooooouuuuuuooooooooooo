@@ -97,7 +97,7 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         LABEL_X = 35
         LABEL_FONT_SIZE = 42              # Bigger username labels (optimized size)
         BAR_X = 270
-        BAR_WIDTH = 295
+        BAR_WIDTH = 220                   # Shorter bar to make room for count display
         BAR_HEIGHT = 24                   # Bigger bars for better visibility
         BAR_Y_OFFSET = 6                  # Align bars to center with text vertically
         FOOTER_MARGIN_RIGHT = 35
@@ -360,23 +360,22 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                     highlight_strip = [BAR_X + 3, bar_y + 3, BAR_X + 3 + fill_width, bar_y + 5]
                     draw.rectangle(highlight_strip, fill=highlight_rgb)
             
-            # Draw message count inside the bar (centered with nicer font)
+            # Draw message count ELEGANTLY to the right of the bar (GTA SA style)
             if message_count > 0:
-                count_text = f"{message_count:,}"  # Format with commas
+                count_text = f"{message_count:,}"  # Format with commas (e.g., "10,234")
                 
-                # Use nicer, bolder font for count (Impact or Arial Black for visibility)
+                # Use clean, monospace font for stats display (like real GTA SA)
                 try:
-                    # Try multiple bold fonts for better visibility
                     count_font_paths = [
-                        "C:/Windows/Fonts/impact.ttf",
-                        "C:/Windows/Fonts/arialbd.ttf",
-                        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                        "/opt/render/project/src/assets/impact.ttf",
+                        "C:/Windows/Fonts/consola.ttf",      # Consolas - clean monospace
+                        "C:/Windows/Fonts/consolab.ttf",     # Consolas Bold
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+                        "/opt/render/project/src/assets/impact.ttf",  # Fallback
                     ]
                     count_font = None
                     for path in count_font_paths:
                         try:
-                            count_font = ImageFont.truetype(path, 20)  # Bigger size (was 16)
+                            count_font = ImageFont.truetype(path, 22)  # Clean readable size
                             break
                         except:
                             continue
@@ -386,17 +385,16 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                     count_font = font_label
                 
                 count_width, count_height = measure_text(count_text, count_font)
-                # Center the count in the middle of the bar
-                count_x = BAR_X + (BAR_WIDTH_SAFE - count_width) // 2
-                count_y = bar_y + (BAR_HEIGHT - count_height) // 2 - 1  # Vertically centered
+                # Position to RIGHT of bar with perfect spacing
+                count_x = BAR_X + BAR_WIDTH_SAFE + 15  # 15px gap from bar end
+                count_y = bar_y + (BAR_HEIGHT - count_height) // 2
                 
-                # Strong shadow for maximum readability (multi-layer)
-                for offset_x, offset_y in [(2, 2), (1, 1), (-1, 1), (1, -1)]:
-                    draw.text((count_x + offset_x, count_y + offset_y), count_text, 
-                             font=count_font, fill='#000000')
-                
-                # Main count text (bright white for contrast)
-                draw.text((count_x, count_y), count_text, font=count_font, fill='#FFFFFF')
+                # Subtle shadow for depth (single layer for clean look)
+                draw.text((count_x + 1, count_y + 1), count_text, 
+                         font=count_font, fill='#000000')
+                # Main count in light gray (aesthetic, not too bright - perfect contrast)
+                draw.text((count_x, count_y), count_text, 
+                         font=count_font, fill='#CCCCCC')
 
         # Draw footer "Apsisaugok"
         footer_text = "Apsisaugok"
