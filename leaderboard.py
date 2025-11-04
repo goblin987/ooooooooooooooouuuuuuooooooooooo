@@ -85,10 +85,11 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         
         # Layout constants
         PANEL_MARGIN = 30
+        PANEL_MARGIN_TOP = 120            # Much more margin at top = panel starts lower
         PANEL_MARGIN_BOTTOM = 100         # More margin at bottom = smaller panel
         PANEL_RADIUS = 12
         HEADER_X = 35
-        HEADER_Y = -5                     # Sits ON the border line (half above, half below)
+        HEADER_Y = 65                     # Much higher - sits above the panel box
         HEADER_FONT_SIZE = 90             # Slightly smaller for better fit
         ROW_START_Y = 140
         ROW_SPACING = 82
@@ -102,7 +103,7 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         FOOTER_MARGIN_BOTTOM = 30
         FOOTER_FONT_SIZE = 36
 
-        # Load background image
+        # Load background image (same as /points)
         try:
             # Try multiple paths for background3.jpg
             bg_paths = [
@@ -119,8 +120,9 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                     break
             
             if bg_img:
-                # Resize to canvas size
-                bg_img = bg_img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
+                # Resize to canvas size with high-quality resampling
+                if bg_img.size != (CANVAS_WIDTH, CANVAS_HEIGHT):
+                    bg_img = bg_img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
                 img = bg_img.convert('RGB')
             else:
                 raise FileNotFoundError("background3.jpg not found in any path")
@@ -130,20 +132,17 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             # Fallback to solid color
             img = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), '#3D3530')
         
-        # Apply subtle gaussian blur to background (makes panel pop)
-        img = img.filter(ImageFilter.GaussianBlur(2.5))
-        
-        # Add vignette effect (darken corners for depth)
+        # Add subtle vignette for depth (same as /points - lighter touch)
         vignette = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
         vignette_draw = ImageDraw.Draw(vignette)
-        # Radial gradient vignette from edges
-        for i in range(100):
-            alpha = int((i / 100.0) * 120)  # Max 120 alpha at edges
-            inset = int(i * 3)
-            vignette_draw.rectangle(
-                [inset, inset, CANVAS_WIDTH - inset, CANVAS_HEIGHT - inset],
-                outline=(0, 0, 0, alpha)
-            )
+        center_x, center_y = CANVAS_WIDTH // 2, CANVAS_HEIGHT // 2
+        max_dist = math.sqrt(center_x**2 + center_y**2)
+        for y in range(CANVAS_HEIGHT):
+            for x in range(0, CANVAS_WIDTH, 4):  # sample every 4px for performance
+                dist = math.sqrt((x - center_x)**2 + (y - center_y)**2)
+                alpha = int((dist / max_dist) * 60)  # max 60 alpha at corners (lighter than before)
+                if alpha > 0:
+                    vignette_draw.point((x, y), fill=(0, 0, 0, alpha))
         
         # Composite vignette
         img = img.convert('RGBA')
@@ -157,32 +156,32 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         panel_overlay = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
         panel_draw = ImageDraw.Draw(panel_overlay)
         
-        panel_rect = [PANEL_MARGIN, PANEL_MARGIN, 
+        panel_rect = [PANEL_MARGIN, PANEL_MARGIN_TOP, 
                      CANVAS_WIDTH - PANEL_MARGIN, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM]
         
         # Layer 1: Outer shadow for depth (soft)
         for i in range(8, 0, -1):
             alpha = int(30 * (i / 8.0))
-            shadow_rect = [PANEL_MARGIN - i, PANEL_MARGIN - i,
+            shadow_rect = [PANEL_MARGIN - i, PANEL_MARGIN_TOP - i,
                           CANVAS_WIDTH - PANEL_MARGIN + i, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM + i]
             panel_draw.rounded_rectangle(shadow_rect, radius=PANEL_RADIUS + i, 
                                         outline=(0, 0, 0, alpha), width=1)
         
         # Layer 2: Outer black border (solid, 4px)
         for i in range(4):
-            border_rect = [PANEL_MARGIN + i, PANEL_MARGIN + i,
+            border_rect = [PANEL_MARGIN + i, PANEL_MARGIN_TOP + i,
                           CANVAS_WIDTH - PANEL_MARGIN - i, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM - i]
             panel_draw.rounded_rectangle(border_rect, radius=PANEL_RADIUS - i, 
                                         outline=(0, 0, 0, 255), width=1)
         
         # Layer 3: Main panel (semi-transparent so background shows through)
-        inner_panel = [PANEL_MARGIN + 4, PANEL_MARGIN + 4,
+        inner_panel = [PANEL_MARGIN + 4, PANEL_MARGIN_TOP + 4,
                       CANVAS_WIDTH - PANEL_MARGIN - 4, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM - 4]
         panel_color_rgba = PANEL_COLOR_RGB + (PANEL_ALPHA,)  # Semi-transparent (92% opacity)
         panel_draw.rounded_rectangle(inner_panel, radius=PANEL_RADIUS - 4, fill=panel_color_rgba)
         
         # Layer 4: Inner frame (subtle)
-        frame_rect = [PANEL_MARGIN + 6, PANEL_MARGIN + 6,
+        frame_rect = [PANEL_MARGIN + 6, PANEL_MARGIN_TOP + 6,
                      CANVAS_WIDTH - PANEL_MARGIN - 6, CANVAS_HEIGHT - PANEL_MARGIN_BOTTOM - 6]
         inner_border_rgb = tuple(int(PANEL_BORDER_INNER[i:i+2], 16) for i in (1, 3, 5))
         panel_draw.rounded_rectangle(frame_rect, radius=PANEL_RADIUS - 6, 
