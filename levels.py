@@ -120,8 +120,8 @@ def add_xp(user_id: int, amount: int, reason: str = None) -> dict:
                 UPDATE users SET points = ? WHERE user_id = ?
             """, (current_money + points_earned, user_id))
         conn.commit()
-            
-            logger.info(f"🎉 User {user_id} leveled up: {old_level} → {new_level} (+{points_earned} points reward)")
+        
+        logger.info(f"🎉 User {user_id} leveled up: {old_level} → {new_level} (+{points_earned} points reward)")
         
         conn.close()
         
