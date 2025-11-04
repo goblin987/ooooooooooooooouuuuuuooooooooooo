@@ -298,14 +298,36 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         for index, (_, username, message_count) in enumerate(rows):
             y = ROW_START_Y + index * ROW_SPACING
 
+            # Draw rank number with GTA SA spray paint style
+            rank = index + 1
+            rank_colors = {
+                1: '#FFD700',  # Gold for 1st
+                2: '#C0C0C0',  # Silver for 2nd
+                3: '#CD7F32',  # Bronze for 3rd
+                4: '#FFFFFF',  # White for 4th
+                5: '#FFFFFF',  # White for 5th
+            }
+            rank_color = rank_colors.get(rank, '#FFFFFF')
+            rank_text = f"#{rank}"
+            
+            # Spray paint effect: multiple layers with slight offset
+            rank_x = LABEL_X - 8
+            rank_y = y
+            # Shadow layers (spray paint fuzzy edges)
+            for offset in [(2, 2), (1, 2), (2, 1), (-1, 1), (1, -1)]:
+                draw.text((rank_x + offset[0], rank_y + offset[1]), rank_text, 
+                         font=font_label, fill=(0, 0, 0, 80))
+            # Main rank number
+            draw.text((rank_x, rank_y), rank_text, font=font_label, fill=rank_color)
+
             # Format username
             display_name = username or "Unknown"
             if display_name.startswith('@'):
                 display_name = display_name[1:]
             display_name = display_name[:14]  # Truncate to fit
 
-            # Draw username label
-            draw_label_with_shadow((LABEL_X, y), display_name, font_label)
+            # Draw username label (shifted right to make room for rank)
+            draw_label_with_shadow((LABEL_X + 50, y), display_name, font_label)
 
             # Draw premium bar with inset shadow and beveled edges
             bar_y = y + BAR_Y_OFFSET
@@ -355,6 +377,24 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                 if bar_height_inner > 4:
                     highlight_strip = [BAR_X + 3, bar_y + 3, BAR_X + 3 + fill_width, bar_y + 5]
                     draw.rectangle(highlight_strip, fill=highlight_rgb)
+            
+            # Draw message count inside the bar
+            if message_count > 0:
+                count_text = f"{message_count:,}"  # Format with commas
+                # Use smaller font for count
+                try:
+                    count_font = ImageFont.truetype(font_paths_label[0] if font_paths_label else None, 16)
+                except:
+                    count_font = font_label
+                
+                count_width, count_height = measure_text(count_text, count_font)
+                count_x = BAR_X + BAR_WIDTH - count_width - 8  # Right-aligned with padding
+                count_y = bar_y + (BAR_HEIGHT - count_height) // 2 - 1  # Vertically centered
+                
+                # Shadow for readability
+                draw.text((count_x + 1, count_y + 1), count_text, font=count_font, fill='#000000')
+                # Main count text
+                draw.text((count_x, count_y), count_text, font=count_font, fill='#FFFFFF')
 
         # Draw footer "Apsisaugok"
         footer_text = "Apsisaugok"
@@ -363,13 +403,31 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         footer_y = panel_rect[3] - footer_height - FOOTER_MARGIN_BOTTOM
         draw_label_with_shadow((footer_x, footer_y), footer_text, font_footer)
 
-        # Add subtle PS2-style scanlines (very gentle)
+        # Add enhanced PS2-style CRT scanlines with subtle shine effect
         scanline_overlay = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
         scanline_draw = ImageDraw.Draw(scanline_overlay)
-        for y in range(0, CANVAS_HEIGHT, 4):  # Every 4 pixels for subtlety
-            scanline_draw.line([(0, y), (CANVAS_WIDTH, y)], fill=(0, 0, 0, 8), width=1)  # Very subtle
         
-        # Composite scanlines
+        # Horizontal scanlines (CRT effect)
+        for y in range(0, CANVAS_HEIGHT, 3):  # Every 3 pixels for more visible effect
+            scanline_draw.line([(0, y), (CANVAS_WIDTH, y)], fill=(0, 0, 0, 15), width=1)
+        
+        # Add subtle diagonal shine sweep (like animated shine but static)
+        # Create a diagonal gradient that gives impression of light reflection
+        for x in range(0, CANVAS_WIDTH, 8):
+            # Calculate shine intensity based on position (peaks in middle)
+            distance_from_center = abs(x - CANVAS_WIDTH // 2)
+            max_distance = CANVAS_WIDTH // 2
+            intensity = int(25 * (1 - distance_from_center / max_distance))  # Max 25 alpha
+            
+            if intensity > 5:
+                # Draw diagonal line from top-left to bottom-right
+                for offset in range(3):  # Make it 3 pixels wide
+                    scanline_draw.line(
+                        [(x + offset, 0), (x + offset + CANVAS_HEIGHT, CANVAS_HEIGHT)],
+                        fill=(255, 255, 255, intensity // 3), width=1
+                    )
+        
+        # Composite scanlines and shine
         img = img.convert('RGBA')
         img = Image.alpha_composite(img, scanline_overlay)
         img = img.convert('RGB')
