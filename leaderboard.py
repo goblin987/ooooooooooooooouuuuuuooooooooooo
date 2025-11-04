@@ -6,6 +6,7 @@ Shows top 5 users by message count in last 30 days
 """
 
 import logging
+import math
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
