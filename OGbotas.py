@@ -902,7 +902,7 @@ def create_application():
     # Note: /points command now handled by levels.py (level system), not points_games.py
     
     # Stats command
-    application.add_handler(CommandHandler("stats", stats.stats_command))
+    application.add_handler(CommandHandler("gamestats", stats.stats_command))  # Game statistics
     
     # Payment commands (balance, deposit, withdraw, tip)
     application.add_handler(CommandHandler("pinigine", payments.balance_command))  # Wallet command
