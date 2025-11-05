@@ -344,7 +344,7 @@ def generate_barygos_image() -> BytesIO:
         PANEL_MARGIN_BOTTOM = 30  # Smaller bottom margin to fit more content
         PANEL_RADIUS = 12  # Same as /stats
         HEADER_X = 35  # Same as /stats
-        HEADER_Y = 20  # Same as /stats - header sits ON TOP of panel border
+        HEADER_Y = 10  # Higher than /stats to account for larger canvas height
         HEADER_FONT_SIZE = 90  # Same as /stats for consistency
         
         # Section layout - Single column, vertical (optimized for 7 entries per section)
