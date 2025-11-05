@@ -420,7 +420,7 @@ async def process_leaderboard_add_messages(update: Update, context: ContextTypes
             )
             return
         
-        user_id = user_data[0]
+        user_id = user_data['user_id']  # get_user_by_username returns dict, not tuple
         current_messages = database.get_total_messages(user_id)
         
         # Add messages
@@ -1273,13 +1273,20 @@ async def process_seller_rename(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             new_username = new_input.lstrip('@')
         
-        # Check if new username already exists
+        # Check if new username already exists (but allow renaming to itself with different format)
         new_with_at = new_username if new_username.startswith('@') else f'@{new_username}'
         new_without_at = new_username.lstrip('@')
         
-        if (new_with_at in trusted_sellers or new_without_at in trusted_sellers) and new_username != old_username:
-            await update.message.reply_text(f"❌ {new_with_at} is already in the trusted sellers list!")
-            return
+        # Compare normalized versions (without @) to check if it's the same seller
+        old_normalized = old_username.lstrip('@')
+        new_normalized = new_username.lstrip('@')
+        
+        # Check if new username belongs to a DIFFERENT seller (compare normalized versions)
+        if new_normalized != old_normalized:
+            # It's a different seller - check if new username already exists
+            if new_with_at in trusted_sellers or new_without_at in trusted_sellers:
+                await update.message.reply_text(f"❌ {new_with_at} is already in the trusted sellers list!")
+                return
         
         # Load voting data from voting.py
         import voting

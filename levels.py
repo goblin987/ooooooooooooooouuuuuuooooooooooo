@@ -608,7 +608,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 level_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 28)
             elif os.path.exists("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
                 level_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-            else:
+        else:
                 level_font = get_font(28)
         except:
             level_font = get_font(28)

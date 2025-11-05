@@ -2325,44 +2325,74 @@ async def send_barygos_to_groups():
         logger.warning("No target groups configured for barygos auto-post")
         return
     
-    # Generate leaderboard text
-    full_message = voting.generate_barygos_text()
+    # Generate barygos image (same as /barygos command)
+    from datetime import datetime, timedelta
+    from collections import defaultdict
+    
+    try:
+        image_bio = voting.generate_barygos_image()
+        image_bytes = image_bio.read()
+        image_bio.close()
+    except Exception as e:
+        logger.error(f"Failed to generate barygos image: {e}")
+        return
+    
+    # Calculate statistics for caption (same logic as barygos_command)
+    now = datetime.now(voting.TIMEZONE)
+    week_start = now - timedelta(days=7)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Count votes
+    weekly_votes = sum(voting.votes_weekly.values())
+    
+    monthly_votes = 0
+    for vendor, vote_list in voting.votes_monthly.items():
+        for ts, score in vote_list:
+            if ts >= month_start:
+                monthly_votes += score
+    
+    alltime_votes = sum(voting.votes_alltime.values())
+    active_sellers = len([v for v in voting.votes_alltime.values() if v > 0])
+    
+    # Calculate next reset times
+    next_week = (now + timedelta(days=(7 - now.weekday()))).replace(hour=1, minute=52, second=0, microsecond=0)
+    next_month = (now.replace(day=1, hour=1, minute=52, second=0, microsecond=0) + timedelta(days=32)).replace(day=1)
+    
+    # Format caption (same as /barygos command)
+    caption = (
+        f"═══════════════\n"
+        f"▸ BALSŲ STATISTIKA\n"
+        f"═══════════════\n\n"
+        f"▸ Savaitės: {weekly_votes}\n"
+        f"▸ Mėnesio: {monthly_votes}\n"
+        f"▸ Viso: {alltime_votes}\n"
+        f"▸ Pardavėjai: {active_sellers}\n\n"
+        f"═══════════════\n"
+        f"▸ RESTARTAS\n"
+        f"═══════════════\n\n"
+        f"▸ Sav: {next_week.strftime('%m-%d %H:%M')}\n"
+        f"▸ Mėn: {next_month.strftime('%m-%d %H:%M')}\n"
+    )
     
     # Create button linking to voting group (if configured)
-    reply_markup = None
+    keyboard = None
     voting_link = settings.get('voting_group_link', '')
     if voting_link:
-        keyboard = [[InlineKeyboardButton("🗳️ Balsuoti už pardavėją", url=voting_link)]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🗳️ Balsuoti už pardavėją", url=voting_link)]
+        ])
     
     # Send to each group
     successful = 0
     for chat_id in target_groups:
         try:
-            # Send with media if available
-            if voting.barygos_media_id and voting.barygos_media_type:
-                if len(full_message) > 1000:
-                    # Send media and text separately if too long
-                    if voting.barygos_media_type == 'photo':
-                        await _bot_instance.send_photo(chat_id=chat_id, photo=voting.barygos_media_id)
-                    elif voting.barygos_media_type == 'animation':
-                        await _bot_instance.send_animation(chat_id=chat_id, animation=voting.barygos_media_id)
-                    elif voting.barygos_media_type == 'video':
-                        await _bot_instance.send_video(chat_id=chat_id, video=voting.barygos_media_id)
-                    
-                    await _bot_instance.send_message(chat_id=chat_id, text=full_message, reply_markup=reply_markup)
-                else:
-                    # Send with caption and button
-                    if voting.barygos_media_type == 'photo':
-                        await _bot_instance.send_photo(chat_id=chat_id, photo=voting.barygos_media_id, caption=full_message, reply_markup=reply_markup)
-                    elif voting.barygos_media_type == 'animation':
-                        await _bot_instance.send_animation(chat_id=chat_id, animation=voting.barygos_media_id, caption=full_message, reply_markup=reply_markup)
-                    elif voting.barygos_media_type == 'video':
-                        await _bot_instance.send_video(chat_id=chat_id, video=voting.barygos_media_id, caption=full_message, reply_markup=reply_markup)
-                    else:
-                        await _bot_instance.send_message(chat_id=chat_id, text=full_message, reply_markup=reply_markup)
-            else:
-                await _bot_instance.send_message(chat_id=chat_id, text=full_message, reply_markup=reply_markup)
+            # Send barygos image with caption and button
+            await _bot_instance.send_photo(
+                chat_id=chat_id,
+                photo=image_bytes,
+                caption=caption,
+                reply_markup=keyboard
+            )
             
             successful += 1
             logger.info(f"✅ Sent barygos leaderboard to {chat_id}")
