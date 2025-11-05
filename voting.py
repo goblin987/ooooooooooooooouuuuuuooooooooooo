@@ -340,19 +340,19 @@ def generate_barygos_image() -> BytesIO:
         
         # Layout constants (Vertical scroll-friendly, portrait)
         PANEL_MARGIN = 30
-        PANEL_MARGIN_TOP = 200  # Much more room for header
-        PANEL_MARGIN_BOTTOM = 40
+        PANEL_MARGIN_TOP = 100  # Panel starts at Y=100, header at Y=30 = half-in/half-out
+        PANEL_MARGIN_BOTTOM = 30  # Smaller bottom margin to fit more content
         PANEL_RADIUS = 16
         HEADER_X = 40
-        HEADER_Y = 20  # "Barygos" MUCH higher
+        HEADER_Y = 30  # Header positioned to sit half on panel border (like /stats)
         HEADER_FONT_SIZE = 110  # Big header
         
-        # Section layout - Single column, vertical
-        SECTION_START_Y = 230  # Start lower to avoid header overlap
-        SECTION_SPACING = 480  # Space for each section (header + 7 entries)
-        SECTION_HEADER_SIZE = 50  # Big section headers
-        ENTRY_FONT_SIZE = 40  # Large for mobile readability
-        ENTRY_SPACING = 50  # Spacing between entries
+        # Section layout - Single column, vertical (optimized for 7 entries per section)
+        SECTION_START_Y = 180  # Start just below header
+        SECTION_SPACING = 450  # Tighter spacing to fit more (header + 7 entries)
+        SECTION_HEADER_SIZE = 48  # Section headers
+        ENTRY_FONT_SIZE = 38  # Entries (slightly smaller for better fit)
+        ENTRY_SPACING = 48  # Tighter entry spacing
         LABEL_X = 55  # Left padding
         SCORE_X = 700  # Right-aligned scores
         FOOTER_FONT_SIZE = 38
