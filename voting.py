@@ -587,17 +587,18 @@ async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         week_start = now - timedelta(days=7)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
-        # Count votes - votes_weekly/monthly are dicts of {vendor: [(timestamp, score), ...]}
-        weekly_votes = sum(sum(score for ts, score in vote_list if ts >= week_start) for vote_list in votes_weekly.values())
+        # Count votes
+        # votes_weekly: {vendor: total_score} - already aggregated integers
+        weekly_votes = sum(votes_weekly.values())
         
-        # Monthly votes
+        # votes_monthly: {vendor: [(timestamp, score), ...]} - list of vote tuples
         monthly_votes = 0
         for vendor, vote_list in votes_monthly.items():
             for ts, score in vote_list:
                 if ts >= month_start:
                     monthly_votes += score
         
-        # All-time votes
+        # votes_alltime: {vendor: total_score} - already aggregated integers
         alltime_votes = sum(votes_alltime.values())
         active_sellers = len([v for v in votes_alltime.values() if v > 0])
         
