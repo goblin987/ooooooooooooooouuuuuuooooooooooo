@@ -587,9 +587,17 @@ async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         week_start = now - timedelta(days=7)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
-        # Count votes
-        weekly_votes = sum(len([v for ts, s in votes if ts >= week_start]) for votes in votes_weekly.values())
-        monthly_votes = sum(len([v for ts, s in votes if ts >= month_start]) for votes in votes_monthly.values())
+        # Count votes - votes_weekly/monthly are dicts of {vendor: [(timestamp, score), ...]}
+        weekly_votes = sum(sum(score for ts, score in vote_list if ts >= week_start) for vote_list in votes_weekly.values())
+        
+        # Monthly votes
+        monthly_votes = 0
+        for vendor, vote_list in votes_monthly.items():
+            for ts, score in vote_list:
+                if ts >= month_start:
+                    monthly_votes += score
+        
+        # All-time votes
         alltime_votes = sum(votes_alltime.values())
         active_sellers = len([v for v in votes_alltime.values() if v > 0])
         
@@ -622,13 +630,11 @@ async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
     except Exception as e:
         logger.error(f"Error sending barygos message: {e}")
-        # Fallback without media
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        # Fallback - simple error message
         try:
-            msg = await context.bot.send_message(chat_id=chat_id, text=full_message)
-            context.job_queue.run_once(
-                lambda c: c.bot.delete_message(chat_id=chat_id, message_id=msg.message_id),
-                120
-            )
+            await update.message.reply_text("❌ Klaida generuojant barygos vaizdą. Bandykite vėliau.")
         except Exception as e2:
             logger.error(f"Failed to send barygos fallback: {e2}")
 
