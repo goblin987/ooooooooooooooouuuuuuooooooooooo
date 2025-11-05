@@ -495,6 +495,14 @@ def reset_leaderboard_stats():
     try:
         conn = database.get_sync_connection()
         
+        # Ensure leaderboard_reset_date column exists
+        cursor = conn.execute("PRAGMA table_info(users)")
+        columns = [col[1] for col in cursor.fetchall()]
+        
+        if 'leaderboard_reset_date' not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN leaderboard_reset_date TIMESTAMP")
+            conn.commit()
+        
         # Reset total_messages and update leaderboard_reset_date
         conn.execute("""
             UPDATE users 
@@ -502,12 +510,13 @@ def reset_leaderboard_stats():
                 leaderboard_reset_date = CURRENT_TIMESTAMP
         """)
         
+        rows_affected = conn.total_changes
         conn.commit()
         conn.close()
         
-        logger.info("✅ Leaderboard stats reset successfully")
+        logger.info(f"✅ Leaderboard stats reset successfully ({rows_affected} users updated)")
         return True
     except Exception as e:
-        logger.error(f"Error resetting leaderboard: {e}")
+        logger.error(f"Error resetting leaderboard: {e}", exc_info=True)
         return False
 

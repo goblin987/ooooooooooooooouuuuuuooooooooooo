@@ -628,6 +628,8 @@ async def handle_admin_callback(update: Update, context: ContextTypes.DEFAULT_TY
         # Leaderboard management
         elif data == "admin_leaderboard":
             await admin_panel.show_leaderboard_menu(query, context)
+        elif data == "leaderboard_add_messages":
+            await admin_panel.leaderboard_add_messages_start(query, context)
         elif data == "leaderboard_reset_confirm":
             await admin_panel.leaderboard_reset_confirm(query, context)
         elif data == "leaderboard_reset_execute":

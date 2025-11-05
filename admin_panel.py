@@ -279,6 +279,7 @@ async def show_leaderboard_menu(query, context: ContextTypes.DEFAULT_TYPE) -> No
     )
     
     keyboard = [
+        [InlineKeyboardButton("➕ Add Messages to User", callback_data="leaderboard_add_messages")],
         [InlineKeyboardButton("🔄 Reset Leaderboard", callback_data="leaderboard_reset_confirm")],
         [InlineKeyboardButton("📊 View Leaderboard", callback_data="leaderboard_view")],
         [InlineKeyboardButton("🔙 Back", callback_data="admin_home")]
@@ -360,6 +361,104 @@ async def leaderboard_view(query, context: ContextTypes.DEFAULT_TYPE) -> None:
     except Exception as e:
         logger.error(f"Error viewing leaderboard: {e}")
         await query.answer("Error generating leaderboard image!", show_alert=True)
+
+
+async def leaderboard_add_messages_start(query, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Start process to add messages to user"""
+    text = (
+        "➕ **ADD MESSAGES TO USER**\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Send message in format:\n"
+        "`@username amount`\n\n"
+        "**Examples:**\n"
+        "• `@Arunas21 1000` - Add 1000 messages\n"
+        "• `@blogasd 500` - Add 500 messages\n\n"
+        "**Note:** This will add to their current message count and may level them up!\n\n"
+        "_Type /cancel to abort_"
+    )
+    
+    # Mark user as waiting for input
+    context.user_data['admin_action'] = 'leaderboard_add_messages'
+    
+    await query.edit_message_text(text, parse_mode='Markdown')
+
+
+async def process_leaderboard_add_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+    """Process adding messages to user"""
+    try:
+        parts = text.split()
+        if len(parts) != 2:
+            await update.message.reply_text(
+                "❌ Invalid format. Use: `@username amount`\n"
+                "Example: `@Arunas21 1000`",
+                parse_mode='Markdown'
+            )
+            return
+        
+        username_input = parts[0].strip().lstrip('@')
+        amount_input = parts[1].strip()
+        
+        # Validate amount
+        try:
+            amount = int(amount_input)
+            if amount <= 0:
+                raise ValueError("Amount must be positive")
+            if amount > 100000:
+                raise ValueError("Amount too large (max 100,000)")
+        except ValueError as e:
+            await update.message.reply_text(f"❌ Invalid amount: {e}")
+            return
+        
+        # Find user in database
+        from database import database
+        user_data = database.get_user_by_username(username_input)
+        
+        if not user_data:
+            await update.message.reply_text(
+                f"❌ User @{username_input} not found in database!\n"
+                "User must have interacted with the bot first."
+            )
+            return
+        
+        user_id = user_data[0]
+        current_messages = database.get_total_messages(user_id)
+        
+        # Add messages
+        for _ in range(amount):
+            database.increment_total_messages(user_id)
+        
+        new_messages = database.get_total_messages(user_id)
+        
+        # Calculate level changes
+        old_level = (current_messages // 1000) + 1
+        new_level = (new_messages // 1000) + 1
+        leveled_up = new_level > old_level
+        
+        # Update level if changed
+        if leveled_up:
+            database.update_user_level(user_id, new_level)
+        
+        # Clear admin action
+        context.user_data.pop('admin_action', None)
+        
+        # Success message
+        response = (
+            f"✅ **Messages Added Successfully!**\n\n"
+            f"**User:** @{username_input}\n"
+            f"**Added:** {amount:,} messages\n"
+            f"**Previous:** {current_messages:,} messages\n"
+            f"**New Total:** {new_messages:,} messages\n"
+        )
+        
+        if leveled_up:
+            response += f"\n🎉 **Level Up!** {old_level} → {new_level}"
+        
+        await update.message.reply_text(response, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Error adding messages: {e}", exc_info=True)
+        context.user_data.pop('admin_action', None)
+        await update.message.reply_text(f"❌ Error adding messages: {str(e)}")
 
 
 # ============================================================================
@@ -878,6 +977,8 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await process_points_add(update, context, text)
     elif action == 'points_remove':
         await process_points_remove(update, context, text)
+    elif action == 'leaderboard_add_messages':
+        await process_leaderboard_add_messages(update, context, text)
     elif action == 'seller_add':
         await process_seller_add(update, context, text)
     elif action == 'seller_remove':
@@ -1026,24 +1127,51 @@ async def seller_remove_confirm(query, context: ContextTypes.DEFAULT_TYPE, selle
         await query.answer(f"❌ Seller not found!")
         return
     
-    # Remove (handle both list and dict)
+    # Remove from trusted sellers list (handle both list and dict)
     if isinstance(trusted_sellers, dict):
         del trusted_sellers[actual_username]
     else:
         trusted_sellers.remove(actual_username)
     
-    # Save
+    # Import voting module to clean up voting data
+    import voting
+    
+    # Remove from all voting data (check all username formats)
+    for username_format in [actual_username, username_with_at, username_without_at]:
+        # Remove from weekly votes
+        if username_format in voting.votes_weekly:
+            del voting.votes_weekly[username_format]
+        
+        # Remove from monthly votes
+        if username_format in voting.votes_monthly:
+            del voting.votes_monthly[username_format]
+        
+        # Remove from all-time votes
+        if username_format in voting.votes_alltime:
+            del voting.votes_alltime[username_format]
+        
+        # Remove from vote history
+        if username_format in voting.vote_history:
+            del voting.vote_history[username_format]
+    
+    # Update voting.py's module-level trusted_sellers
+    voting.trusted_sellers = trusted_sellers
+    
+    # Save all changes
     data_manager.save_data(trusted_sellers, 'trusted_sellers.pkl')
+    data_manager.save_data(voting.votes_weekly, 'votes_weekly.pkl')
+    data_manager.save_data(voting.votes_monthly, 'votes_monthly.pkl')
+    data_manager.save_data(voting.votes_alltime, 'votes_alltime.pkl')
+    data_manager.save_data(voting.vote_history, 'vote_history.pkl')
     
     # Update voting buttons in voting group
-    import voting
     try:
         await voting.update_voting_message(context)
     except Exception as e:
         logger.error(f"Failed to update voting message: {e}")
     
     # Show success and updated list
-    await query.answer(f"✅ Removed @{username_without_at}")
+    await query.answer(f"✅ Removed @{username_without_at} and all voting data")
     
     # Show updated seller removal interface
     await seller_remove_start(query, context)
@@ -1068,18 +1196,46 @@ async def process_seller_remove(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text(f"❌ {username_with_at} is not in the trusted sellers list!")
         return
     
-    # Remove (handle both list and dict)
+    # Remove from trusted sellers list (handle both list and dict)
     if isinstance(trusted_sellers, dict):
         del trusted_sellers[actual_username]
     else:
         trusted_sellers.remove(actual_username)
     
-    # Save
+    # Import voting module to clean up voting data
+    import voting
+    
+    # Remove from all voting data (check all username formats)
+    for username_format in [actual_username, username_with_at, username_without_at]:
+        # Remove from weekly votes
+        if username_format in voting.votes_weekly:
+            del voting.votes_weekly[username_format]
+        
+        # Remove from monthly votes
+        if username_format in voting.votes_monthly:
+            del voting.votes_monthly[username_format]
+        
+        # Remove from all-time votes
+        if username_format in voting.votes_alltime:
+            del voting.votes_alltime[username_format]
+        
+        # Remove from vote history
+        if username_format in voting.vote_history:
+            del voting.vote_history[username_format]
+    
+    # Update voting.py's module-level trusted_sellers
+    voting.trusted_sellers = trusted_sellers
+    
+    # Save all changes
     data_manager.save_data(trusted_sellers, 'trusted_sellers.pkl')
+    data_manager.save_data(voting.votes_weekly, 'votes_weekly.pkl')
+    data_manager.save_data(voting.votes_monthly, 'votes_monthly.pkl')
+    data_manager.save_data(voting.votes_alltime, 'votes_alltime.pkl')
+    data_manager.save_data(voting.vote_history, 'vote_history.pkl')
     
     await update.message.reply_text(
         f"✅ **Trusted Seller Removed!**\n\n"
-        f"@{username} has been removed from trusted sellers.",
+        f"@{username_without_at} and all voting data have been removed.",
         parse_mode='Markdown'
     )
 
