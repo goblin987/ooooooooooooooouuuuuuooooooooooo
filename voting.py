@@ -606,26 +606,35 @@ async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         next_week = (now + timedelta(days=(7 - now.weekday()))).replace(hour=1, minute=52, second=0, microsecond=0)
         next_month = (now.replace(day=1, hour=1, minute=52, second=0, microsecond=0) + timedelta(days=32)).replace(day=1)
         
-        # Format GTA SA style caption (mobile-friendly, centered, clear labels)
+        # Format GTA SA style caption (mobile-friendly, shorter lines)
         caption = (
-            f"     BALSŲ STATISTIKA\n"
-            f"   ══════════════════\n\n"
-            f"       Savaitės: {weekly_votes}\n"
-            f"       Mėnesio: {monthly_votes}\n"
-            f"    Visų laikų: {alltime_votes}\n"
-            f"    Pardavėjai: {active_sellers}\n\n"
-            f"   ══════════════════\n"
-            f"         RESTARTAS\n"
-            f"   ══════════════════\n\n"
-            f"    Savaitės: {next_week.strftime('%m-%d %H:%M')}\n"
-            f"     Mėnesio: {next_month.strftime('%m-%d %H:%M')}\n"
+            f"═══════════════\n"
+            f"▸ BALSŲ STATISTIKA\n"
+            f"═══════════════\n\n"
+            f"▸ Savaitės: {weekly_votes}\n"
+            f"▸ Mėnesio: {monthly_votes}\n"
+            f"▸ Viso: {alltime_votes}\n"
+            f"▸ Pardavėjai: {active_sellers}\n\n"
+            f"═══════════════\n"
+            f"▸ RESTARTAS\n"
+            f"═══════════════\n\n"
+            f"▸ Sav: {next_week.strftime('%m-%d %H:%M')}\n"
+            f"▸ Mėn: {next_month.strftime('%m-%d %H:%M')}\n"
         )
         
-        # Send image with caption
+        # Create button to voting group
+        keyboard = None
+        if VOTING_GROUP_LINK:
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🗳️ Balsuoti už pardavėją", url=VOTING_GROUP_LINK)]
+            ])
+        
+        # Send image with caption and button
         await update.message.reply_photo(
             photo=image_bytes,
             filename='barygos.png',
-            caption=caption
+            caption=caption,
+            reply_markup=keyboard
         )
         
     except Exception as e:
