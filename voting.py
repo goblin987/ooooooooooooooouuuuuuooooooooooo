@@ -606,20 +606,19 @@ async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         next_week = (now + timedelta(days=(7 - now.weekday()))).replace(hour=1, minute=52, second=0, microsecond=0)
         next_month = (now.replace(day=1, hour=1, minute=52, second=0, microsecond=0) + timedelta(days=32)).replace(day=1)
         
-        # Format GTA SA style caption (mobile-friendly, shorter lines)
+        # Format GTA SA style caption (mobile-friendly, centered, clear labels)
         caption = (
-            f"═══════════════\n"
-            f"▸ STATISTIKOS\n"
-            f"═══════════════\n\n"
-            f"▸ Savaitės: {weekly_votes}\n"
-            f"▸ Mėnesio: {monthly_votes}\n"
-            f"▸ Viso: {alltime_votes}\n"
-            f"▸ Pardavėjai: {active_sellers}\n\n"
-            f"═══════════════\n"
-            f"▸ RESTARTAS\n"
-            f"═══════════════\n\n"
-            f"▸ Sav: {next_week.strftime('%m-%d %H:%M')}\n"
-            f"▸ Mėn: {next_month.strftime('%m-%d %H:%M')}\n"
+            f"     BALSŲ STATISTIKA\n"
+            f"   ══════════════════\n\n"
+            f"       Savaitės: {weekly_votes}\n"
+            f"       Mėnesio: {monthly_votes}\n"
+            f"    Visų laikų: {alltime_votes}\n"
+            f"    Pardavėjai: {active_sellers}\n\n"
+            f"   ══════════════════\n"
+            f"         RESTARTAS\n"
+            f"   ══════════════════\n\n"
+            f"    Savaitės: {next_week.strftime('%m-%d %H:%M')}\n"
+            f"     Mėnesio: {next_month.strftime('%m-%d %H:%M')}\n"
         )
         
         # Send image with caption
