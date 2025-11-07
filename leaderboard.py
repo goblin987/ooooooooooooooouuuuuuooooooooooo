@@ -468,16 +468,24 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Reset BytesIO position to start
         image_bio.seek(0)
         
-        # Read bytes to avoid event loop closing BytesIO
+        # Read bytes from BytesIO
         image_bytes = image_bio.read()
+        
+        # Create a NEW BytesIO object with the bytes to avoid event loop issues
+        # This ensures the BytesIO object is created in the current event loop
+        from io import BytesIO as IOBytesIO
+        fresh_bio = IOBytesIO(image_bytes)
+        fresh_bio.name = 'stats.png'
+        fresh_bio.seek(0)
+        
+        # Close the original BytesIO
         image_bio.close()
         
         # No caption - image is self-explanatory
         
-        # Send image directly without BytesIO to avoid event loop issues
+        # Send image with fresh BytesIO object
         await update.message.reply_photo(
-            photo=image_bytes,
-            filename='stats.png'
+            photo=fresh_bio
         )
         
     except Exception as e:

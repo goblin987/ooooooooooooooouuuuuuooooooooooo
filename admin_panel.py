@@ -703,17 +703,24 @@ async def show_all_scammers(query, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def show_claims_menu(query, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show pending claims for review"""
+    # Reload data to get latest state
+    pending_scammer_reports_current = data_manager.load_data('pending_scammer_reports.pkl', {})
+    
+    # Update module-level variable
+    global pending_scammer_reports
+    pending_scammer_reports = pending_scammer_reports_current
+    
     text = (
         "📋 **REVIEW PENDING CLAIMS**\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"**Pending Reports:** {len(pending_scammer_reports)}\n\n"
+        f"**Pending Reports:** {len(pending_scammer_reports_current)}\n\n"
     )
     
-    if pending_scammer_reports:
+    if pending_scammer_reports_current:
         text += "**Select a report to review:**\n\n"
         
         keyboard = []
-        for report_id, report in list(pending_scammer_reports.items())[:10]:
+        for report_id, report in list(pending_scammer_reports_current.items())[:10]:
             reported_user = report.get('reported_username', 'Unknown')
             reporter = report.get('reporter_username', 'Unknown')
             
@@ -723,8 +730,8 @@ async def show_claims_menu(query, context: ContextTypes.DEFAULT_TYPE) -> None:
                 callback_data=f"claim_review_{report_id}"
             )])
         
-        if len(pending_scammer_reports) > 10:
-            text += f"_Showing 10 of {len(pending_scammer_reports)} reports_\n"
+        if len(pending_scammer_reports_current) > 10:
+            text += f"_Showing 10 of {len(pending_scammer_reports_current)} reports_\n"
         
         keyboard.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="admin_main")])
     else:
@@ -737,11 +744,18 @@ async def show_claims_menu(query, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def show_claim_detail(query, context: ContextTypes.DEFAULT_TYPE, report_id: str) -> None:
     """Show detailed view of a specific claim"""
-    if report_id not in pending_scammer_reports:
+    # Reload data to get latest state
+    pending_scammer_reports_current = data_manager.load_data('pending_scammer_reports.pkl', {})
+    
+    # Update module-level variable
+    global pending_scammer_reports
+    pending_scammer_reports = pending_scammer_reports_current
+    
+    if report_id not in pending_scammer_reports_current:
         await query.answer("❌ Report not found or already processed!")
         return
     
-    report = pending_scammer_reports[report_id]
+    report = pending_scammer_reports_current[report_id]
     
     text = (
         "🔍 **REPORT DETAILS**\n"
@@ -767,30 +781,39 @@ async def show_claim_detail(query, context: ContextTypes.DEFAULT_TYPE, report_id
 
 async def confirm_claim(query, context: ContextTypes.DEFAULT_TYPE, report_id: str) -> None:
     """Confirm a claim and add user to scammer list"""
-    if report_id not in pending_scammer_reports:
+    # Reload data to get latest state
+    pending_scammer_reports_current = data_manager.load_data('pending_scammer_reports.pkl', {})
+    confirmed_scammers_current = data_manager.load_data('confirmed_scammers.pkl', {})
+    
+    if report_id not in pending_scammer_reports_current:
         await query.answer("❌ Pranešimas nerastas!")
         return
     
-    report = pending_scammer_reports[report_id]
+    report = pending_scammer_reports_current[report_id]
     username = report.get('reported_username')
     reporter_id = report.get('reporter_id')
     
     # Add to confirmed scammers
-    if username not in confirmed_scammers:
-        confirmed_scammers[username] = {
+    if username not in confirmed_scammers_current:
+        confirmed_scammers_current[username] = {
             'reports': [],
             'confirmed_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
     
     # Add this report
-    confirmed_scammers[username]['reports'].append(report)
+    confirmed_scammers_current[username]['reports'].append(report)
     
     # Remove from pending
-    del pending_scammer_reports[report_id]
+    del pending_scammer_reports_current[report_id]
     
     # Save data
-    data_manager.save_data(confirmed_scammers, 'confirmed_scammers.pkl')
-    data_manager.save_data(pending_scammer_reports, 'pending_scammer_reports.pkl')
+    data_manager.save_data(confirmed_scammers_current, 'confirmed_scammers.pkl')
+    data_manager.save_data(pending_scammer_reports_current, 'pending_scammer_reports.pkl')
+    
+    # Update module-level variables
+    global confirmed_scammers, pending_scammer_reports
+    confirmed_scammers = confirmed_scammers_current
+    pending_scammer_reports = pending_scammer_reports_current
     
     # Notify reporter about confirmation
     try:
@@ -811,19 +834,26 @@ async def confirm_claim(query, context: ContextTypes.DEFAULT_TYPE, report_id: st
 
 async def dismiss_claim(query, context: ContextTypes.DEFAULT_TYPE, report_id: str) -> None:
     """Dismiss a false report"""
-    if report_id not in pending_scammer_reports:
+    # Reload data to get latest state
+    pending_scammer_reports_current = data_manager.load_data('pending_scammer_reports.pkl', {})
+    
+    if report_id not in pending_scammer_reports_current:
         await query.answer("❌ Pranešimas nerastas!")
         return
     
-    report = pending_scammer_reports[report_id]
+    report = pending_scammer_reports_current[report_id]
     username = report.get('reported_username')
     reporter_id = report.get('reporter_id')
     
     # Remove from pending
-    del pending_scammer_reports[report_id]
+    del pending_scammer_reports_current[report_id]
     
     # Save data
-    data_manager.save_data(pending_scammer_reports, 'pending_scammer_reports.pkl')
+    data_manager.save_data(pending_scammer_reports_current, 'pending_scammer_reports.pkl')
+    
+    # Update module-level variable
+    global pending_scammer_reports
+    pending_scammer_reports = pending_scammer_reports_current
     
     # Notify reporter about dismissal
     try:

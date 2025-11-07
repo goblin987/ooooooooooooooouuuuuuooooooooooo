@@ -280,12 +280,15 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
     else:
         await update.message.reply_text(
-            f"✅ PATIKIMAS\n"
+            f"ℹ️ NĖRA DUOMENŲ\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"Vartotojas: @{username}\n"
-            f"Statusas: ✅ Pranešimų nėra\n\n"
+            f"Statusas: Pranešimų nėra\n\n"
             f"Apie šį vartotoją pranešimų nėra.\n\n"
-            f"💡 Jei įtariate, kad tai vagis, naudokite: /vagis @{username} priežastis"
+            f"⚠️ APSISAUGOK:\n"
+            f"• Prašyk prekę pirma - sumokėk paskui\n"
+            f"• Reikalauk įrodymų apie prekes\n"
+            f"• Jei įtariate, kad tai vagis, naudokite: /vagis @{username} priežastis"
         )
 
 async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
