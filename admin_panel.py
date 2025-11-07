@@ -282,7 +282,7 @@ async def show_leaderboard_menu(query, context: ContextTypes.DEFAULT_TYPE) -> No
         [InlineKeyboardButton("➕ Add Messages to User", callback_data="leaderboard_add_messages")],
         [InlineKeyboardButton("🔄 Reset Leaderboard", callback_data="leaderboard_reset_confirm")],
         [InlineKeyboardButton("📊 View Leaderboard", callback_data="leaderboard_view")],
-        [InlineKeyboardButton("🔙 Back", callback_data="admin_home")]
+        [InlineKeyboardButton("🔙 Back", callback_data="admin_main")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
