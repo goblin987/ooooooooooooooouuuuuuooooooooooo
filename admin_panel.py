@@ -291,24 +291,30 @@ async def show_leaderboard_menu(query, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def leaderboard_reset_confirm(query, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Confirm leaderboard reset"""
-    text = (
-        "⚠️ **CONFIRM LEADERBOARD RESET**\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "Are you sure you want to reset the leaderboard?\n\n"
-        "This will:\n"
-        "• Set all user message counts to 0\n"
-        "• Start tracking from today\n"
-        "• Clear current rankings\n\n"
-        "**This action cannot be undone!**"
-    )
-    
-    keyboard = [
-        [InlineKeyboardButton("✅ Yes, Reset", callback_data="leaderboard_reset_execute")],
-        [InlineKeyboardButton("❌ Cancel", callback_data="admin_leaderboard")]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    logger.info("📋 leaderboard_reset_confirm called")
+    try:
+        text = (
+            "⚠️ **CONFIRM LEADERBOARD RESET**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Are you sure you want to reset the leaderboard?\n\n"
+            "This will:\n"
+            "• Set all user message counts to 0\n"
+            "• Start tracking from today\n"
+            "• Clear current rankings\n\n"
+            "**This action cannot be undone!**"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("✅ Yes, Reset", callback_data="leaderboard_reset_execute")],
+            [InlineKeyboardButton("❌ Cancel", callback_data="admin_leaderboard")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+        logger.info("✅ leaderboard_reset_confirm completed successfully")
+    except Exception as e:
+        logger.error(f"❌ Error in leaderboard_reset_confirm: {e}", exc_info=True)
+        raise
 
 
 async def leaderboard_reset_execute(query, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -365,22 +371,28 @@ async def leaderboard_view(query, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def leaderboard_add_messages_start(query, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start process to add messages to user"""
-    text = (
-        "➕ **ADD MESSAGES TO USER**\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "Send message in format:\n"
-        "`@username amount`\n\n"
-        "**Examples:**\n"
-        "• `@Arunas21 1000` - Add 1000 messages\n"
-        "• `@blogasd 500` - Add 500 messages\n\n"
-        "**Note:** This will add to their current message count and may level them up!\n\n"
-        "_Type /cancel to abort_"
-    )
-    
-    # Mark user as waiting for input
-    context.user_data['admin_action'] = 'leaderboard_add_messages'
-    
-    await query.edit_message_text(text, parse_mode='Markdown')
+    logger.info("📋 leaderboard_add_messages_start called")
+    try:
+        text = (
+            "➕ **ADD MESSAGES TO USER**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Send message in format:\n"
+            "`@username amount`\n\n"
+            "**Examples:**\n"
+            "• `@Arunas21 1000` - Add 1000 messages\n"
+            "• `@blogasd 500` - Add 500 messages\n\n"
+            "**Note:** This will add to their current message count and may level them up!\n\n"
+            "_Type /cancel to abort_"
+        )
+        
+        # Mark user as waiting for input
+        context.user_data['admin_action'] = 'leaderboard_add_messages'
+        
+        await query.edit_message_text(text, parse_mode='Markdown')
+        logger.info("✅ leaderboard_add_messages_start completed successfully")
+    except Exception as e:
+        logger.error(f"❌ Error in leaderboard_add_messages_start: {e}", exc_info=True)
+        raise
 
 
 async def process_leaderboard_add_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
