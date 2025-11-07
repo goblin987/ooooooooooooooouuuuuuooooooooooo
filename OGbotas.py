@@ -1122,6 +1122,21 @@ def create_application():
         pattern="^start_"
     ))
     
+    # Handler to delete join/left messages
+    async def delete_service_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Delete join/left messages from groups"""
+        try:
+            if update.message and (update.message.new_chat_members or update.message.left_chat_member):
+                await update.message.delete()
+                logger.info(f"Deleted service message in chat {update.effective_chat.id}")
+        except Exception as e:
+            logger.debug(f"Could not delete service message: {e}")
+    
+    application.add_handler(MessageHandler(
+        filters.StatusUpdate.NEW_CHAT_MEMBERS | filters.StatusUpdate.LEFT_CHAT_MEMBER,
+        delete_service_message
+    ))
+    
     # Message handler (for private chat input and group messages)
     application.add_handler(MessageHandler(~filters.COMMAND, handle_message))
     

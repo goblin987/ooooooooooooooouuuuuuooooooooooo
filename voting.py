@@ -668,10 +668,8 @@ async def update_voting_message(context: ContextTypes.DEFAULT_TYPE):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    message_text = "🗳️ **BALSAVIMAS UŽ PARDAVĖJUS** 🗳️\n\n"
+    message_text = "🗳️ BALSAVIMAS UŽ PARDAVĖJUS 🗳️\n\n"
     message_text += "Spauskite mygtuką žemiau norėdami balsuoti už savo mėgstamą pardavėją!\n\n"
-    message_text += "✅ Galite balsuoti kas 7 dienas\n"
-    message_text += "💰 Už balsą gausite 15 taškų\n\n"
     message_text += "📊 Rezultatus matykite su /barygos"
     
     try:
