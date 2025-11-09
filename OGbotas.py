@@ -861,8 +861,18 @@ def create_application():
         logger.error("❌ ERROR: BOT_TOKEN environment variable not set!")
         return None
     
-    # Create the Application
-    application = Application.builder().token(BOT_TOKEN).build()
+    # Create the Application with increased connection pool settings
+    # This prevents "Pool timeout" errors when handling many concurrent requests
+    application = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .connection_pool_size(16)  # Increased from default 8
+        .pool_timeout(30.0)  # Increased from default 5.0 seconds
+        .connect_timeout(30.0)  # Connection timeout
+        .read_timeout(30.0)  # Read timeout
+        .write_timeout(30.0)  # Write timeout
+        .build()
+    )
 
     # Add command handlers
     application.add_handler(CommandHandler("start", start))
