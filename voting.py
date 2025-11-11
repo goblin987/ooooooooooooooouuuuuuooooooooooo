@@ -99,7 +99,14 @@ logger.info(f"  - Trusted sellers: {len(trusted_sellers)}")
 
 async def balsuoti_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send link to voting group"""
+    from config import ALLOWED_GROUPS
+    
+    # Group whitelist check
     chat_id = update.message.chat_id
+    if ALLOWED_GROUPS and update.effective_chat.type in ['group', 'supergroup']:
+        if chat_id not in ALLOWED_GROUPS:
+            logger.warning(f"🚫 Unauthorized group {chat_id} tried to use /balsuoti")
+            return
     
     if not VOTING_GROUP_LINK:
         await update.message.reply_text("⚠️ Balsavimo grupė dar nenustatyta!")
@@ -562,7 +569,14 @@ def generate_barygos_image() -> BytesIO:
 
 async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display seller leaderboards (weekly, monthly, all-time) with GTA SA style image"""
+    from config import ALLOWED_GROUPS
+    
+    # Group whitelist check
     chat_id = update.message.chat_id
+    if ALLOWED_GROUPS and update.effective_chat.type in ['group', 'supergroup']:
+        if chat_id not in ALLOWED_GROUPS:
+            logger.warning(f"🚫 Unauthorized group {chat_id} tried to use /barygos")
+            return
     
     # Register this group in database for barygos auto-post group selection
     if chat_id < 0:  # It's a group

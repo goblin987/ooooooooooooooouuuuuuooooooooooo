@@ -45,7 +45,8 @@ logging.getLogger('telegram').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Import modules
-from config import BOT_TOKEN, WEBHOOK_URL, PORT, OWNER_ID, ADMIN_CHAT_ID
+from config import BOT_TOKEN, WEBHOOK_URL, PORT, OWNER_ID, ADMIN_CHAT_ID, ALLOWED_GROUPS
+from functools import wraps
 from database import database
 from utils import data_manager, message_tracker
 import moderation_grouphelp as moderation
@@ -73,6 +74,26 @@ from datetime import datetime
 
 # Initialize scheduler
 recurring_messages.init_scheduler()
+
+# Group whitelist decorator
+def group_whitelist_check(func):
+    """Decorator to check if command is used in an allowed group"""
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        # Allow private chats always
+        if update.effective_chat.type == 'private':
+            return await func(update, context, *args, **kwargs)
+        
+        # Check whitelist for groups
+        if ALLOWED_GROUPS and update.effective_chat.type in ['group', 'supergroup']:
+            if update.effective_chat.id not in ALLOWED_GROUPS:
+                logger.warning(f"🚫 Unauthorized group {update.effective_chat.id} ({update.effective_chat.title}) tried to use /{func.__name__}")
+                # Silently ignore - don't send error message
+                return
+        
+        # Authorized - proceed
+        return await func(update, context, *args, **kwargs)
+    return wrapper
 
 # Helper function to safely answer callback queries
 async def safe_answer_callback(query, text: str = None, show_alert: bool = False):
@@ -182,6 +203,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await admin_panel.show_admin_panel(update, context)
 
 
+@group_whitelist_check
 async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Check if user is a scammer - shows confirmed/pending/legit status
@@ -763,6 +785,12 @@ async def handle_admin_callback(update: Update, context: ContextTypes.DEFAULT_TY
 # Message handler for private chat input
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle all messages"""
+    
+    # Group whitelist check - silently ignore unauthorized groups
+    if ALLOWED_GROUPS and update.effective_chat.type in ['group', 'supergroup']:
+        if update.effective_chat.id not in ALLOWED_GROUPS:
+            logger.warning(f"🚫 Unauthorized group {update.effective_chat.id} ({update.effective_chat.title}) - ignoring")
+            return
     
     # Store user info if available
     if update.effective_user and update.effective_user.username:

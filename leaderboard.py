@@ -451,6 +451,14 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
 
 async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show monthly leaderboard"""
+    from config import ALLOWED_GROUPS
+    
+    # Group whitelist check
+    if ALLOWED_GROUPS and update.effective_chat.type in ['group', 'supergroup']:
+        if update.effective_chat.id not in ALLOWED_GROUPS:
+            logger.warning(f"🚫 Unauthorized group {update.effective_chat.id} tried to use /stats")
+            return
+    
     try:
         # Get top 5 chatters (synchronous is fine, it's fast)
         top_users = get_monthly_leaderboard(limit=5)

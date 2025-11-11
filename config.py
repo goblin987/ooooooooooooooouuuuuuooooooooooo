@@ -27,6 +27,18 @@ OWNER_ID = int(os.getenv('OWNER_ID', '0'))
 VOTING_GROUP_CHAT_ID = int(os.getenv('VOTING_GROUP_CHAT_ID', '0'))
 VOTING_GROUP_LINK = os.getenv('VOTING_GROUP_LINK', '')
 
+# Allowed groups (whitelist) - Bot will only work in these groups
+# Format: Comma-separated group IDs, e.g., "-1001234567890,-1009876543210"
+# Leave empty to allow all groups (not recommended)
+ALLOWED_GROUPS_STR = os.getenv('ALLOWED_GROUPS', '')
+ALLOWED_GROUPS = set()
+if ALLOWED_GROUPS_STR:
+    try:
+        ALLOWED_GROUPS = set(int(gid.strip()) for gid in ALLOWED_GROUPS_STR.split(',') if gid.strip())
+        print(f"✅ Group whitelist enabled: {len(ALLOWED_GROUPS)} allowed groups")
+    except ValueError:
+        print("⚠️ WARNING: Invalid ALLOWED_GROUPS format. Use comma-separated group IDs.")
+
 if len(BOT_TOKEN) < 40 or ':' not in BOT_TOKEN:
     raise ValueError("ERROR: BOT_TOKEN appears to be invalid! Should be format: 123456789:ABCdefGHI...")
 
