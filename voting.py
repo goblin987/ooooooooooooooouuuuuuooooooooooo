@@ -639,11 +639,7 @@ async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         logger.error(f"Error sending barygos message: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
-        # Fallback - simple error message
-        try:
-            await update.message.reply_text("❌ Klaida generuojant barygos vaizdą. Bandykite vėliau.")
-        except Exception as e2:
-            logger.error(f"Failed to send barygos fallback: {e2}")
+        # Silent fail - don't show error to group members
 
 
 # ============================================================================
