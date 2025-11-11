@@ -65,9 +65,9 @@ def get_monthly_leaderboard(chat_id: int = None, limit: int = 5) -> list:
 def generate_leaderboard_image(top_users: list) -> BytesIO:
     """Generate GTA SA Stats-style leaderboard matching the wireframe exactly"""
     try:
-        # Canvas dimensions - WIDER format to match /barygos (was 600x600)
-        CANVAS_WIDTH = 1200
-        CANVAS_HEIGHT = 800  # Taller for better visibility
+        # Canvas dimensions
+        CANVAS_WIDTH = 600
+        CANVAS_HEIGHT = 600
         
         # Color palette - PREMIUM GTA SA theme with depth
         PANEL_COLOR_RGB = (10, 8, 6)      # Darker panel base for better contrast
@@ -94,15 +94,15 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
         HEADER_FONT_SIZE = 90             # Slightly smaller for better fit
         ROW_START_Y = 170                 # More space from top for Stats
         ROW_SPACING = 68                  # Better spacing between rows
-        LABEL_X = 50
-        LABEL_FONT_SIZE = 46              # Bigger username labels for wider canvas
-        BAR_X = 500                       # Moved right for 1200px width
-        BAR_WIDTH = 550                   # Much longer bars for 1200px width
-        BAR_HEIGHT = 28                   # Bigger bars for better visibility
+        LABEL_X = 35
+        LABEL_FONT_SIZE = 42              # Bigger username labels (optimized size)
+        BAR_X = 270
+        BAR_WIDTH = 220                   # Shorter bar to make room for count display
+        BAR_HEIGHT = 24                   # Bigger bars for better visibility
         BAR_Y_OFFSET = 10                 # Positive offset to move bars down and align with username
-        FOOTER_MARGIN_RIGHT = 50
-        FOOTER_MARGIN_BOTTOM = 40
-        FOOTER_FONT_SIZE = 40
+        FOOTER_MARGIN_RIGHT = 35
+        FOOTER_MARGIN_BOTTOM = 30
+        FOOTER_FONT_SIZE = 36
 
         # Load background image (same as /points)
         try:
@@ -117,11 +117,6 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             for bg_path in bg_paths:
                 if os.path.exists(bg_path):
                     bg_img = Image.open(bg_path)
-                    # Check if image is too small (less than 400x400)
-                    if bg_img.size[0] < 400 or bg_img.size[1] < 400:
-                        logger.warning(f"Background image too small ({bg_img.size}), using high-quality fallback")
-                        bg_img = None
-                        break
                     logger.info(f"Loaded background from {bg_path}")
                     break
             
@@ -131,25 +126,12 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                     bg_img = bg_img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
                 img = bg_img.convert('RGB')
             else:
-                raise FileNotFoundError("background4.jpg not found or too small")
+                raise FileNotFoundError("background4.jpg not found in any path")
                 
         except Exception as e:
-            logger.warning(f"Failed to load background4.jpg: {e}, using PREMIUM fallback")
-            # Fallback: Create premium GTA SA themed gradient background
+            logger.warning(f"Failed to load background4.jpg: {e}, using fallback color")
+            # Fallback to solid color
             img = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), '#3D3530')
-            draw_temp = ImageDraw.Draw(img)
-            # Dark brown gradient (matches GTA SA menu aesthetic)
-            for y in range(CANVAS_HEIGHT):
-                brown_adjust = int(15 - (y / CANVAS_HEIGHT * 20))
-                color = (61 + brown_adjust, 53 + brown_adjust, 48 + brown_adjust)
-                draw_temp.line([(0, y), (CANVAS_WIDTH, y)], fill=color)
-            # Add subtle texture (more for larger canvas)
-            import random
-            random.seed(42)
-            for _ in range(400):  # More texture points for wider canvas
-                x, y = random.randint(0, CANVAS_WIDTH), random.randint(0, CANVAS_HEIGHT)
-                brightness = random.randint(-8, 8)
-                draw_temp.point((x, y), fill=(61 + brightness, 53 + brightness, 48 + brightness))
         
         # Add subtle vignette for depth (same as /points - lighter touch)
         vignette = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))
