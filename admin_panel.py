@@ -284,9 +284,9 @@ async def show_leaderboard_menu(query, context: ContextTypes.DEFAULT_TYPE) -> No
     )
     
     keyboard = [
-        [InlineKeyboardButton("➕ Add Messages to User", callback_data=f"leaderboard_add_messages")],
-        [InlineKeyboardButton("🔄 Reset Leaderboard", callback_data=f"leaderboard_reset_confirm")],
-        [InlineKeyboardButton("📊 View Leaderboard Image", callback_data=f"leaderboard_view")],
+        [InlineKeyboardButton("➕ Add Messages to User", callback_data=f"admin_leaderboard_add_messages")],
+        [InlineKeyboardButton("🔄 Reset Leaderboard", callback_data=f"admin_leaderboard_reset_confirm")],
+        [InlineKeyboardButton("📊 View Leaderboard Image", callback_data=f"admin_leaderboard_view")],
         [InlineKeyboardButton("🔙 Back to Main", callback_data="admin_main")]
     ]
     
@@ -313,7 +313,7 @@ async def leaderboard_reset_confirm(query, context: ContextTypes.DEFAULT_TYPE) -
         )
         
         keyboard = [
-            [InlineKeyboardButton("✅ Yes, Reset", callback_data="leaderboard_reset_execute")],
+            [InlineKeyboardButton("✅ Yes, Reset", callback_data="admin_leaderboard_reset_execute")],
             [InlineKeyboardButton("❌ Cancel", callback_data="admin_leaderboard")]
         ]
         
