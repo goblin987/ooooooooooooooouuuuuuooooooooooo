@@ -256,6 +256,9 @@ async def show_leaderboard_menu(query, context: ContextTypes.DEFAULT_TYPE) -> No
     # Get current top 5
     top_users = leaderboard.get_monthly_leaderboard(limit=5)
     
+    from datetime import datetime
+    now = datetime.now()
+    
     text = (
         "🏆 **LEADERBOARD CONTROL**\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -275,7 +278,7 @@ async def show_leaderboard_menu(query, context: ContextTypes.DEFAULT_TYPE) -> No
         "• Reset all user message counts to 0\n"
         "• Start a new 30-day tracking period\n"
         "• This action cannot be undone!\n\n"
-        "**Select an action below:**"
+        f"**Select an action below:** _{now.strftime('%H:%M:%S')}_"
     )
     
     keyboard = [
@@ -290,8 +293,11 @@ async def show_leaderboard_menu(query, context: ContextTypes.DEFAULT_TYPE) -> No
     # Delete old message and send fresh one to force button refresh (fixes Telegram button caching)
     try:
         chat_id = query.message.chat_id
+        logger.info(f"🗑️ Deleting old leaderboard menu message to force button refresh")
         await query.message.delete()
+        logger.info(f"📤 Sending fresh leaderboard menu with new buttons")
         await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='Markdown')
+        logger.info(f"✅ Fresh leaderboard menu sent successfully")
     except Exception as e:
         logger.warning(f"Could not delete/resend message, falling back to edit: {e}")
         # Fallback to editing if delete fails
