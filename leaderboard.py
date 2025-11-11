@@ -117,6 +117,11 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
             for bg_path in bg_paths:
                 if os.path.exists(bg_path):
                     bg_img = Image.open(bg_path)
+                    # Check if image is too small (less than 400x400)
+                    if bg_img.size[0] < 400 or bg_img.size[1] < 400:
+                        logger.warning(f"Background image too small ({bg_img.size}), using high-quality fallback")
+                        bg_img = None
+                        break
                     logger.info(f"Loaded background from {bg_path}")
                     break
             
@@ -126,12 +131,25 @@ def generate_leaderboard_image(top_users: list) -> BytesIO:
                     bg_img = bg_img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
                 img = bg_img.convert('RGB')
             else:
-                raise FileNotFoundError("background4.jpg not found in any path")
+                raise FileNotFoundError("background4.jpg not found or too small")
                 
         except Exception as e:
-            logger.warning(f"Failed to load background4.jpg: {e}, using fallback color")
-            # Fallback to solid color
+            logger.warning(f"Failed to load background4.jpg: {e}, using PREMIUM fallback")
+            # Fallback: Create premium GTA SA themed gradient background
             img = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), '#3D3530')
+            draw_temp = ImageDraw.Draw(img)
+            # Dark brown gradient (matches GTA SA menu aesthetic)
+            for y in range(CANVAS_HEIGHT):
+                brown_adjust = int(15 - (y / CANVAS_HEIGHT * 20))
+                color = (61 + brown_adjust, 53 + brown_adjust, 48 + brown_adjust)
+                draw_temp.line([(0, y), (CANVAS_WIDTH, y)], fill=color)
+            # Add subtle texture
+            import random
+            random.seed(42)
+            for _ in range(250):
+                x, y = random.randint(0, CANVAS_WIDTH), random.randint(0, CANVAS_HEIGHT)
+                brightness = random.randint(-8, 8)
+                draw_temp.point((x, y), fill=(61 + brightness, 53 + brightness, 48 + brightness))
         
         # Add subtle vignette for depth (same as /points - lighter touch)
         vignette = Image.new('RGBA', (CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0, 0, 0))

@@ -351,18 +351,30 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         try:
             img = Image.open(background_path)
+            # Check if image is too small (less than 400x400)
+            if img.size[0] < 400 or img.size[1] < 400:
+                logger.warning(f"Background image too small ({img.size}), using high-quality fallback")
+                raise ValueError("Image too small for quality resize")
             if img.size != (width, height):
                 img = img.resize((width, height), Image.Resampling.LANCZOS)
             logger.info(f"Loaded GTA background from {background_path}")
         except Exception as e:
-            # Fallback: create green gradient if image not found
+            # Fallback: create PREMIUM GTA SA green gradient
             logger.warning(f"Could not load background image: {e}, using fallback")
             img = Image.new('RGB', (width, height), color='#87A96B')
             draw_temp = ImageDraw.Draw(img)
+            # Enhanced gradient with more depth
             for y in range(height):
                 green_value = int(169 - (y / height * 40))
                 color = (135, green_value, 107)
                 draw_temp.line([(0, y), (width, y)], fill=color)
+            # Add subtle texture for more realistic look
+            import random
+            random.seed(42)  # Consistent pattern
+            for _ in range(200):
+                x, y = random.randint(0, width), random.randint(0, height)
+                brightness = random.randint(-10, 10)
+                draw_temp.point((x, y), fill=(135 + brightness, 169 + brightness, 107 + brightness))
         
         # Add subtle vignette for depth (darker edges)
         vignette = Image.new('RGBA', (width, height), (0, 0, 0, 0))
