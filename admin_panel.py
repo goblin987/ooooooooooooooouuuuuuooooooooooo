@@ -1139,9 +1139,24 @@ async def process_points_remove(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def process_seller_add(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
     """Process adding trusted seller"""
-    username = text.lstrip('@').strip()
+    username = text.lstrip('@').strip().lower()
     
-    if username in trusted_sellers:
+    # Blacklist check - prevent specific usernames
+    BLACKLISTED_SELLERS = ['vatninas']
+    if username in BLACKLISTED_SELLERS:
+        await update.message.reply_text(
+            f"❌ Cannot add @{username} - this user is blacklisted.",
+            parse_mode='Markdown'
+        )
+        context.user_data.pop('admin_action', None)
+        return
+    
+    # Check if already exists
+    if isinstance(trusted_sellers, dict):
+        if username in trusted_sellers:
+            await update.message.reply_text(f"ℹ️ @{username} is already a trusted seller!")
+            return
+    elif username in trusted_sellers:
         await update.message.reply_text(f"ℹ️ @{username} is already a trusted seller!")
         return
     
