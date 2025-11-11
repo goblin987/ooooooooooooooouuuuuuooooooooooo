@@ -396,7 +396,11 @@ async def leaderboard_add_messages_start(query, context: ContextTypes.DEFAULT_TY
         # Mark user as waiting for input
         context.user_data['admin_action'] = 'leaderboard_add_messages'
         
-        await query.edit_message_text(text, parse_mode='Markdown')
+        # Create back button
+        keyboard = [[InlineKeyboardButton("🔙 Back to Leaderboard", callback_data="admin_leaderboard")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
         logger.info("✅ leaderboard_add_messages_start completed successfully")
     except Exception as e:
         logger.error(f"❌ Error in leaderboard_add_messages_start: {e}", exc_info=True)
