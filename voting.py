@@ -611,12 +611,12 @@ async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         # Format GTA SA style caption (authentic stats screen style)
         caption = (
             f"• BALSŲ STATISTIKA\n\n"
-            f"    Savaitės: {weekly_votes}\n\n"
-            f"    Mėnesio: {monthly_votes}\n\n"
-            f"    Viso: {alltime_votes}\n\n"
+            f"    Savaitės: {weekly_votes}\n"
+            f"    Mėnesio: {monthly_votes}\n"
+            f"    Viso: {alltime_votes}\n"
             f"    Pardavėjai: {active_sellers}\n\n"
             f"• RESTARTAS\n\n"
-            f"    Sav: {next_week.strftime('%m-%d %H:%M')}\n\n"
+            f"    Sav: {next_week.strftime('%m-%d %H:%M')}\n"
             f"    Mėn: {next_month.strftime('%m-%d %H:%M')}\n"
         )
         
@@ -782,4 +782,3 @@ __all__ = [
     'votes_alltime',
     'vote_history',
 ]
-
