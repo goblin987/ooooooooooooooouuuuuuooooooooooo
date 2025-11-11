@@ -210,8 +210,7 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """
     if not context.args:
         await update.message.reply_text(
-            "❌ **Usage:** `/patikra @username`\n\n"
-            "Check if a user is in the scammer database.",
+            "❌ `/patikra @vartotojas`",
             parse_mode='Markdown'
         )
         return
@@ -234,14 +233,9 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             first_reason = scammer_data['reports'][0].get('reason', 'N/A')
         
         await update.message.reply_text(
-            f"• PATVIRTINTAS VAGIS\n\n"
-            f"    Vartotojas: @{username}\n\n"
-            f"    Pranešimų: {reports_count}\n\n"
-            f"    Data: {confirmed_date}\n\n"
-            f"• PRIEŽASTIS\n\n"
-            f"    {first_reason}\n\n"
-            f"• ĮSPĖJIMAS\n\n"
-            f"    NEPIRKITE iš šio asmens\n"
+            f"🔴 @{username}\n\n"
+            f"Pranešimų: {reports_count}\n"
+            f"Priežastis: {first_reason}"
         )
         return
     
@@ -254,17 +248,12 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             pending_reasons.append(report.get('reason', 'No reason'))
     
     if pending_count > 0:
-        reasons_text = "\n• ".join(pending_reasons[:3])  # Show max 3 reasons
-        more_text = f"\n...dar {pending_count - 3}" if pending_count > 3 else ""
+        reasons_text = pending_reasons[0] if pending_reasons else "N/A"
         
         await update.message.reply_text(
-            f"• TIKRINAMA\n\n"
-            f"    Vartotojas: @{username}\n\n"
-            f"    Pranešimų: {pending_count}\n\n"
-            f"• PRIEŽASTYS\n\n"
-            f"    {reasons_text}{more_text}\n\n"
-            f"• ĮSPĖJIMAS\n\n"
-            f"    Būkite atsargūs\n"
+            f"⚠️ @{username}\n\n"
+            f"Pranešimų: {pending_count}\n"
+            f"Priežastis: {reasons_text}"
         )
         return
     
@@ -288,18 +277,14 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         alltime_votes = votes_alltime.get(username, 0) or votes_alltime.get(f"@{username}", 0)
         
         await update.message.reply_text(
-            f"• PATIKIMAS PARDAVĖJAS\n\n"
-            f"    Vartotojas: @{username}\n\n"
-            f"    Statusas: Patikimas\n\n"
-            f"• BALSAI\n\n"
-            f"    Savaitės: {weekly_votes}\n\n"
-            f"    Viso: {alltime_votes}\n"
+            f"✅ @{username}\n\n"
+            f"Savaitės: {weekly_votes}\n"
+            f"Viso: {alltime_votes}"
         )
     else:
         await update.message.reply_text(
-            f"• NĖRA DUOMENŲ\n\n"
-            f"    Vartotojas: @{username}\n\n"
-            f"    Statusas: Nežinomas\n"
+            f"ℹ️ @{username}\n\n"
+            f"Nėra duomenų"
         )
 
 async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -309,8 +294,8 @@ async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """
     if not context.args or len(context.args) < 2:
         await update.message.reply_text(
-            "❌ Naudojimas: /vagis @username priežastis\n\n"
-            "Pavyzdys: /vagis @vagis Neišsiuntė prekės po apmokėjimo"
+            "❌ `/vagis @vartotojas priežastis`",
+            parse_mode='Markdown'
         )
         return
     
@@ -333,8 +318,7 @@ async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         for existing_report in confirmed_scammers[username].get('reports', []):
             if existing_report.get('reporter_id') == reporter_id:
                 await update.message.reply_text(
-                    f"⚠️ Jūs jau pranešėte apie @{username}\n\n"
-                    f"Kiekvienas vartotojas gali pranešti tik vieną kartą."
+                    f"⚠️ Jau pranešėte apie @{username}"
                 )
                 return
     
@@ -342,8 +326,7 @@ async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     for report in pending_scammer_reports.values():
         if report.get('reported_username') == username and report.get('reporter_id') == reporter_id:
             await update.message.reply_text(
-                f"⚠️ Jūs jau pranešėte apie @{username}\n\n"
-                f"Jūsų pranešimas dar laukia administratorių peržiūros."
+                f"⚠️ Pranešimas laukia peržiūros"
             )
             return
     
@@ -367,8 +350,7 @@ async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         
         await update.message.reply_text(
             f"✅ Pranešimas pridėtas\n\n"
-            f"@{username} jau patvirtintas kaip vagis.\n"
-            f"Bendrai pranešimų: {total_reports}"
+            f"@{username} - Pranešimų: {total_reports}"
         )
         
         # Notify admin
@@ -410,9 +392,7 @@ async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     
     await update.message.reply_text(
         f"✅ Pranešimas išsiųstas\n\n"
-        f"Vartotojas: @{username}\n"
-        f"Priežastis: {reason}\n\n"
-        f"Administratoriai peržiūrės ir praneš apie sprendimą."
+        f"@{username} - {reason}"
     )
     
     # Notify admin with review buttons

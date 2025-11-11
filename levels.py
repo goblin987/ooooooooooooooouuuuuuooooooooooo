@@ -707,7 +707,7 @@ async def points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return '#{:02x}{:02x}{:02x}'.format(*blended)
         
         # Extremely bright GTA SA yellow for stars (like real GTA SA)
-        gta_yellow = '#FFFF66'  # brighter yellow with added luminance
+        gta_yellow = '#FFFF00'  # pure bright yellow for maximum visibility
         
         star_positions = []
         for index in range(total_stars):
