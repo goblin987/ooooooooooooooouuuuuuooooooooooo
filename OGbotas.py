@@ -234,8 +234,7 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
         await update.message.reply_text(
             f"🔴 @{username}\n\n"
-            f"Pranešimų: {reports_count}\n"
-            f"Priežastis: {first_reason}"
+            f"Pranešimų: {reports_count}"
         )
         return
     
@@ -248,12 +247,9 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             pending_reasons.append(report.get('reason', 'No reason'))
     
     if pending_count > 0:
-        reasons_text = pending_reasons[0] if pending_reasons else "N/A"
-        
         await update.message.reply_text(
             f"⚠️ @{username}\n\n"
-            f"Pranešimų: {pending_count}\n"
-            f"Priežastis: {reasons_text}"
+            f"Pranešimų: {pending_count}"
         )
         return
     
@@ -283,8 +279,7 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
     else:
         await update.message.reply_text(
-            f"ℹ️ @{username}\n\n"
-            f"Nėra duomenų"
+            f"ℹ️ @{username}"
         )
 
 async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

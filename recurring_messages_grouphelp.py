@@ -2363,18 +2363,14 @@ async def send_barygos_to_groups():
     
     # Format caption (same as /barygos command)
     caption = (
-        f"═══════════════\n"
-        f"▸ BALSŲ STATISTIKA\n"
-        f"═══════════════\n\n"
-        f"▸ Savaitės: {weekly_votes}\n"
-        f"▸ Mėnesio: {monthly_votes}\n"
-        f"▸ Viso: {alltime_votes}\n"
-        f"▸ Pardavėjai: {active_sellers}\n\n"
-        f"═══════════════\n"
-        f"▸ RESTARTAS\n"
-        f"═══════════════\n\n"
-        f"▸ Sav: {next_week.strftime('%m-%d %H:%M')}\n"
-        f"▸ Mėn: {next_month.strftime('%m-%d %H:%M')}\n"
+        f"• BALSŲ STATISTIKA\n\n"
+        f"    Savaitės: {weekly_votes}\n"
+        f"    Mėnesio: {monthly_votes}\n"
+        f"    Viso: {alltime_votes}\n"
+        f"    Pardavėjai: {active_sellers}\n\n"
+        f"• RESTARTAS\n\n"
+        f"    Sav: {next_week.strftime('%m-%d %H:%M')}\n"
+        f"    Mėn: {next_month.strftime('%m-%d %H:%M')}\n"
     )
     
     # Create button linking to voting group (if configured)
