@@ -574,8 +574,10 @@ async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             database.register_group(chat_id)
     
     try:
-        # Generate GTA SA style image
-        image_bio = generate_barygos_image()
+        # Generate GTA SA style image (run in executor to avoid blocking event loop)
+        import asyncio
+        loop = asyncio.get_event_loop()
+        image_bio = await loop.run_in_executor(None, generate_barygos_image)
         
         # Read bytes to avoid event loop issues
         image_bytes = image_bio.read()

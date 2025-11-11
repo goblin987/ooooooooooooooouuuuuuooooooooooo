@@ -462,8 +462,10 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
         
-        # Generate image (synchronous is fine, PIL is fast)
-        image_bio = generate_leaderboard_image(top_users)
+        # Generate image (run in executor to avoid blocking event loop)
+        import asyncio
+        loop = asyncio.get_event_loop()
+        image_bio = await loop.run_in_executor(None, generate_leaderboard_image, top_users)
         
         # Reset BytesIO position to start
         image_bio.seek(0)

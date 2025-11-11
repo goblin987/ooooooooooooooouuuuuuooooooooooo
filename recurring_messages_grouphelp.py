@@ -2330,7 +2330,10 @@ async def send_barygos_to_groups():
     from collections import defaultdict
     
     try:
-        image_bio = voting.generate_barygos_image()
+        # Run image generation in executor to avoid blocking event loop
+        import asyncio
+        loop = asyncio.get_event_loop()
+        image_bio = await loop.run_in_executor(None, voting.generate_barygos_image)
         image_bytes = image_bio.read()
         image_bio.close()
     except Exception as e:
