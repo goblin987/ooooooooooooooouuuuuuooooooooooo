@@ -633,16 +633,19 @@ async def handle_admin_callback(update: Update, context: ContextTypes.DEFAULT_TY
             await admin_panel.show_leaderboard_menu(query, context)
         elif data == "leaderboard_add_messages":
             logger.info("🎯 Routing to leaderboard_add_messages_start")
+            await query.answer("Opening Add Messages...", show_alert=False)
             await admin_panel.leaderboard_add_messages_start(query, context)
             logger.info("✅ Returned from leaderboard_add_messages_start")
         elif data == "leaderboard_reset_confirm":
             logger.info("🎯 Routing to leaderboard_reset_confirm")
+            await query.answer("Opening Reset Confirmation...", show_alert=False)
             await admin_panel.leaderboard_reset_confirm(query, context)
             logger.info("✅ Returned from leaderboard_reset_confirm")
         elif data == "leaderboard_reset_execute":
             await admin_panel.leaderboard_reset_execute(query, context)
         elif data == "leaderboard_view":
             logger.info("🎯 Routing to leaderboard_view")
+            await query.answer("Generating leaderboard image...", show_alert=False)
             await admin_panel.leaderboard_view(query, context)
             logger.info("✅ Returned from leaderboard_view")
         
