@@ -212,15 +212,15 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             first_reason = scammer_data['reports'][0].get('reason', 'N/A')
         
         await update.message.reply_text(
-            f"🚫 PATVIRTINTAS VAGIS\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"Vartotojas: @{username}\n"
-            f"Statusas: ⛔️ Patvirtintas vagis\n"
-            f"Pranešimų: {reports_count}\n"
-            f"Patvirtinta: {confirmed_date}\n\n"
-            f"Pirmas pranešimas:\n{first_reason}\n\n"
-            f"⚠️ DĖMESIO: Šis vartotojas patvirtintas kaip vagis. "
-            f"Būkite ypač atsargūs su juo bendraudami!"
+            f"▸ PATVIRTINTAS VAGIS\n\n"
+            f"   • Vartotojas: @{username}\n"
+            f"   • Pranešimų: {reports_count}\n"
+            f"   • Data: {confirmed_date}\n\n"
+            f"▸ PRIEŽASTIS\n\n"
+            f"   • {first_reason}\n\n"
+            f"▸ ĮSPĖJIMAS\n\n"
+            f"   • Patvirtintas sukčius\n"
+            f"   • NEPIRKITE iš šio asmens"
         )
         return
     
@@ -237,14 +237,14 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         more_text = f"\n...dar {pending_count - 3}" if pending_count > 3 else ""
         
         await update.message.reply_text(
-            f"⚠️ TIKRINAMA\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"Vartotojas: @{username}\n"
-            f"Statusas: 🔍 Tikrinama\n"
-            f"Laukiančių pranešimų: {pending_count}\n\n"
-            f"Priežastys:\n• {reasons_text}{more_text}\n\n"
-            f"⚠️ Šis vartotojas praneštas, bet dar nepatvirtintas. "
-            f"Būkite atsargūs!"
+            f"▸ TIKRINAMA\n\n"
+            f"   • Vartotojas: @{username}\n"
+            f"   • Pranešimų: {pending_count}\n\n"
+            f"▸ PRIEŽASTYS\n\n"
+            f"   • {reasons_text}{more_text}\n\n"
+            f"▸ ĮSPĖJIMAS\n\n"
+            f"   • Dar nepatvirtinta\n"
+            f"   • Būkite atsargūs"
         )
         return
     
@@ -268,27 +268,25 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         alltime_votes = votes_alltime.get(username, 0) or votes_alltime.get(f"@{username}", 0)
         
         await update.message.reply_text(
-            f"⭐ PATIKIMAS PARDAVĖJAS\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"Vartotojas: @{username}\n"
-            f"Statusas: ⭐ Patikimas pardavėjas\n\n"
-            f"📊 Balsai:\n"
-            f"• Šią savaitę: {weekly_votes}\n"
-            f"• Viso laiko: {alltime_votes}\n\n"
-            f"✅ Šis vartotojas yra patvirtintas patikimas pardavėjas.\n"
-            f"Pranešimų apie vagystes nėra."
+            f"▸ PATIKIMAS PARDAVĖJAS\n\n"
+            f"   • Vartotojas: @{username}\n"
+            f"   • Statusas: Patikimas\n\n"
+            f"▸ BALSAI\n\n"
+            f"   • Savaitės: {weekly_votes}\n"
+            f"   • Viso: {alltime_votes}\n\n"
+            f"▸ SAUGUMAS\n\n"
+            f"   • Pranešimų nėra\n"
+            f"   • Patvirtintas pardavėjas"
         )
     else:
         await update.message.reply_text(
-            f"ℹ️ NĖRA DUOMENŲ\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"Vartotojas: @{username}\n"
-            f"Statusas: Pranešimų nėra\n\n"
-            f"Apie šį vartotoją pranešimų nėra.\n\n"
-            f"⚠️ APSISAUGOK:\n"
-            f"• Prašyk prekę pirma - sumokėk paskui\n"
-            f"• Reikalauk įrodymų apie prekes\n"
-            f"• Jei įtariate, kad tai vagis, naudokite: /vagis @{username} priežastis"
+            f"▸ NĖRA DUOMENŲ\n\n"
+            f"   • Vartotojas: @{username}\n"
+            f"   • Statusas: Nežinomas\n\n"
+            f"▸ APSISAUGOK\n\n"
+            f"   • Pirma prekė, paskui pinigai\n"
+            f"   • Reikalauk įrodymų\n"
+            f"   • Praneškite: /vagis @{username}"
         )
 
 async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
