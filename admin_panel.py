@@ -257,7 +257,9 @@ async def show_leaderboard_menu(query, context: ContextTypes.DEFAULT_TYPE) -> No
     top_users = leaderboard.get_monthly_leaderboard(limit=5)
     
     from datetime import datetime
+    import time
     now = datetime.now()
+    version = int(time.time())  # Unix timestamp as version
     
     text = (
         "🏆 **LEADERBOARD CONTROL**\n"
@@ -282,26 +284,17 @@ async def show_leaderboard_menu(query, context: ContextTypes.DEFAULT_TYPE) -> No
     )
     
     keyboard = [
-        [InlineKeyboardButton("➕ Add Messages to User", callback_data="leaderboard_add_messages")],
-        [InlineKeyboardButton("🔄 Reset Leaderboard", callback_data="leaderboard_reset_confirm")],
-        [InlineKeyboardButton("📊 View Leaderboard Image", callback_data="leaderboard_view")],
+        [InlineKeyboardButton("➕ Add Messages to User", callback_data=f"leaderboard_add_messages")],
+        [InlineKeyboardButton("🔄 Reset Leaderboard", callback_data=f"leaderboard_reset_confirm")],
+        [InlineKeyboardButton("📊 View Leaderboard Image", callback_data=f"leaderboard_view")],
         [InlineKeyboardButton("🔙 Back to Main", callback_data="admin_main")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Delete old message and send fresh one to force button refresh (fixes Telegram button caching)
-    try:
-        chat_id = query.message.chat_id
-        logger.info(f"🗑️ Deleting old leaderboard menu message to force button refresh")
-        await query.message.delete()
-        logger.info(f"📤 Sending fresh leaderboard menu with new buttons")
-        await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='Markdown')
-        logger.info(f"✅ Fresh leaderboard menu sent successfully")
-    except Exception as e:
-        logger.warning(f"Could not delete/resend message, falling back to edit: {e}")
-        # Fallback to editing if delete fails
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    # Just edit the message - delete/resend causes Telegram to lose button state
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    logger.info(f"✅ Leaderboard menu updated (v{version})")
 
 
 async def leaderboard_reset_confirm(query, context: ContextTypes.DEFAULT_TYPE) -> None:
