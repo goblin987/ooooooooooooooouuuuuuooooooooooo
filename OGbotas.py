@@ -233,7 +233,7 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             first_reason = scammer_data['reports'][0].get('reason', 'N/A')
         
         await update.message.reply_text(
-            f"🔴 @{username}\n\n"
+            f"🔴 @{username} - Confirmed scammer\n\n"
             f"Pranešimų: {reports_count}"
         )
         return
@@ -248,7 +248,7 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     if pending_count > 0:
         await update.message.reply_text(
-            f"⚠️ @{username}\n\n"
+            f"⚠️ @{username} - Pending reports\n\n"
             f"Pranešimų: {pending_count}"
         )
         return
@@ -273,13 +273,13 @@ async def patikra_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         alltime_votes = votes_alltime.get(username, 0) or votes_alltime.get(f"@{username}", 0)
         
         await update.message.reply_text(
-            f"✅ @{username}\n\n"
+            f"✅ @{username} - Trusted seller\n\n"
             f"Savaitės: {weekly_votes}\n"
             f"Viso: {alltime_votes}"
         )
     else:
         await update.message.reply_text(
-            f"ℹ️ @{username}"
+            f"ℹ️ @{username} - No info"
         )
 
 async def vagis_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
