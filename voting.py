@@ -608,16 +608,17 @@ async def barygos_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         next_week = (now + timedelta(days=(7 - now.weekday()))).replace(hour=1, minute=52, second=0, microsecond=0)
         next_month = (now.replace(day=1, hour=1, minute=52, second=0, microsecond=0) + timedelta(days=32)).replace(day=1)
         
-        # Format GTA SA style caption (mobile-friendly, shorter lines)
+        # Format GTA SA style caption (authentic stats screen style)
         caption = (
-            f"▸ BALSŲ STATISTIKA\n\n"
-            f"   • Savaitės: {weekly_votes}\n"
-            f"   • Mėnesio: {monthly_votes}\n"
-            f"   • Viso: {alltime_votes}\n"
-            f"   • Pardavėjai: {active_sellers}\n\n"
-            f"▸ RESTARTAS\n\n"
-            f"   • Sav: {next_week.strftime('%m-%d %H:%M')}\n"
-            f"   • Mėn: {next_month.strftime('%m-%d %H:%M')}\n"
+            f"BALSŲ STATISTIKA\n"
+            f"   Savaitės .......... {weekly_votes}\n"
+            f"   Mėnesio ........... {monthly_votes}\n"
+            f"   Viso .............. {alltime_votes}\n"
+            f"   Pardavėjai ........ {active_sellers}\n"
+            f"\n"
+            f"RESTARTAS\n"
+            f"   Savaitės ... {next_week.strftime('%m-%d %H:%M')}\n"
+            f"   Mėnesio .... {next_month.strftime('%m-%d %H:%M')}\n"
         )
         
         # Create button to voting group
