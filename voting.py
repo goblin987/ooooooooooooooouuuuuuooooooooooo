@@ -328,12 +328,12 @@ def generate_barygos_text() -> str:
 
 
 def generate_barygos_image() -> BytesIO:
-    """Generate GTA SA-style barygos leaderboard image (1200x1600px - wide format)"""
+    """Generate GTA SA-style barygos leaderboard image (1200x1200px)"""
     try:
         from datetime import datetime
         
-        # Canvas dimensions - WIDER format for better readability (was 800, now 1200)
-        CANVAS_WIDTH = 1200
+        # Canvas dimensions - 2x larger than /stats for more entries
+        CANVAS_WIDTH = 800
         CANVAS_HEIGHT = 1600
         
         # Color palette - same as /stats leaderboard
@@ -361,39 +361,32 @@ def generate_barygos_image() -> BytesIO:
         ENTRY_FONT_SIZE = 38  # Entries
         ENTRY_SPACING = 48  # Entry spacing
         LABEL_X = 35  # Same left padding as /stats
-        SCORE_X = 1100  # Right-aligned scores (adjusted for 1200px width)
+        SCORE_X = 700  # Right-aligned scores
         FOOTER_FONT_SIZE = 38
         
-        # Load background with quality check (same as /leaderboard)
-        try:
-            bg_paths = [
-                os.path.join(os.path.dirname(__file__), "background4.jpg"),
-                "/opt/render/project/src/background4.jpg",
-                "background4.jpg",
-            ]
-            
-            bg_img = None
-            for bg_path in bg_paths:
-                if os.path.exists(bg_path):
-                    bg_img = Image.open(bg_path)
-                    # Check if image is too small (less than 400x400)
-                    if bg_img.size[0] < 400 or bg_img.size[1] < 400:
-                        logger.warning(f"Barygos background too small ({bg_img.size}), using fallback")
-                        bg_img = None
-                        break
-                    logger.info(f"Loaded barygos background from {bg_path}")
-                    break
-            
-            if bg_img:
-                if bg_img.size != (CANVAS_WIDTH, CANVAS_HEIGHT):
-                    bg_img = bg_img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
-                img = bg_img.convert('RGB')
-            else:
-                raise FileNotFoundError("background4.jpg not found or too small")
-                
-        except Exception as e:
-            logger.warning(f"Failed to load background4.jpg: {e}, using PREMIUM fallback")
-            # Fallback: Create premium GTA SA themed gradient background
+        # Load background (same as /stats) with quality check
+        bg_img = None
+        bg_paths = [
+            os.path.join(os.path.dirname(__file__), "background4.jpg"),
+            "/opt/render/project/src/background4.jpg",
+            "background4.jpg",
+        ]
+        
+        for bg_path in bg_paths:
+            if os.path.exists(bg_path):
+                bg_img = Image.open(bg_path)
+                # Check if image is too small (less than 400x400)
+                if bg_img.size[0] < 400 or bg_img.size[1] < 400:
+                    logger.warning(f"Background image too small ({bg_img.size}), using high-quality fallback")
+                    bg_img = None
+                break
+        
+        if bg_img:
+            if bg_img.size != (CANVAS_WIDTH, CANVAS_HEIGHT):
+                bg_img = bg_img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
+            img = bg_img.convert('RGB')
+        else:
+            # Premium fallback: Create GTA SA themed gradient background
             img = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), '#3D3530')
             draw_temp = ImageDraw.Draw(img)
             # Dark brown gradient (matches GTA SA menu aesthetic)
