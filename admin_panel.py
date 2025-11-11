@@ -286,7 +286,16 @@ async def show_leaderboard_menu(query, context: ContextTypes.DEFAULT_TYPE) -> No
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    
+    # Delete old message and send fresh one to force button refresh (fixes Telegram button caching)
+    try:
+        chat_id = query.message.chat_id
+        await query.message.delete()
+        await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='Markdown')
+    except Exception as e:
+        logger.warning(f"Could not delete/resend message, falling back to edit: {e}")
+        # Fallback to editing if delete fails
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
 
 async def leaderboard_reset_confirm(query, context: ContextTypes.DEFAULT_TYPE) -> None:
